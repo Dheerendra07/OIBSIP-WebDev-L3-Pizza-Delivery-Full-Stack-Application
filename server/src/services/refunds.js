@@ -16,6 +16,7 @@ async function persistRefundState(orderId, refund, status) {
   let changed = false;
   try {
     await session.withTransaction(async () => {
+      changed = false;
       const order = await Order.findById(orderId).session(session);
       if (!order) return;
 
