@@ -62,8 +62,11 @@ export async function releaseExpiredReservations(now = new Date()) {
     }
     const session = await mongoose.startSession();
     let reconciledOrderId = null;
+    let transactionOutcome = null;
     try {
       await session.withTransaction(async () => {
+        reconciledOrderId = null;
+        transactionOutcome = null;
         const order = await Order.findOne({ _id: candidate._id, inventoryReserved: true, paymentStatus: 'pending', stockReservationExpiresAt: { $lte: now } }).session(session);
         if (!order) return;
         if (captured) {
@@ -96,22 +99,24 @@ export async function releaseExpiredReservations(now = new Date()) {
               );
             }
             reconciledOrderId = order._id;
-            reconciled += 1;
+            transactionOutcome = 'reconciled';
             return;
           }
           order.paymentStatus = 'paid'; order.razorpayPaymentId = captured.id; order.paidAt = new Date(); order.status = 'order_received';
           order.paymentReviewRequired = false; order.paymentReviewReason = null;
           order.inventoryReserved = false; order.paymentOrderCreationInProgress = false; order.stockReservedAt = null; order.stockReservationExpiresAt = null;
-          await order.save({ session }); reconciledOrderId = order._id; reconciled += 1; return;
+          await order.save({ session }); reconciledOrderId = order._id; transactionOutcome = 'reconciled'; return;
         }
         for (const requirement of inventoryRequirements(order.items)) await InventoryItem.updateOne({ key: requirement.key }, { $inc: { stock: requirement.quantity } }, { session });
         order.inventoryReserved = false; order.paymentOrderCreationInProgress = false; order.stockReservedAt = null; order.stockReservationExpiresAt = null; // Keep razorpayOrderId so a very late capture can still be reconciled to this order.
         // An unpaid reservation that expires is no longer an active order.
         // Mark it cancelled so customers can distinguish it from a payable order.
         order.status = 'cancelled';
-        await order.save({ session }); released += 1; reconciledOrderId = order._id;
+        await order.save({ session }); transactionOutcome = 'released'; reconciledOrderId = order._id;
       });
     } finally { await session.endSession(); }
+    if (transactionOutcome === 'released') released += 1;
+    if (transactionOutcome === 'reconciled') reconciled += 1;
     if (reconciledOrderId) {
       publishOrderUpdate(await Order.findById(reconciledOrderId).lean());
       publishAdminRefresh();
