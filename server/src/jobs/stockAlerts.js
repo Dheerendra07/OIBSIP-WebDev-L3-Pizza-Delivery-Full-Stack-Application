@@ -54,7 +54,10 @@ export async function releaseExpiredReservations(now = new Date()) {
         }
         for (const requirement of inventoryRequirements(order.items)) await InventoryItem.updateOne({ key: requirement.key }, { $inc: { stock: requirement.quantity } }, { session });
         order.inventoryReserved = false; order.paymentOrderCreationInProgress = false; order.stockReservedAt = null; order.stockReservationExpiresAt = null; order.razorpayOrderId = null;
-        await order.save({ session }); released += 1; inventoryWasReleased = true;
+        // An unpaid reservation that expires is no longer an active order.
+        // Mark it cancelled so customers can distinguish it from a payable order.
+        order.status = 'cancelled';
+        await order.save({ session }); released += 1; inventoryWasReleased = true; reconciledOrderId = order._id;
       });
     } finally { await session.endSession(); }
     if (reconciledOrderId) publishOrderUpdate(await Order.findById(reconciledOrderId).lean());
