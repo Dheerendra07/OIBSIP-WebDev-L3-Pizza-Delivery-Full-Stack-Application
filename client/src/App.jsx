@@ -92,6 +92,7 @@ export default function App() {
         };
         socket.on('connect', synchronizeOrders);
         socket.on('order:update', synchronizeOrders);
+        socket.on('admin:refresh', synchronizeOrders);
         socket.on('connect_error', (error) => {
             console.warn('Live order updates unavailable:', error.message);
         });
