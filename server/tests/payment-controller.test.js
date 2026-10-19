@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { verifyPayment } from '../src/controllers/orderController.js';
+import { createPaymentOrder, getOrder, verifyPayment } from '../src/controllers/orderController.js';
 
 function responseRecorder() {
   return {
@@ -58,4 +58,23 @@ test('payment verification returns a controlled 400 when required verification d
   assert.equal(nextError, undefined);
   assert.equal(res.statusCode, 400);
   assert.deepEqual(res.payload, { error: 'Missing payment verification details' });
+});
+
+
+test('payment endpoints reject non-string IDs even when Mongoose can cast their type', async () => {
+  const user = { _id: '64b000000000000000000001', role: 'user' };
+  const cases = [
+    { handler: createPaymentOrder, req: { body: { orderId: 123 }, user }, expected: 'A valid order ID is required' },
+    { handler: verifyPayment, req: { body: { orderId: 123, razorpay_order_id: 'order_test_123', razorpay_payment_id: 'pay_test_456', razorpay_signature: 'signature' }, user }, expected: 'A valid order ID is required' },
+    { handler: getOrder, req: { params: { id: '123' }, user }, expected: 'Invalid order identifier' },
+  ];
+
+  for (const item of cases) {
+    const res = responseRecorder();
+    let nextError;
+    await item.handler(item.req, res, (error) => { nextError = error; });
+    assert.equal(nextError, undefined);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: item.expected });
+  }
 });
