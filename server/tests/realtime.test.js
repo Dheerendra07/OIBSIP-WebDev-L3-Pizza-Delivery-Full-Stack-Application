@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildOrderUpdatePayload,
+  disconnectUserSockets,
   isAllowedRealtimeOrigin,
   publishOrderUpdate,
   readSessionToken,
@@ -72,4 +73,22 @@ test('does not emit malformed order updates or updates without a realtime server
   assert.equal(publishOrderUpdate({ _id: 'order-3', status: 'paid', paymentStatus: 'paid' }, fakeIo), false);
   assert.equal(publishOrderUpdate({ _id: 'order-3', user: 'user-3', status: 'paid', paymentStatus: 'paid' }, null), false);
   assert.equal(emitted.length, 0);
+});
+
+test('disconnects every socket in the authenticated user room', async () => {
+  const rooms = [];
+  const sockets = [
+    { disconnected: false, disconnect(force) { this.disconnected = force; } },
+    { disconnected: false, disconnect(force) { this.disconnected = force; } },
+  ];
+  const fakeIo = {
+    in(room) {
+      rooms.push(room);
+      return { fetchSockets: async () => sockets };
+    },
+  };
+  assert.equal(await disconnectUserSockets('user-9', fakeIo), 2);
+  assert.deepEqual(rooms, ['user:user-9']);
+  assert.deepEqual(sockets.map((socket) => socket.disconnected), [true, true]);
+  assert.equal(await disconnectUserSockets('user-9', null), 0);
 });
