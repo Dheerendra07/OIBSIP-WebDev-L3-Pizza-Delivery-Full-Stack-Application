@@ -6,9 +6,24 @@ const expected = { orderId: 'order_test_123', amountPaise: 27800 };
 const payment = (overrides = {}) => ({ id: 'pay_test_123', order_id: expected.orderId, amount: expected.amountPaise, currency: 'INR', status: 'captured', ...overrides });
 
 test('reconciliation accepts a captured payment only when order, amount and currency match', () => assert.deepEqual(classifyOrderPayments([payment()], expected), { state: 'captured', payment: payment() }));
-test('reconciliation preserves stock for a captured payment with a mismatched amount', () => assert.deepEqual(classifyOrderPayments([payment({ amount: expected.amountPaise - 100 })], expected), { state: 'mismatch' }));
-test('reconciliation preserves stock for a captured payment with a mismatched currency', () => assert.deepEqual(classifyOrderPayments([payment({ currency: 'USD' })], expected), { state: 'mismatch' }));
-test('reconciliation preserves stock if a captured payment is linked to a different order', () => assert.deepEqual(classifyOrderPayments([payment({ order_id: 'order_other' })], expected), { state: 'mismatch' }));
+test('reconciliation preserves stock and exposes a captured payment with a mismatched amount', () => {
+  const result = classifyOrderPayments([payment({ amount: expected.amountPaise - 100 })], expected);
+  assert.equal(result.state, 'mismatch');
+  assert.equal(result.reason, 'captured_amount_mismatch');
+  assert.equal(result.payment.id, 'pay_test_123');
+});
+test('reconciliation exposes a captured payment with a mismatched currency for review', () => {
+  const result = classifyOrderPayments([payment({ currency: 'USD' })], expected);
+  assert.equal(result.state, 'mismatch');
+  assert.equal(result.reason, 'captured_currency_mismatch');
+  assert.equal(result.payment.id, 'pay_test_123');
+});
+test('reconciliation exposes a captured payment linked to a different order for review', () => {
+  const result = classifyOrderPayments([payment({ order_id: 'order_other' })], expected);
+  assert.equal(result.state, 'mismatch');
+  assert.equal(result.reason, 'provider_order_mismatch');
+  assert.equal(result.payment.id, 'pay_test_123');
+});
 test('reconciliation defers stock release while payment is authorized or created', () => { assert.equal(classifyOrderPayments([payment({ status: 'authorized' })], expected).state, 'in_flight'); assert.equal(classifyOrderPayments([payment({ status: 'created' })], expected).state, 'in_flight'); });
 test('reconciliation allows release when no capture, failed payment or in-flight attempt exists', () => { assert.equal(classifyOrderPayments([], expected).state, 'no_capture'); });
 
@@ -49,4 +64,14 @@ test('unknown failed-payment timestamps fail closed instead of releasing stock',
       reason: 'unknown_failed_payment_timestamp',
     });
   }
+});
+
+test('multiple captured payments require review even when one matches the expected order', () => {
+  const matching = payment({ id: 'pay_primary' });
+  const duplicate = payment({ id: 'pay_second', amount: expected.amountPaise + 100 });
+  const result = classifyOrderPayments([matching, duplicate], expected);
+  assert.equal(result.state, 'mismatch');
+  assert.equal(result.reason, 'multiple_captured_payments_for_order');
+  assert.equal(result.payment.id, 'pay_primary');
+  assert.deepEqual(result.payments.map((item) => item.id), ['pay_primary', 'pay_second']);
 });

@@ -19,8 +19,9 @@ export const summary = asyncHandler(async (_req, res) => {
 export const listInventory = asyncHandler(async (_req, res) => { const items = await InventoryItem.find().sort({ category: 1, name: 1 }).lean(); res.json({ items }); });
 export const updateInventory = asyncHandler(async (req, res) => {
   const { key } = req.params; const updates = {};
-  if (req.body.stock !== undefined) { const stock = Number(req.body.stock); if (!Number.isInteger(stock) || stock < 0 || stock > 10000000) return res.status(400).json({ error: 'Stock must be a whole number between 0 and 10,000,000' }); updates.stock = stock; }
-  if (req.body.lowStockThreshold !== undefined) { const threshold = Number(req.body.lowStockThreshold); if (!Number.isInteger(threshold) || threshold < 0 || threshold > 1000000) return res.status(400).json({ error: 'Threshold must be a non-negative whole number' }); updates.lowStockThreshold = threshold; }
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  if (body.stock !== undefined) { const stock = Number(body.stock); if (!Number.isInteger(stock) || stock < 0 || stock > 10000000) return res.status(400).json({ error: 'Stock must be a whole number between 0 and 10,000,000' }); updates.stock = stock; }
+  if (body.lowStockThreshold !== undefined) { const threshold = Number(body.lowStockThreshold); if (!Number.isInteger(threshold) || threshold < 0 || threshold > 1000000) return res.status(400).json({ error: 'Threshold must be a non-negative whole number' }); updates.lowStockThreshold = threshold; }
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'Provide stock or lowStockThreshold to update' });
   const item = await InventoryItem.findOneAndUpdate({ key }, { $set: updates }, { new: true, runValidators: true });
   if (!item) return res.status(404).json({ error: 'Inventory item not found' });
@@ -32,7 +33,9 @@ export const listOrders = asyncHandler(async (_req, res) => {
   res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, user: o.user, items: o.items, deliveryDetails: o.deliveryDetails, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, paymentReviewReason: o.paymentReviewReason, refundStatus: o.refundStatus, createdAt: o.createdAt })) });
 });
 export const updateOrderStatus = asyncHandler(async (req, res) => {
-  const { status } = req.body;
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const { status } = body;
+  if (typeof status !== 'string' || !status.trim()) return res.status(400).json({ error: 'A valid order status is required' });
   const order = await Order.findById(req.params.id); if (!order) return res.status(404).json({ error: 'Order not found' });
   const transition = validateOrderStatusTransition(order, status);
   if (!transition.allowed) return res.status(transition.statusCode).json({ error: transition.message });

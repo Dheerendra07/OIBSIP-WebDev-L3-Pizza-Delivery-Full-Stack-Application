@@ -30,7 +30,7 @@
 .payment-review-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-top:9px;padding-top:10px;border-top:1px solid #e5b6a6}
 .payment-review-actions small,.refund-status-note{font-size:10px;line-height:1.5;color:#8e5749}
 .payment-review-actions .small-button{flex-shrink:0}
-.status-pill.refunded{background:#e9e6f7;color:#4d4385}
+.status-pill.cancelled{background:#f3ece3;color:#7a5f48;border:1px solid #e0d0bf}.status-pill.refunded{background:#e9e6f7;color:#4d4385}
 
 .delivery-details-panel{margin-top:28px;padding:22px;background:#fffdf8;border:1px solid #e8dfd4;border-radius:9px}
 .delivery-details-heading h2{font-family:var(--serif);font-size:23px;font-weight:500;margin:8px 0}

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock3, CreditCard, Flame, Leaf, LoaderCircle, LogIn, LogOut, Menu, Minus, Plus, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Truck, UserRound, X, CheckCircle2, CircleUserRound, PackageCheck, ChefHat, Boxes, RefreshCw, Mail, LockKeyhole } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { api, API_ORIGIN } from './api.js';
-import { orderMatchesCart } from './checkout.js';
+import { orderMatchesCart, classifyExistingCheckout } from './checkout.js';
+import { normalizeDeliveryDetails } from './delivery.js';
+import { PENDING_PAYMENT_STORAGE_KEY, parsePendingVerification, serializePendingVerification } from './pendingPayment.js';
 const DEFAULT_CATALOG = {
     bases: [{ id: 'classic', name: 'Classic Hand-Tossed', price: 0 }, { id: 'thin', name: 'Thin & Crispy', price: 30 }, { id: 'whole-wheat', name: 'Whole Wheat', price: 40 }, { id: 'pan', name: 'Pan Crust', price: 50 }, { id: 'cheese-burst', name: 'Cheese Burst', price: 70 }],
     sauces: [{ id: 'classic-tomato', name: 'Classic Tomato', price: 0 }, { id: 'spicy-arrabbiata', name: 'Spicy Arrabbiata', price: 15 }, { id: 'pesto', name: 'Basil Pesto', price: 25 }, { id: 'bbq', name: 'Smoky BBQ', price: 20 }, { id: 'white-garlic', name: 'White Garlic', price: 20 }],
@@ -43,7 +45,13 @@ export default function App() {
     const [filter, setFilter] = useState('All');
     const [activeOrderId, setActiveOrderId] = useState(null);
     const [pendingRefundOrderId, setPendingRefundOrderId] = useState(null);
-    const [pendingVerification, setPendingVerification] = useState(null);
+    const [pendingVerification, setPendingVerification] = useState(() => {
+        try {
+            return parsePendingVerification(sessionStorage.getItem(PENDING_PAYMENT_STORAGE_KEY));
+        } catch {
+            return null;
+        }
+    });
     const notify = useCallback((message, kind = 'success') => setToast({ message, kind }), []);
     const refreshCatalog = useCallback(async () => { try {
         const d = await api('/catalog');
@@ -74,6 +82,23 @@ export default function App() {
     catch (e) {
         notify(e.message, 'error');
     } }, [notify]);
+    useEffect(() => {
+        if (!pendingVerification) return;
+        setPage('cart');
+        notify('A previous payment still needs confirmation. Retry the same payment; do not pay again.', 'error');
+    }, [notify]);
+    useEffect(() => {
+        try {
+            if (!pendingVerification) {
+                sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
+                return;
+            }
+            const saved = serializePendingVerification(pendingVerification);
+            if (saved) sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, saved);
+        } catch {
+            // If storage is disabled, the in-memory retry remains available for this page session.
+        }
+    }, [pendingVerification]);
     useEffect(() => { (async () => { await Promise.all([refreshCatalog(), refreshMe()]); setLoading(false); })(); const params = new URLSearchParams(location.search); if (params.get('verified'))
         notify('Email verified — you can sign in now.'); if (params.get('resetToken')) {
         setAuthMode('reset');
@@ -156,14 +181,16 @@ export default function App() {
     } const name = `Custom ${catalog.bases.find(x => x.id === builder.base)?.name || 'Pizza'}`; const existing = { cartKey: `custom:${Date.now()}`, type: 'custom', name, emoji: '🍕', unitPrice: builderPrice, quantity: builder.quantity, base: builder.base, sauce: builder.sauce, cheese: builder.cheese, vegetables: [...builder.vegetables] }; setCart(prev => [...prev, existing]); notify('Your custom pizza is in the bag'); navigate('menu'); };
     const setQty = (key, delta) => setCart(prev => prev.map(x => x.cartKey === key ? { ...x, quantity: Math.max(1, Math.min(10, x.quantity + delta)) } : x));
     const removeCart = (key) => setCart(prev => prev.filter(x => x.cartKey !== key));
-    const verifyCheckoutPayment = async (orderId, response) => { const attempt = { orderId, response }; setPendingVerification(attempt); setPending(true); try {
-        await api('/payments/verify', { method: 'POST', body: { orderId, ...response } });
+    const verifyCheckoutPayment = async (orderId, response) => { const attempt = { orderId, response }; try { const saved = serializePendingVerification(attempt); if (saved) sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, saved); } catch { /* Continue with in-memory retry if storage is unavailable. */ } setPendingVerification(attempt); setPending(true); try {
+        const verification = await api('/payments/verify', { method: 'POST', body: { orderId, ...response } });
         setPendingVerification(null);
+        try { sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY); } catch { /* Storage may be disabled. */ }
         setActiveOrderId(null);
         setCart([]);
         await refreshOrders();
      setPage('dashboard');
-        notify('Payment verified! Your pizza is in the queue.');
+        if (verification.order?.status === 'payment_review' || verification.order?.paymentReviewRequired) notify('Payment received, but your order needs manual review. Do not pay again.', 'error');
+        else notify('Payment verified! Your pizza is in the queue.');
     }
     catch (error) {
         notify(`Payment confirmation is incomplete. Do not pay again yet; retry confirmation below. ${error.message}`, 'error');
@@ -182,24 +209,11 @@ export default function App() {
         notify('Confirm the previous payment before opening checkout again.', 'error');
         return;
     }
-    const normalizedDeliveryDetails = {
-        ...deliveryDetails,
-        recipientName: deliveryDetails.recipientName.trim(),
-        phone: deliveryDetails.phone.replace(/[\s()-]/g, ''),
-        addressLine: deliveryDetails.addressLine.trim(),
-        landmark: deliveryDetails.landmark.trim(),
-        city: deliveryDetails.city.trim(),
-        state: deliveryDetails.state.trim(),
-        postalCode: deliveryDetails.postalCode.trim(),
-        instructions: deliveryDetails.instructions.trim(),
-    };
-    if (normalizedDeliveryDetails.recipientName.length < 2 ||
-        !/^[6-9]\d{9}$/.test(normalizedDeliveryDetails.phone) ||
-        normalizedDeliveryDetails.addressLine.length < 5 ||
-        normalizedDeliveryDetails.city.length < 2 ||
-        normalizedDeliveryDetails.state.length < 2 ||
-        !/^[1-9]\d{5}$/.test(normalizedDeliveryDetails.postalCode)) {
-        notify('Add a recipient, valid 10-digit mobile number and complete address with city, state and 6-digit PIN code.', 'error');
+    let normalizedDeliveryDetails;
+    try {
+        normalizedDeliveryDetails = normalizeDeliveryDetails(deliveryDetails);
+    } catch (error) {
+        notify(error.message, 'error');
         return;
     }
     setPending(true); try {
@@ -207,7 +221,17 @@ export default function App() {
         if (orderId) {
             try {
                 const existing = await api(`/orders/${orderId}`);
-                if (existing.order.paymentStatus === 'paid' && orderMatchesCart(existing.order.items, cart, featured)) {
+                const cartMatches = orderMatchesCart(existing.order.items, cart, featured);
+                const checkoutState = classifyExistingCheckout(existing.order, cartMatches);
+                if (checkoutState === 'review') {
+                    setActiveOrderId(null);
+                    setCart([]);
+                    await refreshOrders();
+                    setPage('dashboard');
+                    notify('Payment received, but this order needs manual review. Do not pay again.', 'error');
+                    return;
+                }
+                if (checkoutState === 'already-paid') {
                     setActiveOrderId(null);
                     setCart([]);
                     await refreshOrders();
@@ -215,7 +239,7 @@ export default function App() {
                     notify('This order is already paid and confirmed.');
                     return;
                 }
-                if (existing.order.status !== 'pending_payment' || !orderMatchesCart(existing.order.items, cart, featured)) {
+                if (checkoutState === 'new') {
                     orderId = null;
                     setActiveOrderId(null);
                 } else {
@@ -347,7 +371,7 @@ export default function App() {
 function PizzaCard({ pizza, index, onAdd, onCustomize }) { return <article className={`pizza-card ${pizza.tone} card-${index}`}><div className="pizza-card-art"><span className="pizza-label">{pizza.tag}</span><span className="pizza-card-emoji">{pizza.emoji}</span><span className="pizza-card-number">0{index + 1}</span></div><div className="pizza-card-body"><div><h3>{pizza.name}</h3><p>{pizza.description}</p></div><div className="pizza-card-bottom"><strong>{currency(pizza.price)}</strong><button className="add-button" onClick={onAdd} disabled={pizza.available === false} aria-label={pizza.available === false ? `${pizza.name} sold out` : `Add ${pizza.name}`}><Plus size={17}/><span>{pizza.available === false ? 'Sold out' : 'Add'}</span></button></div><button className="customize-link" onClick={onCustomize}>Make something similar <ArrowUpRight size={14}/></button></div></article>; }
 function BuilderGroup({ step, title, subtitle, options, value, onChange }) { return <div className="builder-group"><div className="builder-step"><span>{step}</span><div><h3>{title}</h3><p>{subtitle}</p></div></div><div className="option-list">{options.map(option => <button key={option.id} disabled={option.available === false} aria-pressed={value === option.id} className={`builder-option ${value === option.id ? 'chosen' : ''}`} onClick={() => onChange(option.id)}><span className="radio-dot"/><span>{option.name}</span><small>{option.price === 0 ? 'Included' : `+${currency(option.price)}`}</small></button>)}</div></div>; }
 function Ingredient({ label, value }) { return <div className="ingredient-row"><span>{label}</span><b>{value || 'Not selected'}</b></div>; }
-function OrderCard({ order, admin = false, onStatus }) { const current = ORDER_STEPS.findIndex(s => s.id === order.status); const paid = order.paymentStatus === 'paid'; const refunded = order.paymentStatus === 'refunded'; const reviewNeeded = Boolean(order.paymentReviewRequired) || order.status === 'payment_review'; const next = order.status === 'order_received' ? 'in_kitchen' : order.status === 'in_kitchen' ? 'sent_to_delivery' : order.status === 'sent_to_delivery' ? 'delivered' : null; return <article className="order-card"><div className="order-card-top"><div><span className="eyebrow">ORDER {order.orderNumber}</span><h3>{order.items?.map(i => `${i.quantity}× ${i.name}`).join(', ') || 'Pizza order'}</h3><p>{admin && order.user ? `${order.user.name} · ${order.user.email}` : new Date(order.createdAt).toLocaleString()} · {currency(order.total)}</p>{order.deliveryDetails && <div className="order-delivery-details"><small><strong>Deliver to:</strong> {order.deliveryDetails.recipientName} · {order.deliveryDetails.addressLine}, {order.deliveryDetails.city}, {order.deliveryDetails.state} {order.deliveryDetails.postalCode}</small><small><strong>Mobile:</strong> {order.deliveryDetails.phone}</small>{order.deliveryDetails.landmark && <small><strong>Landmark:</strong> {order.deliveryDetails.landmark}</small>}{order.deliveryDetails.instructions && <small><strong>Note:</strong> {order.deliveryDetails.instructions}</small>}</div>}</div><span className={`status-pill ${reviewNeeded ? 'review' : refunded ? 'refunded' : paid ? 'paid' : 'waiting'}`}>{reviewNeeded ? '⚠ Review required' : refunded ? '↺ Refunded' : paid ? '● Paid' : '○ Payment pending'}</span></div>{reviewNeeded ? <div className="payment-review-warning" role="alert"><strong>Payment captured — order on hold.</strong><p>This order needs a manual payment and inventory review before kitchen preparation or delivery.</p>{admin && order.paymentReviewReason && <small>Reason: {order.paymentReviewReason.replaceAll('_', ' ')}</small>}</div> : refunded ? <div className="pending-message"><ShieldCheck size={15}/> Full refund confirmed; order cancelled.</div> : paid ? <div className="order-timeline">{ORDER_STEPS.map((step, i) => <div key={step.id} className={`timeline-step ${i <= current ? 'complete' : ''} ${i === current ? 'current' : ''}`}><span className="timeline-icon"><step.icon size={16}/></span><small>{step.label}</small></div>)}</div> : <div className="pending-message"><Clock3 size={15}/> Waiting for a verified payment before kitchen preparation.</div>}{admin && next && paid && !reviewNeeded && <div className="order-admin-actions"><span>Update status</span><button className="button button-light small-button" onClick={() => onStatus(order, next)}>Move to {next.replaceAll('_', ' ')} <ArrowRight size={15}/></button></div>}</article>; }
+function OrderCard({ order, admin = false, onStatus }) { const current = ORDER_STEPS.findIndex(s => s.id === order.status); const paid = order.paymentStatus === 'paid'; const refunded = order.paymentStatus === 'refunded'; const cancelled = order.status === 'cancelled'; const reviewNeeded = Boolean(order.paymentReviewRequired) || order.status === 'payment_review'; const next = order.status === 'order_received' ? 'in_kitchen' : order.status === 'in_kitchen' ? 'sent_to_delivery' : order.status === 'sent_to_delivery' ? 'delivered' : null; return <article className="order-card"><div className="order-card-top"><div><span className="eyebrow">ORDER {order.orderNumber}</span><h3>{order.items?.map(i => `${i.quantity}× ${i.name}`).join(', ') || 'Pizza order'}</h3><p>{admin && order.user ? `${order.user.name} · ${order.user.email}` : new Date(order.createdAt).toLocaleString()} · {currency(order.total)}</p>{order.deliveryDetails && <div className="order-delivery-details"><small><strong>Deliver to:</strong> {order.deliveryDetails.recipientName} · {order.deliveryDetails.addressLine}, {order.deliveryDetails.city}, {order.deliveryDetails.state} {order.deliveryDetails.postalCode}</small><small><strong>Mobile:</strong> {order.deliveryDetails.phone}</small>{order.deliveryDetails.landmark && <small><strong>Landmark:</strong> {order.deliveryDetails.landmark}</small>}{order.deliveryDetails.instructions && <small><strong>Note:</strong> {order.deliveryDetails.instructions}</small>}</div>}</div><span className={`status-pill ${reviewNeeded ? 'review' : refunded ? 'refunded' : cancelled ? 'cancelled' : paid ? 'paid' : 'waiting'}`}>{reviewNeeded ? '⚠ Review required' : refunded ? '↺ Refunded' : cancelled ? '× Cancelled' : paid ? '● Paid' : '○ Payment pending'}</span></div>{reviewNeeded ? <div className="payment-review-warning" role="alert"><strong>Payment captured — order on hold.</strong><p>This order needs a manual payment and inventory review before kitchen preparation or delivery.</p>{admin && order.paymentReviewReason && <small>Reason: {order.paymentReviewReason.replaceAll('_', ' ')}</small>}</div> : refunded ? <div className="pending-message"><ShieldCheck size={15}/> Full refund confirmed; order cancelled.</div> : cancelled ? <div className="pending-message"><X size={15}/> This unpaid order expired and was cancelled. Start a new checkout to order again.</div> : paid ? <div className="order-timeline">{ORDER_STEPS.map((step, i) => <div key={step.id} className={`timeline-step ${i <= current ? 'complete' : ''} ${i === current ? 'current' : ''}`}><span className="timeline-icon"><step.icon size={16}/></span><small>{step.label}</small></div>)}</div> : <div className="pending-message"><Clock3 size={15}/> Waiting for a verified payment before kitchen preparation.</div>}{admin && next && paid && !reviewNeeded && <div className="order-admin-actions"><span>Update status</span><button className="button button-light small-button" onClick={() => onStatus(order, next)}>Move to {next.replaceAll('_', ' ')} <ArrowRight size={15}/></button></div>}</article>; }
 function InventoryRow({ item, onSave }) { const [stock, setStock] = useState(String(item.stock)); const [threshold, setThreshold] = useState(String(item.lowStockThreshold)); useEffect(() => { setStock(String(item.stock)); setThreshold(String(item.lowStockThreshold)); }, [item.stock, item.lowStockThreshold]); const changed = Number(stock) !== item.stock || Number(threshold) !== item.lowStockThreshold; return <div className="inventory-row"><div><b>{item.name}</b><small>{item.category}</small></div><input aria-label={`${item.name} stock`} type="number" min="0" value={stock} onChange={e => setStock(e.target.value)}/><input aria-label={`${item.name} low stock threshold`} type="number" min="0" value={threshold} onChange={e => setThreshold(e.target.value)}/><div className="inventory-state"><span className={`stock-dot ${item.stock <= item.lowStockThreshold ? 'low' : ''}`}/><span>{item.stock <= item.lowStockThreshold ? 'Low stock' : 'Healthy'}</span>{changed && <button onClick={() => onSave(item, { stock, lowStockThreshold: threshold })}>Save</button>}</div></div>; }
 async function loadRazorpay() { if (window.Razorpay)
     return; await new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = 'https://checkout.razorpay.com/v1/checkout.js'; script.onload = resolve; script.onerror = () => reject(new Error('Could not load Razorpay Checkout. Check your connection and try again.')); document.body.appendChild(script); }); }

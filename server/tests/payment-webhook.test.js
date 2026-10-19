@@ -18,6 +18,7 @@ const order = (overrides = {}) => ({
   status: 'pending_payment',
   inventoryReserved: true,
   paymentReviewRequired: false,
+  deliveryDetails: { recipientName: 'Test Customer', phone: '9876543210', addressLine: '12 Green Park Road', city: 'Meerut', state: 'Uttar Pradesh', postalCode: '250001' },
   ...overrides,
 });
 
@@ -55,4 +56,16 @@ test('duplicate capture for the same paid order is idempotent', () => {
 
 test('a second captured payment for an already-paid order requires review', () => {
   assert.deepEqual(classifyCapturedPayment(payment({ id: 'pay_second' }), order({ paymentStatus: 'paid', razorpayPaymentId: 'pay_first', status: 'order_received', inventoryReserved: false })), { action: 'review', reason: 'multiple_captured_payments_for_order' });
+});
+
+
+test('a captured payment cannot fulfill an order without valid delivery details', () => {
+  assert.deepEqual(
+    classifyCapturedPayment(payment(), order({ deliveryDetails: undefined })),
+    { action: 'review', reason: 'delivery_details_missing_or_invalid' },
+  );
+  assert.deepEqual(
+    classifyCapturedPayment(payment(), order({ deliveryDetails: { ...order().deliveryDetails, phone: '12345' } })),
+    { action: 'review', reason: 'delivery_details_missing_or_invalid' },
+  );
 });
