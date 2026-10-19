@@ -240,6 +240,17 @@ export async function requestFullPaymentReviewRefund(orderId, paymentId, adminUs
     payment_id: providerRefund?.payment_id || paymentId,
     currency: providerRefund?.currency || 'INR',
   }, current);
+  // A signed refund webhook can win the race against this synchronous request.
+  // If it already reconciled this exact refund, return the provider-confirmed
+  // state instead of reporting a false 502 to the admin.
+  if (decision.action === 'already_processed') {
+    return {
+      orderId: String(current._id),
+      refundId: providerRefund.id,
+      refundStatus: current.refundStatus,
+      paymentStatus: current.paymentStatus,
+    };
+  }
   if (decision.action !== 'apply') {
     throw httpError(502, 'Razorpay returned a refund response that could not be safely reconciled. The order remains on hold; retry only through this same admin action.');
   }
