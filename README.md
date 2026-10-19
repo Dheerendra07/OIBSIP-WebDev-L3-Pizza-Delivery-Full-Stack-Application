@@ -26,6 +26,8 @@ Pizza House is a MERN full-stack internship project for custom pizza ordering, s
 - Webhook event receipts make duplicate deliveries idempotent. payment.failed is not treated as final proof that an order can be released; late-capture attempts are protected by a conservative hold window.
 - Captures that mismatch the order, amount, currency, active inventory reservation or required delivery details are placed in payment_review instead of being sent to the kitchen.
 - Captured-payment verification exceptions create admin-visible review receipts; customers are told not to pay again when manual review is required.
+- Invalid custom pizza options are returned as client validation errors instead of server errors.
+- Before automatic refund recovery, the server checks Razorpay order payment history and blocks the refund unless exactly one captured payment matches the reviewed payment.
 - Expired unpaid reservations are marked cancelled after safe reconciliation. Provider order references are retained so late captures can still be tied to the original order; uncertain provider state defers release.
 
 ## Technology
@@ -88,7 +90,7 @@ Configure the deployed API endpoint POST /api/payments/webhook in the Razorpay D
 
 ## Verified repository status
 
-- Latest merged application hardening commit: `7f915ad55d96fcf1b7ef9dff3c63d185e1dcf176` (PR #17).
-- PR #17 CI, tested against code SHA `6b710511e22ab6c0a86e7dfd557b36adeec341d0`: [pull request check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319136556) and [push check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319133025) both passed unit/smoke tests and production client build.
+- Latest merged application hardening commit: `3f6778f33136cd5beb42159d1aceaee3227321f3` (PR #18).
+- PR #18 CI, tested against code SHA `e29bf1f78c9206c9d222d87dabb2c5bf5fb70aea`: [pull-request check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319853575) and [push check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319845265) both passed unit/smoke tests and production client build.
 - These checks do not prove live MongoDB transaction behaviour, Razorpay payment/webhook/refund delivery, SMTP delivery or browser end-to-end success. Those remain in the final setup/integration phase.
 - See PROJECT_STATUS.md for current verification evidence and remaining integration work.

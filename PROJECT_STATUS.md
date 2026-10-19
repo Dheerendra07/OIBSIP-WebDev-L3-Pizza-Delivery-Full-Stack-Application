@@ -6,9 +6,9 @@ Last updated: 2026-10-20
 
 - Repository: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application
 - Default branch: `main`.
-- Latest merged application hardening commit: `7f915ad55d96fcf1b7ef9dff3c63d185e1dcf176` — checkout, captured-payment and reservation recovery hardening (PR #17).
+- Latest merged application hardening commit: `3f6778f33136cd5beb42159d1aceaee3227321f3` — custom-pizza validation and provider-verified refund capture history (PR #18).
 - Delivery details collection and persistence merged in PR #16.
-- Payment-safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, #15 guarded admin full-refund recovery, #16 delivery destination fields, and #17 checkout/recovery hardening.
+- Payment-safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, #15 guarded admin full-refund recovery, #16 delivery destination fields, #17 checkout/recovery hardening, and #18 custom-pizza validation/provider capture-history checks.
 - PR #14 was a stale status-document snapshot and is closed as superseded.
 - Historical Socket.IO live order tracking merge: `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
 - Historical Socket.IO session-expiry hardening merge: `71d18fec59dd4106a43d6efd34327639035a7a25`.
@@ -35,9 +35,9 @@ Last updated: 2026-10-20
 
 ## Latest verified automated checks
 
-- PR #17 code head: `6b710511e22ab6c0a86e7dfd557b36adeec341d0`.
-- Pull-request check: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319136556 — passed.
-- Push check: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319133025 — passed.
+- PR #18 code head: `e29bf1f78c9206c9d222d87dabb2c5bf5fb70aea`.
+- Pull-request check: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319853575 — passed.
+- Push check: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319845265 — passed.
 - Both checks completed dependency installation, configured tests/smoke checks and the production client build successfully.
 - They do not verify external MongoDB, Razorpay, SMTP or deployed-browser behaviour.
 

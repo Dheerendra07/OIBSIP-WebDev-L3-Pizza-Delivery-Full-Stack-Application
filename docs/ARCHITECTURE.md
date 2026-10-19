@@ -33,10 +33,11 @@
 1. Admin endpoints are protected by authentication and admin-role authorization.
 2. The review queue lists webhook exceptions. The refund action is offered only for an eligible captured review hold with the exact recorded payment ID; multiple-capture cases require manual reconciliation.
 3. Before submitting, the server fetches the provider payment and verifies its order link, captured status, INR currency, refundable amount and refund state.
-4. The server persists a deterministic refund idempotency key before contacting Razorpay. A retry reuses that same key. Network or uncertain provider outcomes must not trigger a new independent refund.
-5. Signed refund.created, refund.processed and refund.failed events are reconciled through the webhook controller. A refund is not considered complete merely because the request was acknowledged.
-6. Only a matching confirmed full-refund result can mark the order refunded/cancelled and release any still-reserved inventory in a database transaction. Failed, mismatched, extra or uncertain refunds remain on manual review.
-7. If the signed refund webhook finishes reconciliation before the original admin refund request returns, the API recognises the already-processed matching refund instead of surfacing a false failure.
+4. Before automatic recovery, the server fetches the Razorpay order's payment history and requires exactly one captured payment matching the reviewed payment ID, order and amount/currency. Missing history, multiple captures or mismatches fail closed for manual review.
+5. The server persists a deterministic refund idempotency key before contacting Razorpay. A retry reuses that same key. Network or uncertain provider outcomes must not trigger a new independent refund.
+6. Signed refund.created, refund.processed and refund.failed events are reconciled through the webhook controller. A refund is not considered complete merely because the request was acknowledged.
+7. Only a matching confirmed full-refund result can mark the order refunded/cancelled and release any still-reserved inventory in a database transaction. Failed, mismatched, extra or uncertain refunds remain on manual review.
+8. If the signed refund webhook finishes reconciliation before the original admin refund request returns, the API recognises the already-processed matching refund instead of surfacing a false failure.
 
 ## Authentication, inventory and realtime boundaries
 
