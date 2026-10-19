@@ -1,3 +1,5 @@
+import { validateDeliveryDetails } from './orderRules.js';
+
 /**
  * Decide whether a verified provider capture can fulfill the order or must be
  * quarantined for manual reconciliation. This function never trusts client data.
@@ -36,6 +38,11 @@ export function classifyCapturedPayment(payment, order) {
   }
   if (!order.inventoryReserved) {
     return { action: 'review', reason: 'inventory_reservation_missing' };
+  }
+  try {
+    validateDeliveryDetails(order.deliveryDetails);
+  } catch {
+    return { action: 'review', reason: 'delivery_details_missing_or_invalid' };
   }
 
   return { action: 'fulfill' };
