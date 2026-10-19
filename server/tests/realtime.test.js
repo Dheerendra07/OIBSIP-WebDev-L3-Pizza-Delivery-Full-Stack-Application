@@ -4,6 +4,7 @@ import {
   buildOrderUpdatePayload,
   disconnectUserSockets,
   isAllowedRealtimeOrigin,
+  publishAdminRefresh,
   publishOrderUpdate,
   readSessionToken,
 } from '../src/services/realtime.js';
@@ -91,4 +92,12 @@ test('disconnects every socket in the authenticated user room', async () => {
   assert.deepEqual(rooms, ['user:user-9']);
   assert.deepEqual(sockets.map((socket) => socket.disconnected), [true, true]);
   assert.equal(await disconnectUserSockets('user-9', null), 0);
+});
+
+test('publishes admin-only refresh events without exposing user data', () => {
+  const emitted = [];
+  const fakeIo = { to(room) { return { emit(event, payload) { emitted.push({ room, event, payload }); } }; } };
+  assert.equal(publishAdminRefresh(fakeIo), true);
+  assert.deepEqual(emitted, [{ room: 'role:admin', event: 'admin:refresh', payload: {} }]);
+  assert.equal(publishAdminRefresh(null), false);
 });
