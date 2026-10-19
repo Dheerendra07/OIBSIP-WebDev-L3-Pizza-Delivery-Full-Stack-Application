@@ -14,3 +14,12 @@ export function orderMatchesCart(orderItems, cart, featuredPizzas) {
     return Number(line.unitPrice) === Number(cartItem.unitPrice) && JSON.stringify(normalizedIngredients(line.ingredients)) === JSON.stringify(normalizedIngredients(expectedIngredients));
   });
 }
+
+/** Keep captured/manual-review orders from being reported as successful or re-paid. */
+export function classifyExistingCheckout(order, cartMatches) {
+  if (!order || typeof order !== 'object') return 'new';
+  if (order.status === 'payment_review' || order.paymentReviewRequired) return 'review';
+  if (order.paymentStatus === 'paid' && cartMatches) return 'already-paid';
+  if (order.status !== 'pending_payment' || !cartMatches) return 'new';
+  return 'resume';
+}
