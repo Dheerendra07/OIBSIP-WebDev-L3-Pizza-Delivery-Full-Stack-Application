@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock3, CreditCard, Flame, Leaf, LoaderCircle, LogIn, LogOut, Menu, Minus, Plus, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Truck, UserRound, X, CheckCircle2, CircleUserRound, PackageCheck, ChefHat, Boxes, RefreshCw, Mail, LockKeyhole } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { api, API_ORIGIN } from './api.js';
-import { orderMatchesCart } from './checkout.js';
+import { orderMatchesCart, classifyExistingCheckout } from './checkout.js';
 import { normalizeDeliveryDetails } from './delivery.js';
 const DEFAULT_CATALOG = {
     bases: [{ id: 'classic', name: 'Classic Hand-Tossed', price: 0 }, { id: 'thin', name: 'Thin & Crispy', price: 30 }, { id: 'whole-wheat', name: 'Whole Wheat', price: 40 }, { id: 'pan', name: 'Pan Crust', price: 50 }, { id: 'cheese-burst', name: 'Cheese Burst', price: 70 }],
@@ -196,7 +196,17 @@ export default function App() {
         if (orderId) {
             try {
                 const existing = await api(`/orders/${orderId}`);
-                if (existing.order.paymentStatus === 'paid' && orderMatchesCart(existing.order.items, cart, featured)) {
+                const cartMatches = orderMatchesCart(existing.order.items, cart, featured);
+                const checkoutState = classifyExistingCheckout(existing.order, cartMatches);
+                if (checkoutState === 'review') {
+                    setActiveOrderId(null);
+                    setCart([]);
+                    await refreshOrders();
+                    setPage('dashboard');
+                    notify('Payment received, but this order needs manual review. Do not pay again.', 'error');
+                    return;
+                }
+                if (checkoutState === 'already-paid') {
                     setActiveOrderId(null);
                     setCart([]);
                     await refreshOrders();
@@ -204,7 +214,7 @@ export default function App() {
                     notify('This order is already paid and confirmed.');
                     return;
                 }
-                if (existing.order.status !== 'pending_payment' || !orderMatchesCart(existing.order.items, cart, featured)) {
+                if (checkoutState === 'new') {
                     orderId = null;
                     setActiveOrderId(null);
                 } else {
