@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import { api, API_ORIGIN } from './api.js';
 import { orderMatchesCart, classifyExistingCheckout } from './checkout.js';
 import { normalizeDeliveryDetails } from './delivery.js';
+import { PENDING_PAYMENT_STORAGE_KEY, parsePendingVerification, serializePendingVerification } from './pendingPayment.js';
 const DEFAULT_CATALOG = {
     bases: [{ id: 'classic', name: 'Classic Hand-Tossed', price: 0 }, { id: 'thin', name: 'Thin & Crispy', price: 30 }, { id: 'whole-wheat', name: 'Whole Wheat', price: 40 }, { id: 'pan', name: 'Pan Crust', price: 50 }, { id: 'cheese-burst', name: 'Cheese Burst', price: 70 }],
     sauces: [{ id: 'classic-tomato', name: 'Classic Tomato', price: 0 }, { id: 'spicy-arrabbiata', name: 'Spicy Arrabbiata', price: 15 }, { id: 'pesto', name: 'Basil Pesto', price: 25 }, { id: 'bbq', name: 'Smoky BBQ', price: 20 }, { id: 'white-garlic', name: 'White Garlic', price: 20 }],
@@ -44,7 +45,13 @@ export default function App() {
     const [filter, setFilter] = useState('All');
     const [activeOrderId, setActiveOrderId] = useState(null);
     const [pendingRefundOrderId, setPendingRefundOrderId] = useState(null);
-    const [pendingVerification, setPendingVerification] = useState(null);
+    const [pendingVerification, setPendingVerification] = useState(() => {
+        try {
+            return parsePendingVerification(sessionStorage.getItem(PENDING_PAYMENT_STORAGE_KEY));
+        } catch {
+            return null;
+        }
+    });
     const notify = useCallback((message, kind = 'success') => setToast({ message, kind }), []);
     const refreshCatalog = useCallback(async () => { try {
         const d = await api('/catalog');
@@ -75,6 +82,23 @@ export default function App() {
     catch (e) {
         notify(e.message, 'error');
     } }, [notify]);
+    useEffect(() => {
+        if (!pendingVerification) return;
+        setPage('cart');
+        notify('A previous payment still needs confirmation. Retry the same payment; do not pay again.', 'error');
+    }, [notify]);
+    useEffect(() => {
+        try {
+            if (!pendingVerification) {
+                sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
+                return;
+            }
+            const saved = serializePendingVerification(pendingVerification);
+            if (saved) sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, saved);
+        } catch {
+            // If storage is disabled, the in-memory retry remains available for this page session.
+        }
+    }, [pendingVerification]);
     useEffect(() => { (async () => { await Promise.all([refreshCatalog(), refreshMe()]); setLoading(false); })(); const params = new URLSearchParams(location.search); if (params.get('verified'))
         notify('Email verified — you can sign in now.'); if (params.get('resetToken')) {
         setAuthMode('reset');
@@ -157,9 +181,10 @@ export default function App() {
     } const name = `Custom ${catalog.bases.find(x => x.id === builder.base)?.name || 'Pizza'}`; const existing = { cartKey: `custom:${Date.now()}`, type: 'custom', name, emoji: '🍕', unitPrice: builderPrice, quantity: builder.quantity, base: builder.base, sauce: builder.sauce, cheese: builder.cheese, vegetables: [...builder.vegetables] }; setCart(prev => [...prev, existing]); notify('Your custom pizza is in the bag'); navigate('menu'); };
     const setQty = (key, delta) => setCart(prev => prev.map(x => x.cartKey === key ? { ...x, quantity: Math.max(1, Math.min(10, x.quantity + delta)) } : x));
     const removeCart = (key) => setCart(prev => prev.filter(x => x.cartKey !== key));
-    const verifyCheckoutPayment = async (orderId, response) => { const attempt = { orderId, response }; setPendingVerification(attempt); setPending(true); try {
+    const verifyCheckoutPayment = async (orderId, response) => { const attempt = { orderId, response }; try { const saved = serializePendingVerification(attempt); if (saved) sessionStorage.setItem(PENDING_PAYMENT_STORAGE_KEY, saved); } catch { /* Continue with in-memory retry if storage is unavailable. */ } setPendingVerification(attempt); setPending(true); try {
         const verification = await api('/payments/verify', { method: 'POST', body: { orderId, ...response } });
         setPendingVerification(null);
+        try { sessionStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY); } catch { /* Storage may be disabled. */ }
         setActiveOrderId(null);
         setCart([]);
         await refreshOrders();
