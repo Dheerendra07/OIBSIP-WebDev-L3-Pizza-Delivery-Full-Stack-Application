@@ -19,13 +19,13 @@ export const createOrder = asyncHandler(async (req, res) => {
 });
 export const myOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(50).lean();
-  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, createdAt: o.createdAt, updatedAt: o.updatedAt })) });
+  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, createdAt: o.createdAt, updatedAt: o.updatedAt })) });
 });
 export const getOrder = asyncHandler(async (req, res) => {
   if (!isRequestObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order identifier' });
   const filter = { _id: req.params.id }; if (req.user.role !== 'admin') filter.user = req.user._id;
   const order = await Order.findOne(filter).lean(); if (!order) return res.status(404).json({ error: 'Order not found' });
-  res.json({ order: { id: order._id, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, deliveryFee: order.deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus, createdAt: order.createdAt, updatedAt: order.updatedAt } });
+  res.json({ order: { id: order._id, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, deliveryFee: order.deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus, paymentReviewRequired: order.paymentReviewRequired, createdAt: order.createdAt, updatedAt: order.updatedAt } });
 });
 
 export const createPaymentOrder = asyncHandler(async (req, res) => {
