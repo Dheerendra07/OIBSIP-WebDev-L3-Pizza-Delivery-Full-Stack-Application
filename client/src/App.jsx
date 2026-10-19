@@ -3,6 +3,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Cloc
 import { io } from 'socket.io-client';
 import { api, API_ORIGIN } from './api.js';
 import { orderMatchesCart } from './checkout.js';
+import { normalizeDeliveryDetails } from './delivery.js';
 const DEFAULT_CATALOG = {
     bases: [{ id: 'classic', name: 'Classic Hand-Tossed', price: 0 }, { id: 'thin', name: 'Thin & Crispy', price: 30 }, { id: 'whole-wheat', name: 'Whole Wheat', price: 40 }, { id: 'pan', name: 'Pan Crust', price: 50 }, { id: 'cheese-burst', name: 'Cheese Burst', price: 70 }],
     sauces: [{ id: 'classic-tomato', name: 'Classic Tomato', price: 0 }, { id: 'spicy-arrabbiata', name: 'Spicy Arrabbiata', price: 15 }, { id: 'pesto', name: 'Basil Pesto', price: 25 }, { id: 'bbq', name: 'Smoky BBQ', price: 20 }, { id: 'white-garlic', name: 'White Garlic', price: 20 }],
@@ -183,24 +184,11 @@ export default function App() {
         notify('Confirm the previous payment before opening checkout again.', 'error');
         return;
     }
-    const normalizedDeliveryDetails = {
-        ...deliveryDetails,
-        recipientName: deliveryDetails.recipientName.trim(),
-        phone: deliveryDetails.phone.replace(/[\s()-]/g, ''),
-        addressLine: deliveryDetails.addressLine.trim(),
-        landmark: deliveryDetails.landmark.trim(),
-        city: deliveryDetails.city.trim(),
-        state: deliveryDetails.state.trim(),
-        postalCode: deliveryDetails.postalCode.trim(),
-        instructions: deliveryDetails.instructions.trim(),
-    };
-    if (normalizedDeliveryDetails.recipientName.length < 2 ||
-        !/^[6-9]\d{9}$/.test(normalizedDeliveryDetails.phone) ||
-        normalizedDeliveryDetails.addressLine.length < 5 ||
-        normalizedDeliveryDetails.city.length < 2 ||
-        normalizedDeliveryDetails.state.length < 2 ||
-        !/^[1-9]\d{5}$/.test(normalizedDeliveryDetails.postalCode)) {
-        notify('Add a recipient, valid 10-digit mobile number and complete address with city, state and 6-digit PIN code.', 'error');
+    let normalizedDeliveryDetails;
+    try {
+        normalizedDeliveryDetails = normalizeDeliveryDetails(deliveryDetails);
+    } catch (error) {
+        notify(error.message, 'error');
         return;
     }
     setPending(true); try {
