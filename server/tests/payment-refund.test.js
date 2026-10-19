@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFullRefundIdempotencyKey, classifyRefundWebhook } from '../src/utils/paymentRefund.js';
+import { createFullRefundIdempotencyKey, classifyRefundWebhook, classifyRefundCaptureSet } from '../src/utils/paymentRefund.js';
 
 const baseOrder = (overrides = {}) => ({
   _id: '64b000000000000000000001',
@@ -74,4 +74,50 @@ test('duplicate delivery of the already-applied refund is idempotent', () => {
   assert.deepEqual(classifyRefundWebhook('refund.processed', refund({ status: 'processed' }), baseOrder({
     paymentStatus: 'refunded', refundStatus: 'processed', razorpayRefundId: 'rfnd_test_123',
   })), { action: 'already_processed', status: 'processed', refundId: 'rfnd_test_123' });
+});
+
+
+const capture = (overrides = {}) => ({
+  id: 'pay_test_123',
+  order_id: 'order_test_123',
+  amount: 27800,
+  currency: 'INR',
+  status: 'captured',
+  ...overrides,
+});
+
+test('automatic refund accepts only the one exact provider capture', () => {
+  const payment = capture();
+  assert.deepEqual(classifyRefundCaptureSet([payment], {
+    orderId: 'order_test_123', paymentId: 'pay_test_123', amountPaise: 27800,
+  }), { allowed: true, payment });
+});
+
+test('automatic refund blocks duplicate captures even before their webhook receipts arrive', () => {
+  const first = capture();
+  const second = capture({ id: 'pay_test_second' });
+  assert.deepEqual(classifyRefundCaptureSet([first, second], {
+    orderId: 'order_test_123', paymentId: 'pay_test_123', amountPaise: 27800,
+  }), {
+    allowed: false,
+    reason: 'multiple_captured_payments_for_order',
+    paymentIds: ['pay_test_123', 'pay_test_second'],
+  });
+});
+
+test('automatic refund fails closed when provider capture history is missing or mismatched', () => {
+  assert.deepEqual(classifyRefundCaptureSet([], {
+    orderId: 'order_test_123', paymentId: 'pay_test_123', amountPaise: 27800,
+  }), { allowed: false, reason: 'captured_payment_not_found' });
+
+  for (const payment of [
+    capture({ id: 'pay_other' }),
+    capture({ order_id: 'order_other' }),
+    capture({ amount: 27900 }),
+    capture({ currency: 'USD' }),
+  ]) {
+    assert.deepEqual(classifyRefundCaptureSet([payment], {
+      orderId: 'order_test_123', paymentId: 'pay_test_123', amountPaise: 27800,
+    }), { allowed: false, reason: 'captured_payment_mismatch' });
+  }
 });

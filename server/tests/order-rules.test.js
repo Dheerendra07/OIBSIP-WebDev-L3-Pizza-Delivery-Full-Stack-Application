@@ -27,6 +27,20 @@ test('malformed order collections return a client error and have explicit line l
   assert.throws(() => buildOrderItem(null), { statusCode: 400 });
 });
 
+test('invalid custom-pizza choices map to a client validation error instead of HTTP 500', () => {
+  const base = { type: 'custom', base: 'classic', sauce: 'classic-tomato', cheese: 'mozzarella', vegetables: ['onion'], quantity: 1 };
+  for (const invalid of [
+    { ...base, base: 'not-a-base' },
+    { ...base, sauce: 'not-a-sauce' },
+    { ...base, cheese: 'not-a-cheese' },
+    { ...base, vegetables: ['not-a-vegetable'] },
+    { ...base, quantity: 11 },
+    { ...base, vegetables: ['onion', 'corn', 'olive', 'tomato', 'jalapeno', 'mushroom'] },
+  ]) {
+    assert.throws(() => buildOrderItem(invalid), { statusCode: 400 });
+  }
+});
+
 test('order totals calculate free delivery from server-computed subtotal', () => {
   assert.deepEqual(calculateOrderTotals([buildOrderItem({ type: 'featured', pizzaId: 'margherita' }), buildOrderItem({ type: 'featured', pizzaId: 'margherita' })]), { subtotal: 498, deliveryFee: 29, total: 527 });
   assert.deepEqual(calculateOrderTotals([buildOrderItem({ type: 'featured', pizzaId: 'margherita' }), buildOrderItem({ type: 'featured', pizzaId: 'garden' })]), { subtotal: 578, deliveryFee: 0, total: 578 });

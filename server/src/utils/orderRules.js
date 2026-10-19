@@ -37,7 +37,15 @@ export function buildOrderItem(raw) {
   }
 
   if (raw.type === 'custom') {
-    const item = calculateCustomPizza(raw);
+    let item;
+    try {
+      item = calculateCustomPizza(raw);
+    } catch (error) {
+      // Invalid client-selected ingredients/configuration are a 400, not an
+      // internal server error. Keep internal failures otherwise unchanged.
+      if (error?.statusCode === 400) throw error;
+      throw invalidInput(error?.message || 'Choose a valid custom pizza configuration');
+    }
     return {
       name: item.name,
       quantity: item.quantity,
