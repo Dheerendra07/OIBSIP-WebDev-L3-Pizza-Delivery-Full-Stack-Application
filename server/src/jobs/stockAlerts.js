@@ -31,6 +31,8 @@ export async function releaseExpiredReservations(now = new Date()) {
   for (const candidate of expired) {
     if (!candidate.razorpayOrderId && candidate.paymentOrderCreationInProgress && candidate.stockReservedAt && now - candidate.stockReservedAt < 30 * 60 * 1000) { deferred += 1; continue; }
     let captured = null;
+    let captureReviewReason = null;
+    let capturedForReview = [];
     if (candidate.razorpayOrderId) {
       if (!razorpay) { try { razorpay = getRazorpayClient(); } catch { deferred += 1; continue; } }
       let payments;
@@ -38,8 +40,25 @@ export async function releaseExpiredReservations(now = new Date()) {
       catch (error) { console.warn('[reservation scan] Could not verify provider status; hold preserved:', error.message); deferred += 1; continue; }
       const assessment = classifyOrderPayments(payments?.items, { orderId: candidate.razorpayOrderId, amountPaise: candidate.total * 100 });
       if (assessment.state === 'captured') captured = assessment.payment;
-      else if (assessment.state === 'mismatch') { console.error(`[reservation job] Captured payment mismatch for ${candidate.orderNumber}; reservation preserved for manual review.`); deferred += 1; continue; }
-      else if (assessment.state === 'in_flight') { deferred += 1; continue; }
+      else if (assessment.state === 'mismatch') {
+        const reviewCandidates = assessment.payments || (assessment.payment ? [assessment.payment] : []);
+        const associated = reviewCandidates.filter((payment) =>
+          typeof payment?.id === 'string' && payment.id &&
+          payment.order_id === candidate.razorpayOrderId &&
+          Number.isSafeInteger(payment.amount) && payment.amount > 0 &&
+          typeof payment.currency === 'string',
+        );
+        if (!associated.length) {
+          console.error(`[reservation job] Captured payment mismatch for ${candidate.orderNumber}; no safely linkable payment was found. Reservation preserved.`);
+          deferred += 1;
+          continue;
+        }
+        captured = assessment.payment && associated.some((payment) => payment.id === assessment.payment.id)
+          ? assessment.payment
+          : associated[0];
+        captureReviewReason = assessment.reason || 'captured_payment_requires_manual_review';
+        capturedForReview = associated;
+      } else if (assessment.state === 'in_flight') { deferred += 1; continue; }
     }
     const session = await mongoose.startSession();
     let reconciledOrderId = null;
@@ -49,29 +68,33 @@ export async function releaseExpiredReservations(now = new Date()) {
         if (!order) return;
         if (captured) {
           const captureDecision = classifyCapturedPayment(captured, order);
-          if (captureDecision.action !== 'fulfill') {
+          const reviewReason = captureReviewReason || (captureDecision.action !== 'fulfill' ? captureDecision.reason : null);
+          if (reviewReason) {
             order.paymentStatus = 'paid';
             order.razorpayPaymentId = captured.id;
             order.paidAt = order.paidAt || new Date();
             order.status = 'payment_review';
             order.paymentReviewRequired = true;
-            order.paymentReviewReason = captureDecision.reason || 'captured_payment_requires_manual_review';
+            order.paymentReviewReason = reviewReason;
             await order.save({ session });
-            await PaymentWebhookReceipt.updateOne(
-              { eventId: `reservation-${captured.id}` },
-              {
-                $setOnInsert: {
-                  eventId: `reservation-${captured.id}`,
-                  eventType: 'payment.reservation.review',
-                  status: 'review_required',
-                  providerOrderId: candidate.razorpayOrderId,
-                  paymentId: captured.id,
-                  order: order._id,
-                  reason: order.paymentReviewReason,
+            const reviewPayments = capturedForReview.length ? capturedForReview : [captured];
+            for (const payment of reviewPayments) {
+              await PaymentWebhookReceipt.updateOne(
+                { eventId: `reservation-${payment.id}` },
+                {
+                  $setOnInsert: {
+                    eventId: `reservation-${payment.id}`,
+                    eventType: 'payment.reservation.review',
+                    status: 'review_required',
+                    providerOrderId: candidate.razorpayOrderId,
+                    paymentId: payment.id,
+                    order: order._id,
+                    reason: reviewReason,
+                  },
                 },
-              },
-              { upsert: true, session },
-            );
+                { upsert: true, session },
+              );
+            }
             reconciledOrderId = order._id;
             reconciled += 1;
             return;
