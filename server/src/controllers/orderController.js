@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import crypto from 'node:crypto';
 import Order from '../models/Order.js';
+import PaymentWebhookReceipt from '../models/PaymentWebhookReceipt.js';
 import InventoryItem from '../models/InventoryItem.js';
 import { inventoryRequirements } from '../utils/catalog.js';
 import { buildOrderItems, calculateOrderTotals, validateDeliveryDetails } from '../utils/orderRules.js';
@@ -114,35 +115,152 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
 
 export const verifyPayment = asyncHandler(async (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
-  const { orderId, razorpay_order_id: razorpayOrderId, razorpay_payment_id: razorpayPaymentId, razorpay_signature: signature } = body;
-  if (!razorpayOrderId || !razorpayPaymentId || !signature) return res.status(400).json({ error: 'Missing payment verification details' });
-  if (![razorpayOrderId, razorpayPaymentId, signature].every((value) => typeof value === 'string' && value.trim().length > 0)) return res.status(400).json({ error: 'Missing payment verification details' });
+  const {
+    orderId,
+    razorpay_order_id: razorpayOrderId,
+    razorpay_payment_id: razorpayPaymentId,
+    razorpay_signature: signature,
+  } = body;
+
+  if (![razorpayOrderId, razorpayPaymentId, signature].every((value) => typeof value === 'string' && value.trim().length > 0)) {
+    return res.status(400).json({ error: 'Missing payment verification details' });
+  }
   if (!isRequestObjectId(orderId)) return res.status(400).json({ error: 'A valid order ID is required' });
+
   const initial = await Order.findOne({ _id: orderId, user: req.user._id });
   if (!initial) return res.status(404).json({ error: 'Order not found' });
-  if (initial.paymentStatus === 'paid') {
-    if (initial.razorpayOrderId === razorpayOrderId && initial.razorpayPaymentId === razorpayPaymentId) return res.json({ message: initial.paymentReviewRequired ? 'Payment received; order requires manual review' : 'Payment already verified', order: { id: initial.id, orderNumber: initial.orderNumber, status: initial.status, paymentStatus: initial.paymentStatus, paymentReviewRequired: initial.paymentReviewRequired } });
-    return res.status(409).json({ error: 'Order already has a different successful payment' });
+  if (initial.razorpayOrderId !== razorpayOrderId ||
+      !verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, signature)) {
+    return res.status(400).json({ error: 'Payment signature verification failed' });
   }
-  if (initial.razorpayOrderId !== razorpayOrderId || !verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, signature)) return res.status(400).json({ error: 'Payment signature verification failed' });
-  const providerPayment = await getRazorpayClient().payments.fetch(razorpayPaymentId);
-  if (providerPayment.order_id !== razorpayOrderId || providerPayment.amount !== initial.total * 100 || providerPayment.currency !== 'INR') return res.status(400).json({ error: 'Payment details do not match this order' });
-  if (providerPayment.status !== 'captured') return res.status(409).json({ error: 'Payment is not captured yet. Please wait a moment and try again.' });
+
+  // Idempotent confirmation of the exact payment already applied to this order.
+  if (initial.paymentStatus === 'paid' && initial.razorpayPaymentId === razorpayPaymentId) {
+    return res.json({
+      message: initial.paymentReviewRequired ? 'Payment received; order requires manual review' : 'Payment already verified',
+      order: {
+        id: initial.id,
+        orderNumber: initial.orderNumber,
+        status: initial.status,
+        paymentStatus: initial.paymentStatus,
+        paymentReviewRequired: initial.paymentReviewRequired,
+      },
+    });
+  }
+
+  let providerPayment;
+  try {
+    providerPayment = await getRazorpayClient().payments.fetch(razorpayPaymentId);
+  } catch {
+    return res.status(502).json({ error: 'Could not confirm payment status with Razorpay. Do not pay again; retry confirmation.' });
+  }
+
+  if (providerPayment?.id !== razorpayPaymentId || providerPayment?.order_id !== razorpayOrderId) {
+    return res.status(400).json({ error: 'Payment details do not match this checkout' });
+  }
+  if (providerPayment.status !== 'captured') {
+    if (initial.paymentStatus === 'paid') {
+      return res.status(409).json({ error: 'Order already has a different successful payment' });
+    }
+    return res.status(409).json({ error: 'Payment is not captured yet. Please wait a moment and try again.' });
+  }
+
+  const providerAmountMismatch = !Number.isSafeInteger(providerPayment.amount) ||
+    providerPayment.amount <= 0 || providerPayment.amount !== initial.total * 100;
+  const providerCurrencyMismatch = providerPayment.currency !== 'INR';
+  let reviewReason = providerAmountMismatch
+    ? 'captured_amount_mismatch'
+    : providerCurrencyMismatch
+      ? 'captured_currency_mismatch'
+      : null;
 
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
       const order = await Order.findOne({ _id: orderId, user: req.user._id }).session(session);
       if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
-      if (order.paymentStatus === 'paid') { if (order.razorpayPaymentId !== razorpayPaymentId) throw Object.assign(new Error('Order has already been paid using a different payment'), { statusCode: 409 }); return; }
-      if (order.razorpayOrderId !== razorpayOrderId || order.status !== 'pending_payment') throw Object.assign(new Error('Order is not awaiting this payment'), { statusCode: 409 });
-      if (!order.inventoryReserved) throw Object.assign(new Error('The ingredient reservation is missing. Contact support before attempting another payment.'), { statusCode: 409 });
-      order.paymentStatus = 'paid'; order.razorpayPaymentId = razorpayPaymentId; order.paidAt = new Date(); order.status = 'order_received';
-      order.inventoryReserved = false; order.paymentOrderCreationInProgress = false; order.stockReservedAt = null; order.stockReservationExpiresAt = null;
+
+      if (order.paymentStatus === 'paid') {
+        if (order.razorpayPaymentId === razorpayPaymentId) return;
+        reviewReason = 'multiple_captured_payments_for_order';
+      } else if (!reviewReason && order.razorpayOrderId !== razorpayOrderId) {
+        reviewReason = 'provider_order_mismatch';
+      } else if (!reviewReason && order.status !== 'pending_payment') {
+        reviewReason = 'order_not_awaiting_payment';
+      } else if (!reviewReason && !order.inventoryReserved) {
+        reviewReason = 'inventory_reservation_missing';
+      }
+
+      if (!reviewReason) {
+        try {
+          validateDeliveryDetails(order.deliveryDetails);
+        } catch {
+          reviewReason = 'delivery_details_missing_or_invalid';
+        }
+      }
+
+      if (reviewReason) {
+        // Provider confirms money was captured, but this order cannot safely
+        // enter fulfillment. Preserve inventory holds and create an admin-visible
+        // review receipt instead of returning an error that hides the capture.
+        if (order.paymentStatus !== 'paid') {
+          order.paymentStatus = 'paid';
+          order.razorpayPaymentId = razorpayPaymentId;
+          order.paidAt = order.paidAt || new Date();
+        }
+        order.status = 'payment_review';
+        order.paymentReviewRequired = true;
+        order.paymentReviewReason = reviewReason;
+        await order.save({ session });
+
+        await PaymentWebhookReceipt.updateOne(
+          { eventId: `verification-${razorpayPaymentId}` },
+          {
+            $setOnInsert: {
+              eventId: `verification-${razorpayPaymentId}`,
+              eventType: 'payment.verify.review',
+              status: 'review_required',
+              providerOrderId: razorpayOrderId,
+              paymentId: razorpayPaymentId,
+              order: order._id,
+              reason: reviewReason,
+            },
+          },
+          { upsert: true, session },
+        );
+        return;
+      }
+
+      order.paymentStatus = 'paid';
+      order.razorpayPaymentId = razorpayPaymentId;
+      order.paidAt = new Date();
+      order.status = 'order_received';
+      order.paymentReviewRequired = false;
+      order.paymentReviewReason = null;
+      order.inventoryReserved = false;
+      order.paymentOrderCreationInProgress = false;
+      order.stockReservedAt = null;
+      order.stockReservationExpiresAt = null;
       await order.save({ session });
     });
-  } finally { await session.endSession(); }
-  const paid = await Order.findById(orderId);
-  publishOrderUpdate(paid);
-  res.json({ message: 'Payment verified', order: { id: paid.id, orderNumber: paid.orderNumber, status: paid.status, paymentStatus: paid.paymentStatus } });
+  } finally {
+    await session.endSession();
+  }
+
+  const updated = await Order.findById(orderId).lean();
+  if (!updated) throw Object.assign(new Error('Order not found after payment verification'), { statusCode: 404 });
+  publishOrderUpdate(updated);
+  publishAdminRefresh();
+
+  const needsReview = Boolean(updated.paymentReviewRequired) || updated.status === 'payment_review';
+  res.json({
+    message: needsReview ? 'Payment received; order requires manual review. Do not pay again.' : 'Payment verified',
+    order: {
+      id: String(updated._id),
+      orderNumber: updated.orderNumber,
+      status: updated.status,
+      paymentStatus: updated.paymentStatus,
+      paymentReviewRequired: updated.paymentReviewRequired,
+    },
+  });
 });
