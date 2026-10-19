@@ -1,51 +1,49 @@
 # Project Status — Pizza House
 
-Last updated: 2026-10-19 — post-assessment hardening
+Last updated: 2026-10-19 — authenticated live order tracking merged
 
 ## Git state (verified)
 - Repository: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application
 - Default branch: `main`.
-- Feature PR #1 merged: `21d7d4764507f063d2c721296d7bcca3b9bcd7bf`.
-- Handoff PR #2 merged: `038cb936768eeb53f73098951f0ba5101aff15ec`.
-- Assessment hardening PR #3 merged: `f030d0baf054208bfb8f700d4c44cbd2387f811d`.
-- The current main HEAD was re-fetched after PR #3 and matched the merge commit.
+- Feature PR #1, handoff PR #2, assessment hardening PR #3, and status PR #4 are merged.
+- Socket.IO live order tracking PR #5 is merged as commit `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
+- The verified `main` HEAD is `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
 - Repository is public by owner choice; no real `.env` credentials or database exports are committed.
 
 ## Implemented
-- React/Vite ordering UI: featured menu, filters, custom pizza builder, cart, checkout, customer order history with polling, admin inventory/order management.
-- Express/Mongoose API: account registration, email verification, customer and separately seeded admin login, password reset, catalog, orders, payment verification, inventory updates and admin status transitions.
-- Server-owned catalog pricing and order-line rules; user-supplied price/total/inventory fields are ignored.
-- Ingredient stock is reserved inside MongoDB transactions before opening checkout. Razorpay test payments are verified server-side using HMAC plus provider capture status, order linkage, amount and INR currency.
-- Checkout retry reuses the existing pending order only when the cart's quantities, ingredients and server price still match.
-- Expired stock reservations are reconciled against provider payment status before release; uncertain/mismatched captured payments preserve the hold for manual review.
-- HttpOnly JWT cookie, hashed expiring verification/reset tokens, password-reset session-version invalidation, auth rate limiting, and admin route authorization.
-- Scheduled low-stock emails, separately seeded admin/inventory scripts, production config guards, API/architecture/contribution docs, and assessment-oriented README.
+- React/Vite customer UI: featured menu, filters, custom pizza builder, cart, checkout, order history, authentication and password reset.
+- Express/Mongoose API: registration and email verification, customer and separately seeded admin sign-in, catalog, order creation, payment verification, inventory updates and admin order transitions.
+- Admin dashboard: inventory levels/thresholds, low-stock alerts, order queue and summary metrics.
+- Server-owned catalog pricing and order-line validation; client-provided prices and totals are not trusted.
+- Ingredient stock is reserved inside MongoDB transactions before checkout. Razorpay test payments are verified server-side using HMAC plus provider capture status, order linkage, amount and INR currency.
+- Checkout retry reuses an existing pending order only when cart choices and server pricing still match.
+- Expired stock reservations are reconciled against provider payment status; uncertain or mismatched captured payments preserve the hold for later review.
+- HttpOnly JWT session cookie, hashed expiring verification/reset tokens, password-reset session-version invalidation, auth rate limiting and admin route authorization.
+- Authenticated Socket.IO live order tracking. The server validates the exact allowed origin and current database user/session, derives user/admin rooms server-side, and publishes minimized order updates after relevant persisted order/payment/status changes.
+- The frontend re-fetches REST state on socket connection/reconnection and relevant events, so REST remains the source of truth if a realtime event is missed.
+- GitHub Actions workflow runs the test suite and production frontend build on pushes to `main`, `feat/**`, `fix/**` and pull requests targeting `main`.
 
-## Latest assessment hardening
-- Order input/pricing calculation and admin fulfillment transitions are extracted into deterministic unit-tested rules.
-- Invalid/missing order collections and invalid line counts return a controlled 400 error rather than a runtime 500.
-- Production `CLIENT_ORIGIN` requires comma-separated exact HTTPS origins (no wildcard/path); frontend/API base URLs must be HTTPS origins. Trailing slashes are normalized while building email links.
+## Latest verification (checked 2026-10-19)
+- Socket.IO feature-branch GitHub Actions run [39227920902](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39227920902): passed. The unit-test step and production frontend build step both completed successfully.
+- Merged `main` GitHub Actions run [39232381239](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39232381239): passed. Dependency installation, unit tests and production frontend build completed successfully.
+- Earlier assessment hardening local verification: 38 tests passed, 0 failed before Socket.IO was added. Do not report this older count as the current suite's test count.
+- These CI checks do not establish full external-service or browser end-to-end correctness.
 
-## Verification (do not overstate)
-- Local `npm test`: **38 passed, 0 failed** after the latest hardening changes.
-- JavaScript `node --check`: passed.
-- JSX syntax transpilation and CSS parsing: passed (syntax-only checks).
-- Production build: intentionally skipped per owner request; it has not been claimed as passing.
-- GitHub Actions checks/workflows: none configured for this repository; the above are local results, not GitHub Actions results.
-- End-to-end MongoDB replica-set transactions, real SMTP delivery, Razorpay test checkout and full customer→admin UI journey have not been run with external services. These remain the main validation gap.
+## Remaining before calling it fully end-to-end tested
+- Run a configured browser journey: register → verify email → sign in → build pizza → create order → Razorpay test payment → verify payment → see live order updates → advance order from the admin session.
+- Exercise MongoDB replica-set transactions, concurrent stock contention/out-of-stock, SMTP delivery and outage behavior, Razorpay timeout/failure/duplicate callbacks, and expired-reservation reconciliation.
+- Test Socket.IO behavior with two separate customer sessions and an admin session, including logout/password-reset session invalidation, rejected origins and reconnect after a dropped connection.
+- Add and test a signature-verified Razorpay webhook plus audited refund/reconciliation procedures before any production payment traffic.
+- Deployment needs HTTPS, exact CORS/socket origins, verified `MAIL_FROM`, secure cookie settings and restricted MongoDB network access. Use Razorpay test credentials only during assessment.
 
 ## Local setup
-1. Copy `.env.example` to `server/.env`; copy `client/.env.example` to `client/.env` only if overriding the local API URL.
-2. Configure MongoDB with transaction support, a unique strong JWT secret, SMTP sender credentials and Razorpay **test** keys only.
+1. Copy `.env.example` to `server/.env`. Copy `client/.env.example` to `client/.env` only if overriding the local API URL.
+2. Configure a transaction-capable MongoDB instance, a unique strong JWT secret, SMTP sender credentials, exact frontend/API URLs and Razorpay **test** keys. Never commit `.env`.
 3. Run `npm run install:all`.
 4. Run `npm run seed:inventory`.
-5. Set `ADMIN_EMAIL` and a strong `ADMIN_PASSWORD` in `server/.env`; run `npm run seed:admin`.
-6. Run `npm run dev`; frontend is `http://localhost:5173`, health endpoint `http://localhost:4000/api/health`.
-7. Run tests with `npm test`.
+5. Set `ADMIN_EMAIL` and a strong `ADMIN_PASSWORD` in `server/.env`, then run `npm run seed:admin`. Public registration cannot create an admin.
+6. Run `npm run dev`.
+7. Frontend: `http://localhost:5173`; API health: `http://localhost:4000/api/health`.
+8. Run `npm test`; run `npm run build` for the production client build.
 
-## Remaining before calling it fully tested
-- Exercise registration → verification → login → build pizza → create order → Razorpay test payment → server verification → order tracking → admin progression using configured test services.
-- Exercise stock contention/out-of-stock, SMTP outage, low-stock alert cooldown, provider timeout, failed payment, duplicate callback and expired reservation cases.
-- Add/test a signed Razorpay webhook and refunds/reconciliation before production payment traffic.
-- Deployment still needs HTTPS, exact CORS origins, verified `MAIL_FROM`, secure cookies, and restricted MongoDB network access.
-- After each PR, update this file with the merged SHA, exact tests actually run, unresolved defects and next step.
+After each PR, update this file with the merged SHA, exact checks actually completed, unresolved integration risks and the next step.
