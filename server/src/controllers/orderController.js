@@ -8,6 +8,8 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { getRazorpayClient, verifyRazorpaySignature } from '../services/payments.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
 
+const isRequestObjectId = (value) => typeof value === 'string' && mongoose.isObjectIdOrHexString(value);
+
 export const createOrder = asyncHandler(async (req, res) => {
   const items = buildOrderItems(req.body?.items);
   const { subtotal, deliveryFee, total } = calculateOrderTotals(items);
@@ -20,14 +22,14 @@ export const myOrders = asyncHandler(async (req, res) => {
   res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, createdAt: o.createdAt, updatedAt: o.updatedAt })) });
 });
 export const getOrder = asyncHandler(async (req, res) => {
-  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order identifier' });
+  if (!isRequestObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order identifier' });
   const filter = { _id: req.params.id }; if (req.user.role !== 'admin') filter.user = req.user._id;
   const order = await Order.findOne(filter).lean(); if (!order) return res.status(404).json({ error: 'Order not found' });
   res.json({ order: { id: order._id, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, deliveryFee: order.deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus, createdAt: order.createdAt, updatedAt: order.updatedAt } });
 });
 
 export const createPaymentOrder = asyncHandler(async (req, res) => {
-  if (!mongoose.isValidObjectId(req.body?.orderId)) return res.status(400).json({ error: 'A valid order ID is required' });
+  if (!isRequestObjectId(req.body?.orderId)) return res.status(400).json({ error: 'A valid order ID is required' });
   const order = await Order.findOne({ _id: req.body.orderId, user: req.user._id });
   if (!order) return res.status(404).json({ error: 'Order not found' });
   if (order.paymentStatus === 'paid') return res.status(409).json({ error: 'This order is already paid' });
@@ -87,8 +89,11 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
 });
 
 export const verifyPayment = asyncHandler(async (req, res) => {
-  const { orderId, razorpay_order_id: razorpayOrderId, razorpay_payment_id: razorpayPaymentId, razorpay_signature: signature } = req.body;
-  if (!orderId || !razorpayOrderId || !razorpayPaymentId || !signature) return res.status(400).json({ error: 'Missing payment verification details' });
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const { orderId, razorpay_order_id: razorpayOrderId, razorpay_payment_id: razorpayPaymentId, razorpay_signature: signature } = body;
+  if (!razorpayOrderId || !razorpayPaymentId || !signature) return res.status(400).json({ error: 'Missing payment verification details' });
+  if (![razorpayOrderId, razorpayPaymentId, signature].every((value) => typeof value === 'string' && value.trim().length > 0)) return res.status(400).json({ error: 'Missing payment verification details' });
+  if (!isRequestObjectId(orderId)) return res.status(400).json({ error: 'A valid order ID is required' });
   const initial = await Order.findOne({ _id: orderId, user: req.user._id });
   if (!initial) return res.status(404).json({ error: 'Order not found' });
   if (initial.paymentStatus === 'paid') {
