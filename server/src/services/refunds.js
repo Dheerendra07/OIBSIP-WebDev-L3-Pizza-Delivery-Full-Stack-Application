@@ -22,9 +22,6 @@ async function persistRefundState(orderId, refund, status) {
       if (status === 'processed') {
         const exactFullRefund = order.refundIdempotencyKey &&
           refund?.payment_id === order.razorpayPaymentId &&
-          refund?.id === order.razorpayRefundId ||
-          order.refundIdempotencyKey &&
-          refund?.payment_id === order.razorpayPaymentId &&
           Number.isSafeInteger(refund?.amount) &&
           refund.amount === order.refundAmount &&
           refund.currency === 'INR';
