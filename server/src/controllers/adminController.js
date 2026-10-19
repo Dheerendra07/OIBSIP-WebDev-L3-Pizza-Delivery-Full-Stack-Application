@@ -29,7 +29,7 @@ export const updateInventory = asyncHandler(async (req, res) => {
 });
 export const listOrders = asyncHandler(async (_req, res) => {
   const orders = await Order.find().sort({ createdAt: -1 }).limit(200).populate('user', 'name email').lean();
-  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, user: o.user, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, paymentReviewReason: o.paymentReviewReason, refundStatus: o.refundStatus, createdAt: o.createdAt })) });
+  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, user: o.user, items: o.items, deliveryDetails: o.deliveryDetails, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, paymentReviewReason: o.paymentReviewReason, refundStatus: o.refundStatus, createdAt: o.createdAt })) });
 });
 export const updateOrderStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
