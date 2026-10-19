@@ -1,39 +1,51 @@
-# Architecture and request flow
+# Architecture and Request Flow
 
 ## Components
 
-- `client/src/App.jsx`: ordering UI, authentication dialogs, checkout, order tracking and admin actions.
-- `client/src/api.js`: JSON API wrapper with cookie credentials and the API origin used by Socket.IO.
-- `server/src/services/realtime.js`: cookie-authenticated Socket.IO connections, session-expiry enforcement, role-derived rooms, and privacy-limited order update events.
-- `server/src/app.js`: Express middleware and route registration.
-- `server/src/controllers/`: authentication, catalog, orders/payments, signed Razorpay webhook reconciliation and admin operations.
-- `server/src/models/`: users, inventory, orders and idempotent payment-webhook receipts.
-- `server/src/jobs/stockAlerts.js`: stock threshold emails and expired checkout reconciliation.
+- client/src/App.jsx: customer UI, authentication, checkout, customer/admin order views and payment-review recovery actions.
+- client/src/api.js: credentialed JSON API requests.
+- server/src/app.js: Express middleware and route registration; signed payment webhooks are mounted with raw-body parsing before JSON parsing.
+- server/src/controllers/: authentication, catalog, order/payment, signed webhook and admin handlers.
+- server/src/services/payments.js: Razorpay Test Mode client, checkout signature helper and idempotent full-refund submission.
+- server/src/services/refunds.js: eligibility checks, full-refund request state, provider refund webhook reconciliation and inventory/order-state transaction.
+- server/src/utils/paymentSignature.js: timing-safe HMAC verification for checkout and raw webhook body.
+- server/src/utils/paymentWebhook.js and paymentRefund.js: fail-closed classification of captured-payment/refund events.
+- server/src/models/: users, inventory, orders and webhook receipts.
+- server/src/jobs/stockAlerts.js: low-stock notifications and expired checkout/inventory reconciliation.
+- server/src/services/realtime.js: authenticated Socket.IO connections and privacy-limited order updates.
 
-## Checkout
+## Customer checkout
 
-1. The client sends cart choices; the server resolves them against an allowlisted catalog and computes prices itself.
-2. The server reserves ingredient stock in a MongoDB transaction before starting Razorpay Checkout.
-3. The client sends the Razorpay order/payment IDs and signature to the API.
-4. The checkout callback is verified server-side using HMAC plus provider payment linkage, captured status, amount and INR currency.
-5. The signed Razorpay webhook endpoint validates `X-Razorpay-Signature` against the exact raw JSON body using `RAZORPAY_WEBHOOK_SECRET`. It records `x-razorpay-event-id` receipts to make duplicate deliveries idempotent and reconciles `payment.captured` events even if the customer closes the checkout before the browser callback finishes.
-6. A matching capture fulfills the order only when the stock reservation is still present. Captures that do not safely match the expected amount/order/reservation are recorded as `payment_review` holds and surfaced to admins; stock is not released automatically and no automatic refund is attempted.
-7. `payment.failed` is treated as a non-terminal attempt, not proof that the order can be released. Expired holds continue to be reconciled with provider state before release.
-6. The client subscribes to authenticated Socket.IO `order:update` events. REST responses remain the source of truth: the client re-fetches on connect/reconnect and after an update, so missed events do not become stale client state.
-7. The server derives socket rooms from the currently verified database user and role. It emits after order creation, captured payment verification, admin fulfillment transitions, and captured-payment reconciliation. Payloads contain only order ID/number, status, payment status, and update time.
+1. The client submits cart choices; the server rebuilds line items from an allowlisted catalog and computes prices and fees.
+2. Ingredient stock is reserved in a MongoDB transaction before a Razorpay order is created.
+3. Checkout returns Razorpay order details to the browser. The client submits the order/payment IDs and signature for server verification.
+4. The server validates checkout HMAC, queries the provider payment and checks linked order, captured status, amount and INR currency before fulfillment.
+5. If browser verification does not finish, POST /api/payments/webhook can reconcile a signed payment.captured event. The route validates X-Razorpay-Signature over the exact raw JSON body with RAZORPAY_WEBHOOK_SECRET; event-ID receipts make repeated delivery idempotent.
+6. payment.failed is not treated as final while late capture remains possible. Expired-reservation reconciliation checks provider state and defers on uncertain, in-flight or mismatched payment states.
+7. A capture fulfills only when linked order, amount, currency and inventory reservation match. Unsafe captures are recorded as payment_review; they are not sent to the kitchen.
 
-## Security boundaries
+## Refund recovery
 
-- Public registration always creates the `user` role. Admin accounts are separately seeded.
-- JWT uses an HttpOnly cookie; reset/verification tokens are stored as hashes with expiry. Password reset increments `sessionVersion` to revoke earlier tokens.
-- Socket handshakes verify JWT issuer/audience, require a future expiry, validate the user's current database role/email-verification/session version, and only then join server-derived rooms. Active sockets are disconnected at JWT expiry; timer cleanup occurs on disconnect.
-- Logout and password reset explicitly disconnect relevant active user sockets.
-- Never commit `.env`; use Razorpay test keys, HTTPS, a verified SMTP sender and restricted database network access.
-- Webhooks must be signed with a separate `RAZORPAY_WEBHOOK_SECRET`. In production it is required; configure the same secret in the Razorpay Dashboard and `server/.env`.
+1. Admin endpoints are protected by authentication and admin-role authorization.
+2. The review queue lists webhook exceptions. The refund action is offered only for an eligible captured review hold with the exact recorded payment ID; multiple-capture cases require manual reconciliation.
+3. Before submitting, the server fetches the provider payment and verifies its order link, captured status, INR currency, refundable amount and refund state.
+4. The server persists a deterministic refund idempotency key before contacting Razorpay. A retry reuses that same key. Network or uncertain provider outcomes must not trigger a new independent refund.
+5. Signed refund.created, refund.processed and refund.failed events are reconciled through the webhook controller. A refund is not considered complete merely because the request was acknowledged.
+6. Only a matching confirmed full-refund result can mark the order refunded/cancelled and release any still-reserved inventory in a database transaction. Failed, mismatched, extra or uncertain refunds remain on manual review.
 
-## Deployment caveats
+## Authentication, inventory and realtime boundaries
 
-- Stock transactions require MongoDB transaction support (Atlas or replica-set-capable MongoDB).
-- Configure and test the signed Razorpay webhook in Razorpay Test Mode at `POST /api/payments/webhook` with `payment.captured` and `payment.failed` enabled. A manual review queue is not an automatic refund system; define, audit and test refund/reconciliation operations before production payments.
-- Configure exact CORS origins and test cookies against the chosen frontend/API hosting topology.
-- A passing CI run covers automated tests and the production client build, not the configured browser-to-database-to-payment end-to-end journey.
+- Public registration always creates a customer. Admin accounts are seeded separately.
+- Passwords are hashed; verification/reset tokens are stored as hashes with expiry. Password reset increments session version to revoke earlier sessions.
+- API/admin route authorization is separate from client-side UI gating.
+- Stock decrement/release and related order updates use MongoDB transactions; a replica-set-capable MongoDB is required.
+- Socket.IO authenticates the session, derives customer/admin rooms from verified database identity, minimizes event payloads and disconnects expired sessions.
+- Client REST refresh on socket connect/reconnect is the source of truth when live events are missed.
+
+## Environment and integration requirements
+
+- Keep .env files and provider credentials out of Git.
+- Use a transaction-capable database, strong JWT secret, HTTPS origins, secure cookies and verified SMTP configuration.
+- Configure POST /api/payments/webhook in Razorpay Test Mode and set the same separate RAZORPAY_WEBHOOK_SECRET in the server environment and provider dashboard.
+- Enable payment.captured, payment.failed, refund.created, refund.processed and refund.failed; verify actual delivery, duplicate events and out-of-order handling before production.
+- Automated CI validates unit tests and the production client build. It does not validate live provider delivery, external MongoDB transaction behavior, SMTP delivery or the full browser-to-provider flow.
