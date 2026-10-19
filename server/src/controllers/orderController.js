@@ -6,11 +6,13 @@ import { inventoryRequirements } from '../utils/catalog.js';
 import { buildOrderItems, calculateOrderTotals } from '../utils/orderRules.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { getRazorpayClient, verifyRazorpaySignature } from '../services/payments.js';
+import { publishOrderUpdate } from '../services/realtime.js';
 
 export const createOrder = asyncHandler(async (req, res) => {
   const items = buildOrderItems(req.body?.items);
   const { subtotal, deliveryFee, total } = calculateOrderTotals(items);
   const order = await Order.create({ orderNumber: `PH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, user: req.user._id, items, subtotal, deliveryFee, total });
+  publishOrderUpdate(order);
   res.status(201).json({ order: { id: order.id, orderNumber: order.orderNumber, items: order.items, subtotal, deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus } });
 });
 export const myOrders = asyncHandler(async (req, res) => {
@@ -100,5 +102,6 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     });
   } finally { await session.endSession(); }
   const paid = await Order.findById(orderId);
+  publishOrderUpdate(paid);
   res.json({ message: 'Payment verified', order: { id: paid.id, orderNumber: paid.orderNumber, status: paid.status, paymentStatus: paid.paymentStatus } });
 });
