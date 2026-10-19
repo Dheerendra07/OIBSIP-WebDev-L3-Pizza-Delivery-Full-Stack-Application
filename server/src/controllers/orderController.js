@@ -53,6 +53,11 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
   if (!order) return res.status(404).json({ error: 'Order not found' });
   if (order.paymentStatus === 'paid') return res.status(409).json({ error: 'This order is already paid' });
   if (order.status !== 'pending_payment') return res.status(409).json({ error: 'This order is not awaiting payment' });
+  try {
+    validateDeliveryDetails(order.deliveryDetails);
+  } catch {
+    return res.status(409).json({ error: 'Add valid delivery details before creating a payment.' });
+  }
   const razorpay = getRazorpayClient();
   const now = new Date();
   if (order.inventoryReserved && order.stockReservationExpiresAt && order.stockReservationExpiresAt <= now) return res.status(409).json({ error: 'The ingredient reservation expired. Please restart checkout with a new order.' });
