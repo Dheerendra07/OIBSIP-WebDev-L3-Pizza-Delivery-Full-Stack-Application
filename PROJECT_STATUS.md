@@ -8,7 +8,7 @@ Last updated: 2026-10-19 — live tracking and socket session-expiry hardening
 - Feature PR #1, handoff PR #2, assessment hardening PR #3, status PR #4, Socket.IO PR #5, handoff refresh PR #6 and socket session-expiry PR #7 are merged.
 - Socket.IO live order tracking merge: `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
 - Socket JWT-expiry hardening merge: `71d18fec59dd4106a43d6efd34327639035a7a25`.
-- The verified current `main` HEAD is `71d18fec59dd4106a43d6efd34327639035a7a25`.
+- Latest verified application-code commit is `71d18fec59dd4106a43d6efd34327639035a7a25`; later `main` commits only update handoff documentation.
 - Repository is public by owner choice; no real `.env` credentials or database exports are committed.
 
 ## Implemented
