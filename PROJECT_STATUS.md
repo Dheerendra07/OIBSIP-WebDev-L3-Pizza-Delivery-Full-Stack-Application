@@ -43,13 +43,14 @@ Last updated: 2026-10-20
 
 ## Final setup and end-to-end verification — still pending
 
-1. Configure a transaction-capable MongoDB replica set/Atlas environment and seed inventory; test concurrent stock contention, sold-out items and expired reservations.
-2. Configure Razorpay Test Mode keys and the separate webhook secret; test checkout capture, invalid signature, duplicate and out-of-order webhook delivery, ambiguous verification, multiple captured payments, refunds and retry/reconciliation.
-3. Run the browser journey: register → email verification → login → choose/build pizza → enter address → create order → payment → customer order history → admin fulfillment.
-4. Confirm pending payment recovery after reload; test cancelled expired orders and captured payments routed to manual review without asking the customer to pay twice.
-5. Verify SMTP email verification/reset/low-stock notification and provider outage behaviour.
-6. Test customer/admin Socket.IO updates, reconnect, logout/session expiry, and make sure private order events stay scoped to the right sessions.
-7. Validate production HTTPS, exact CORS origins, secure cookie policy, environment variables, health endpoint and server logs.
+1. Generate and commit root, server and client npm lockfiles with registry access, then switch CI's clean install path to `npm ci` and rerun all checks. The current repository does not pin transitive dependency versions in committed lockfiles.
+2. Configure a transaction-capable MongoDB replica set/Atlas environment and seed inventory; test concurrent stock contention, sold-out items and expired reservations.
+3. Configure Razorpay Test Mode keys and the separate webhook secret; test checkout capture, invalid signature, duplicate and out-of-order webhook delivery, ambiguous verification, multiple captured payments, refunds and retry/reconciliation.
+4. Run the browser journey: register → email verification → login → choose/build pizza → enter address → create order → payment → customer order history → admin fulfillment.
+5. Confirm pending payment recovery after reload; test cancelled expired orders and captured payments routed to manual review without asking the customer to pay twice.
+6. Verify SMTP email verification/reset/low-stock notification and provider outage behaviour.
+7. Test customer/admin Socket.IO updates, reconnect, logout/session expiry, and make sure private order events stay scoped to the right sessions.
+8. Validate production HTTPS, exact CORS origins, secure cookie policy, environment variables, health endpoint and server logs.
 
 ## Local assessment runbook
 

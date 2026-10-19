@@ -51,6 +51,7 @@
 ## Environment and integration requirements
 
 - Keep .env files and provider credentials out of Git.
+- The repository does not currently commit root/server/client npm lockfiles; generate them with registry access and use `npm ci` for reproducible clean installs before release.
 - Use a transaction-capable database, strong JWT secret, HTTPS origins, secure cookies and verified SMTP configuration.
 - Configure POST /api/payments/webhook in Razorpay Test Mode and set the same separate RAZORPAY_WEBHOOK_SECRET in the server environment and provider dashboard.
 - Enable payment.captured, payment.failed, refund.created, refund.processed and refund.failed; verify actual delivery, duplicate events and out-of-order handling before production.

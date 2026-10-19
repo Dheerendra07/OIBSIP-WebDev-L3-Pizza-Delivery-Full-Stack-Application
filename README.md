@@ -58,6 +58,8 @@ Pizza House is a MERN full-stack internship project for custom pizza ordering, s
 ### Verify
 Run npm test and npm run build from the repository root. GitHub Actions runs dependency installation, all configured tests and the production client build on pushes to main, feat/**, and fix/**, and on pull requests targeting main.
 
+Dependency-locking note: this repository currently has no committed root/server/client package-lock.json files, so npm install resolves the allowed semver ranges at install time. Before calling installs reproducible, generate and commit all three lockfiles with npm registry access, switch CI/local clean installs to npm ci, then rerun the full checks.
+
 ## Key API routes
 
 | Method | Endpoint | Purpose |
