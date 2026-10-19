@@ -69,6 +69,35 @@ export function calculateOrderTotals(items) {
   return { subtotal, deliveryFee, total: subtotal + deliveryFee };
 }
 
+/** Validate and normalize the address before an order can be created or paid. */
+export function validateDeliveryDetails(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw invalidInput('Delivery details are required before checkout');
+  }
+
+  const text = (value, label, min, max, required = true) => {
+    if (value == null && !required) return '';
+    if (typeof value !== 'string') throw invalidInput(`${label} must be text`);
+    const normalized = value.trim().replace(/\s+/g, ' ');
+    if (required && normalized.length < min) throw invalidInput(`${label} is required`);
+    if (normalized.length > max) throw invalidInput(`${label} must be at most ${max} characters`);
+    return normalized;
+  };
+
+  const recipientName = text(raw.recipientName, 'Recipient name', 2, 80);
+  const phone = text(raw.phone, 'Mobile number', 10, 24).replace(/[\s()-]/g, '');
+  if (!/^[6-9]\d{9}$/.test(phone)) throw invalidInput('Enter a valid 10-digit Indian mobile number');
+  const addressLine = text(raw.addressLine, 'Street address', 5, 180);
+  const landmark = text(raw.landmark, 'Landmark', 0, 100, false);
+  const city = text(raw.city, 'City', 2, 80);
+  const state = text(raw.state, 'State', 2, 80);
+  const postalCode = text(raw.postalCode, 'PIN code', 6, 6);
+  if (!/^[1-9]\d{5}$/.test(postalCode)) throw invalidInput('Enter a valid 6-digit Indian PIN code');
+  const instructions = text(raw.instructions, 'Delivery instructions', 0, 200, false);
+
+  return { recipientName, phone, addressLine, landmark, city, state, postalCode, instructions };
+}
+
 export function validateOrderStatusTransition(order, nextStatus) {
   if (order?.paymentStatus !== 'paid') {
     return { allowed: false, statusCode: 409, message: 'Only paid orders can be moved through fulfillment' };
