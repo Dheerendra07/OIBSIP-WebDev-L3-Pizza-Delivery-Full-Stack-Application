@@ -1,0 +1,42 @@
+/**
+ * Decide whether a verified provider capture can fulfill the order or must be
+ * quarantined for manual reconciliation. This function never trusts client data.
+ */
+export function classifyCapturedPayment(payment, order) {
+  if (!payment || payment.status !== 'captured' ||
+      typeof payment.id !== 'string' || !payment.id ||
+      typeof payment.order_id !== 'string' || !payment.order_id ||
+      !Number.isSafeInteger(payment.amount) || payment.amount <= 0 ||
+      typeof payment.currency !== 'string') {
+    return { action: 'review', reason: 'invalid_captured_payment_payload' };
+  }
+
+  if (!order) return { action: 'review', reason: 'provider_order_not_found' };
+
+  if (order.paymentStatus === 'paid') {
+    if (order.razorpayPaymentId === payment.id) {
+      return order.paymentReviewRequired
+        ? { action: 'review', reason: order.paymentReviewReason || 'existing_payment_review' }
+        : { action: 'already_processed' };
+    }
+    return { action: 'review', reason: 'multiple_captured_payments_for_order' };
+  }
+
+  if (payment.order_id !== order.razorpayOrderId) {
+    return { action: 'review', reason: 'provider_order_mismatch' };
+  }
+  if (payment.amount !== order.total * 100) {
+    return { action: 'review', reason: 'captured_amount_mismatch' };
+  }
+  if (payment.currency !== 'INR') {
+    return { action: 'review', reason: 'captured_currency_mismatch' };
+  }
+  if (order.paymentStatus !== 'pending' || order.status !== 'pending_payment') {
+    return { action: 'review', reason: 'order_not_awaiting_payment' };
+  }
+  if (!order.inventoryReserved) {
+    return { action: 'review', reason: 'inventory_reservation_missing' };
+  }
+
+  return { action: 'fulfill' };
+}
