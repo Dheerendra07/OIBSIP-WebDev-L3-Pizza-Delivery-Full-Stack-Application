@@ -15,6 +15,7 @@ export const config = {
   appBaseUrl: (process.env.APP_BASE_URL || 'http://localhost:4000').replace(/\/$/, ''),
   razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
+  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
   adminAlertEmail: process.env.ADMIN_ALERT_EMAIL || '',
   stockAlertCooldownHours: Number(process.env.LOW_STOCK_ALERT_COOLDOWN_HOURS || 6),
 };
