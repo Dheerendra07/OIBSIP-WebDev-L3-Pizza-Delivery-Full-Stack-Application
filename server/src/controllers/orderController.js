@@ -89,8 +89,9 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
 });
 
 export const verifyPayment = asyncHandler(async (req, res) => {
-  const { orderId, razorpay_order_id: razorpayOrderId, razorpay_payment_id: razorpayPaymentId, razorpay_signature: signature } = req.body;
-  if (!orderId || !razorpayOrderId || !razorpayPaymentId || !signature) return res.status(400).json({ error: 'Missing payment verification details' });
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const { orderId, razorpay_order_id: razorpayOrderId, razorpay_payment_id: razorpayPaymentId, razorpay_signature: signature } = body;
+  if (![orderId, razorpayOrderId, razorpayPaymentId, signature].every((value) => typeof value === 'string' && value.trim().length > 0)) return res.status(400).json({ error: 'Missing payment verification details' });
   if (!isRequestObjectId(orderId)) return res.status(400).json({ error: 'A valid order ID is required' });
   const initial = await Order.findOne({ _id: orderId, user: req.user._id });
   if (!initial) return res.status(404).json({ error: 'Order not found' });
