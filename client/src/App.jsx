@@ -185,7 +185,7 @@ export default function App() {
     const normalizedDeliveryDetails = {
         ...deliveryDetails,
         recipientName: deliveryDetails.recipientName.trim(),
-        phone: deliveryDetails.phone.replace(/[\\s()-]/g, ''),
+        phone: deliveryDetails.phone.replace(/[\s()-]/g, ''),
         addressLine: deliveryDetails.addressLine.trim(),
         landmark: deliveryDetails.landmark.trim(),
         city: deliveryDetails.city.trim(),
@@ -194,11 +194,11 @@ export default function App() {
         instructions: deliveryDetails.instructions.trim(),
     };
     if (normalizedDeliveryDetails.recipientName.length < 2 ||
-        !/^[6-9]\\d{9}$/.test(normalizedDeliveryDetails.phone) ||
+        !/^[6-9]\d{9}$/.test(normalizedDeliveryDetails.phone) ||
         normalizedDeliveryDetails.addressLine.length < 5 ||
         normalizedDeliveryDetails.city.length < 2 ||
         normalizedDeliveryDetails.state.length < 2 ||
-        !/^[1-9]\\d{5}$/.test(normalizedDeliveryDetails.postalCode)) {
+        !/^[1-9]\d{5}$/.test(normalizedDeliveryDetails.postalCode)) {
         notify('Add a recipient, valid 10-digit mobile number and complete address with city, state and 6-digit PIN code.', 'error');
         return;
     }
