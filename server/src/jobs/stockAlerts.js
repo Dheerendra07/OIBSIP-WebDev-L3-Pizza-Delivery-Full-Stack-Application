@@ -53,7 +53,7 @@ export async function releaseExpiredReservations(now = new Date()) {
           await order.save({ session }); reconciledOrderId = order._id; reconciled += 1; return;
         }
         for (const requirement of inventoryRequirements(order.items)) await InventoryItem.updateOne({ key: requirement.key }, { $inc: { stock: requirement.quantity } }, { session });
-        order.inventoryReserved = false; order.paymentOrderCreationInProgress = false; order.stockReservedAt = null; order.stockReservationExpiresAt = null; order.razorpayOrderId = null;
+        order.inventoryReserved = false; order.paymentOrderCreationInProgress = false; order.stockReservedAt = null; order.stockReservationExpiresAt = null; // Keep razorpayOrderId so a very late capture can still be reconciled to this order.
         // An unpaid reservation that expires is no longer an active order.
         // Mark it cancelled so customers can distinguish it from a payable order.
         order.status = 'cancelled';
