@@ -1,5 +1,16 @@
 import mongoose from 'mongoose';
 
+const deliveryDetailsSchema = new mongoose.Schema({
+  recipientName: { type: String, required: true, trim: true, minlength: 2, maxlength: 80 },
+  phone: { type: String, required: true, match: /^[6-9]\d{9}$/ },
+  addressLine: { type: String, required: true, trim: true, minlength: 5, maxlength: 180 },
+  landmark: { type: String, trim: true, maxlength: 100, default: '' },
+  city: { type: String, required: true, trim: true, minlength: 2, maxlength: 80 },
+  state: { type: String, required: true, trim: true, minlength: 2, maxlength: 80 },
+  postalCode: { type: String, required: true, match: /^[1-9]\d{5}$/ },
+  instructions: { type: String, trim: true, maxlength: 200, default: '' },
+}, { _id: false, strict: 'throw' });
+
 const orderSchema = new mongoose.Schema({
   orderNumber: { type: String, required: true, unique: true, index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -14,6 +25,8 @@ const orderSchema = new mongoose.Schema({
   subtotal: { type: Number, required: true, min: 0 },
   deliveryFee: { type: Number, required: true, min: 0, default: 29 },
   total: { type: Number, required: true, min: 0 },
+  // Optional at the schema root for legacy orders; new orders must pass API validation.
+  deliveryDetails: { type: deliveryDetailsSchema, default: undefined },
   status: { type: String, enum: ['pending_payment', 'payment_review', 'order_received', 'in_kitchen', 'sent_to_delivery', 'delivered', 'cancelled'], default: 'pending_payment', index: true },
   paymentStatus: { type: String, enum: ['pending', 'paid', 'failed', 'refunded'], default: 'pending', index: true },
   paymentReviewRequired: { type: Boolean, default: false, index: true },

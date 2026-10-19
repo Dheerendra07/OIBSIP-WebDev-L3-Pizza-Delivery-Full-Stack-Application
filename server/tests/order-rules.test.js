@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FEATURED_PIZZAS, CATALOG } from '../src/utils/catalog.js';
-import { buildOrderItem, buildOrderItems, calculateOrderTotals, validateOrderStatusTransition } from '../src/utils/orderRules.js';
+import { buildOrderItem, buildOrderItems, calculateOrderTotals, validateOrderStatusTransition, validateDeliveryDetails } from '../src/utils/orderRules.js';
 
 test('featured pizza uses the server-owned price, recipe and stock requirements', () => {
   const item = buildOrderItem({ type: 'featured', pizzaId: 'margherita', quantity: 2, unitPrice: 1, lineTotal: 2, inventoryKeys: ['attacker:controlled'] });
@@ -37,4 +37,36 @@ test('fulfillment allows only the next status for paid orders', () => {
   assert.equal(validateOrderStatusTransition({ status: 'order_received', paymentStatus: 'paid' }, 'delivered').statusCode, 400);
   assert.equal(validateOrderStatusTransition({ status: 'delivered', paymentStatus: 'paid' }, 'in_kitchen').allowed, false);
   assert.equal(validateOrderStatusTransition({ status: 'order_received', paymentStatus: 'pending' }, 'in_kitchen').statusCode, 409);
+});
+
+const validDeliveryDetails = {
+  recipientName: 'Dheerendra Singh',
+  phone: '98765 43210',
+  addressLine: '12 Green Park Road',
+  landmark: 'Near central market',
+  city: 'Meerut',
+  state: 'Uttar Pradesh',
+  postalCode: '250001',
+  instructions: 'Call on arrival',
+};
+
+test('delivery details are normalized and validated before checkout', () => {
+  assert.deepEqual(validateDeliveryDetails(validDeliveryDetails), {
+    recipientName: 'Dheerendra Singh',
+    phone: '9876543210',
+    addressLine: '12 Green Park Road',
+    landmark: 'Near central market',
+    city: 'Meerut',
+    state: 'Uttar Pradesh',
+    postalCode: '250001',
+    instructions: 'Call on arrival',
+  });
+});
+
+test('delivery details reject missing addresses, invalid mobile numbers and invalid PIN codes', () => {
+  assert.throws(() => validateDeliveryDetails(null), { statusCode: 400 });
+  assert.throws(() => validateDeliveryDetails({ ...validDeliveryDetails, addressLine: '  ' }), { statusCode: 400 });
+  assert.throws(() => validateDeliveryDetails({ ...validDeliveryDetails, phone: '1234567890' }), { statusCode: 400 });
+  assert.throws(() => validateDeliveryDetails({ ...validDeliveryDetails, postalCode: '000000' }), { statusCode: 400 });
+  assert.throws(() => validateDeliveryDetails({ ...validDeliveryDetails, instructions: 'x'.repeat(201) }), { statusCode: 400 });
 });

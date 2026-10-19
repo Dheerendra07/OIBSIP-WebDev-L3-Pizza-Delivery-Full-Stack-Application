@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import Order from '../models/Order.js';
 import InventoryItem from '../models/InventoryItem.js';
 import { inventoryRequirements } from '../utils/catalog.js';
-import { buildOrderItems, calculateOrderTotals } from '../utils/orderRules.js';
+import { buildOrderItems, calculateOrderTotals, validateDeliveryDetails } from '../utils/orderRules.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { getRazorpayClient, verifyRazorpaySignature } from '../services/payments.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
@@ -12,20 +12,39 @@ const isRequestObjectId = (value) => typeof value === 'string' && mongoose.isObj
 
 export const createOrder = asyncHandler(async (req, res) => {
   const items = buildOrderItems(req.body?.items);
+  const deliveryDetails = validateDeliveryDetails(req.body?.deliveryDetails);
   const { subtotal, deliveryFee, total } = calculateOrderTotals(items);
-  const order = await Order.create({ orderNumber: `PH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, user: req.user._id, items, subtotal, deliveryFee, total });
+  const order = await Order.create({ orderNumber: `PH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, user: req.user._id, items, deliveryDetails, subtotal, deliveryFee, total });
   publishOrderUpdate(order);
-  res.status(201).json({ order: { id: order.id, orderNumber: order.orderNumber, items: order.items, subtotal, deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus } });
+  res.status(201).json({ order: { id: order.id, orderNumber: order.orderNumber, items: order.items, deliveryDetails: order.deliveryDetails, subtotal, deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus } });
 });
 export const myOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(50).lean();
-  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, createdAt: o.createdAt, updatedAt: o.updatedAt })) });
+  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, deliveryDetails: o.deliveryDetails, createdAt: o.createdAt, updatedAt: o.updatedAt })) });
 });
 export const getOrder = asyncHandler(async (req, res) => {
   if (!isRequestObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order identifier' });
   const filter = { _id: req.params.id }; if (req.user.role !== 'admin') filter.user = req.user._id;
   const order = await Order.findOne(filter).lean(); if (!order) return res.status(404).json({ error: 'Order not found' });
-  res.json({ order: { id: order._id, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, deliveryFee: order.deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus, paymentReviewRequired: order.paymentReviewRequired, createdAt: order.createdAt, updatedAt: order.updatedAt } });
+  res.json({ order: { id: order._id, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, deliveryFee: order.deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus, paymentReviewRequired: order.paymentReviewRequired, deliveryDetails: order.deliveryDetails, createdAt: order.createdAt, updatedAt: order.updatedAt } });
+});
+
+
+export const updateDeliveryDetails = asyncHandler(async (req, res) => {
+  if (!isRequestObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order identifier' });
+  const deliveryDetails = validateDeliveryDetails(req.body?.deliveryDetails);
+  const order = await Order.findOneAndUpdate(
+    { _id: req.params.id, user: req.user._id, status: 'pending_payment', paymentStatus: 'pending' },
+    { $set: { deliveryDetails } },
+    { new: true, runValidators: true },
+  ).lean();
+  if (!order) {
+    const ownedOrder = await Order.exists({ _id: req.params.id, user: req.user._id });
+    if (!ownedOrder) return res.status(404).json({ error: 'Order not found' });
+    return res.status(409).json({ error: 'Delivery details can only be changed while payment is pending' });
+  }
+  publishOrderUpdate(order);
+  res.json({ deliveryDetails: order.deliveryDetails });
 });
 
 export const createPaymentOrder = asyncHandler(async (req, res) => {
