@@ -24,3 +24,10 @@
 .payment-review-event strong{display:block;font-size:12px}
 .payment-review-event p{margin:2px 0;color:#8f2f20;font-size:11px}
 .payment-review-event small{display:block;color:var(--muted);font-size:10px;line-height:1.5}
+
+
+/* Admin recovery controls are separated from ordinary order-fulfilment actions. */
+.payment-review-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-top:9px;padding-top:10px;border-top:1px solid #e5b6a6}
+.payment-review-actions small,.refund-status-note{font-size:10px;line-height:1.5;color:#8e5749}
+.payment-review-actions .small-button{flex-shrink:0}
+.status-pill.refunded{background:#e9e6f7;color:#4d4385}
