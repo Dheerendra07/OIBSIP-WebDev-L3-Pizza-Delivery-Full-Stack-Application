@@ -2,7 +2,8 @@ import mongoose from 'mongoose';
 import crypto from 'node:crypto';
 import Order from '../models/Order.js';
 import InventoryItem from '../models/InventoryItem.js';
-import { FEATURED_PIZZAS, calculateCustomPizza, inventoryRequirements } from '../utils/catalog.js';
+import { inventoryRequirements } from '../utils/catalog.js';
+import { buildOrderItems, calculateOrderTotals } from '../utils/orderRules.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { getRazorpayClient, verifyRazorpaySignature } from '../services/payments.js';
 
