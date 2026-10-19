@@ -121,7 +121,7 @@ export const verifyPayment = asyncHandler(async (req, res) => {
   const initial = await Order.findOne({ _id: orderId, user: req.user._id });
   if (!initial) return res.status(404).json({ error: 'Order not found' });
   if (initial.paymentStatus === 'paid') {
-    if (initial.razorpayOrderId === razorpayOrderId && initial.razorpayPaymentId === razorpayPaymentId) return res.json({ message: 'Payment already verified', order: { id: initial.id, orderNumber: initial.orderNumber, status: initial.status, paymentStatus: initial.paymentStatus } });
+    if (initial.razorpayOrderId === razorpayOrderId && initial.razorpayPaymentId === razorpayPaymentId) return res.json({ message: initial.paymentReviewRequired ? 'Payment received; order requires manual review' : 'Payment already verified', order: { id: initial.id, orderNumber: initial.orderNumber, status: initial.status, paymentStatus: initial.paymentStatus, paymentReviewRequired: initial.paymentReviewRequired } });
     return res.status(409).json({ error: 'Order already has a different successful payment' });
   }
   if (initial.razorpayOrderId !== razorpayOrderId || !verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, signature)) return res.status(400).json({ error: 'Payment signature verification failed' });
