@@ -136,6 +136,10 @@ export async function requestFullPaymentReviewRefund(orderId, paymentId, adminUs
     throw httpError(409, 'This review event does not match the order’s recorded payment. Use manual provider reconciliation instead.');
   }
 
+  if (order.paymentReviewReason === 'multiple_captured_payments_for_order') {
+    throw httpError(409, 'This order has multiple captured payments. Automatic refund is blocked until each payment is reconciled separately.');
+  }
+
   const duplicateCaptureReview = await PaymentWebhookReceipt.exists({
     order: order._id,
     status: 'review_required',
