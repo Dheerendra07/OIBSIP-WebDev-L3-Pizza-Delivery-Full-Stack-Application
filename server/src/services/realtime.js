@@ -57,6 +57,12 @@ export function publishOrderUpdate(order, target = realtimeServer) {
   return true;
 }
 
+export function publishAdminRefresh(target = realtimeServer) {
+  if (!target) return false;
+  target.to('role:admin').emit('admin:refresh', {});
+  return true;
+}
+
 export async function disconnectUserSockets(userId, target = realtimeServer) {
   if (!target || userId == null) return 0;
   const sockets = await target.in(`user:${String(userId)}`).fetchSockets();
