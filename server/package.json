@@ -1,0 +1,17 @@
+{
+  "name": "pizza-house-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test",
+    "seed:inventory": "node src/utils/seedInventory.js",
+    "seed:admin": "node src/utils/seedAdmin.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2", "cookie-parser": "^1.4.7", "cors": "^2.8.5", "node-cron": "^4.2.1", "dotenv": "^17.2.3", "express": "^5.1.0", "express-rate-limit": "^8.1.0", "helmet": "^8.1.0", "jsonwebtoken": "^9.0.2", "mongoose": "^8.19.1", "nodemailer": "^7.0.9", "razorpay": "^2.9.6"
+  },
+  "engines": { "node": ">=20.19.0" }
+}
