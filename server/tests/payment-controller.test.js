@@ -78,3 +78,42 @@ test('payment endpoints reject non-string IDs even when Mongoose can cast their 
     assert.deepEqual(res.payload, { error: item.expected });
   }
 });
+
+
+test('payment verification rejects an absent or non-object JSON body without throwing', async () => {
+  for (const body of [undefined, null, [], 'not-an-object']) {
+    const req = { body, user: { _id: '64b000000000000000000001' } };
+    const res = responseRecorder();
+    let nextError;
+
+    await verifyPayment(req, res, (error) => {
+      nextError = error;
+    });
+
+    assert.equal(nextError, undefined);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: 'Missing payment verification details' });
+  }
+});
+
+test('payment verification rejects non-string payment fields before signature/provider calls', async () => {
+  const req = {
+    body: {
+      orderId: '64b000000000000000000002',
+      razorpay_order_id: ['order_test_123'],
+      razorpay_payment_id: 'pay_test_456',
+      razorpay_signature: 'signature',
+    },
+    user: { _id: '64b000000000000000000001' },
+  };
+  const res = responseRecorder();
+  let nextError;
+
+  await verifyPayment(req, res, (error) => {
+    nextError = error;
+  });
+
+  assert.equal(nextError, undefined);
+  assert.equal(res.statusCode, 400);
+  assert.deepEqual(res.payload, { error: 'Missing payment verification details' });
+});
