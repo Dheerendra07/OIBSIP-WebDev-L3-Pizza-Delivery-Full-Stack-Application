@@ -1,14 +1,14 @@
 # Project Status — Pizza House
 
-Last updated: 2026-10-19 — socket hardening and payment-request validation
+Last updated: 2026-10-19 — signed payment webhooks and late-capture reconciliation
 
 ## Git state (verified)
 - Repository: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application
 - Default branch: `main`.
-- Feature PR #1, handoff PR #2, assessment hardening PR #3, status PR #4, Socket.IO PR #5, handoff refresh PR #6, socket session-expiry PR #7, handoff update PR #8, code-SHA handoff PR #9 and payment-request validation PR #10 are merged.
+- Feature PRs #1–#3, status/handoff PRs #4, #6, #8, #9, #11, Socket.IO PR #5, socket session-expiry PR #7, payment-request validation PR #10, late-capture hold PR #12 and signed Razorpay webhook PR #13 are merged.
 - Socket.IO live order tracking merge: `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
 - Socket JWT-expiry hardening merge: `71d18fec59dd4106a43d6efd34327639035a7a25`.
-- Latest verified application-code commit is `c38b98625611bb3a4a700ae5cfa9d61eb584a2e0`; this includes strict order-ID and payment-verification request validation.
+- Latest verified application-code commit is `c48b295026090240de73282c001dda6f31a6a90b`; this includes strict payment-request validation, late-capture safeguards, and signed Razorpay webhooks.
 - Repository is public by owner choice; no real `.env` credentials or database exports are committed.
 
 ## Implemented
@@ -18,12 +18,15 @@ Last updated: 2026-10-19 — socket hardening and payment-request validation
 - Server-owned catalog pricing and order-line validation; client-provided prices and totals are not trusted.
 - Ingredient stock is reserved inside MongoDB transactions before checkout. Razorpay test payments are verified server-side using HMAC plus provider capture status, order linkage, amount and INR currency.
 - Checkout retry reuses an existing pending order only when cart choices and server pricing still match.
-- Expired stock reservations are reconciled against provider payment status; uncertain or mismatched captured payments preserve the hold for later review.
+- Expired stock reservations are reconciled against provider payment status; failed attempts remain non-terminal during the 73-hour late-capture safety window.
+- Signed `POST /api/payments/webhook` uses the raw-body HMAC and the separate `RAZORPAY_WEBHOOK_SECRET`; webhook event IDs are persisted for idempotency.
+- Matching `payment.captured` events can complete an order even when browser checkout verification did not finish. Captured payments that mismatch the expected amount/currency/order or no longer have a safe inventory reservation are held as `payment_review` and listed in the admin review queue; there is no automatic refund.
 - HttpOnly JWT session cookie, hashed expiring verification/reset tokens, password-reset session-version invalidation, auth rate limiting and admin route authorization.
 - Authenticated Socket.IO live order tracking. The server validates the exact allowed origin and current database user/session, derives user/admin rooms server-side, and publishes minimized order updates after relevant persisted order/payment/status changes.
 - Realtime sockets require a valid future JWT `exp`; the server disconnects them at session expiry and clears expiry timers when sockets disconnect. Missing, invalid or expired session timestamps are rejected for realtime authentication.
 - The frontend re-fetches REST state on socket connection/reconnection and relevant events, so REST remains the source of truth if a realtime event is missed.
 - API order lookup/payment endpoints require correctly formatted ObjectId strings. Payment verification rejects absent/non-object bodies and non-string provider fields with controlled HTTP 400 responses before database/provider lookup.
+- Production startup requires `RAZORPAY_WEBHOOK_SECRET`; `.env.example` documents the separate webhook secret.
 - GitHub Actions runs the complete configured unit-test suite and production frontend build on pushes to `main`, `feat/**`, `fix/**` and pull requests targeting `main`.
 
 ## Latest verification (checked 2026-10-19)
@@ -31,15 +34,17 @@ Last updated: 2026-10-19 — socket hardening and payment-request validation
 - Session-expiry hardening PR run [39232762071](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39232762071): passed; dependency installation, unit tests and production client build succeeded.
 - Session-expiry hardening merged-main run [39232862036](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39232862036): passed.
 - Payment request validation PR run [39237742117](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39237742117): passed.
-- Current merged `main` run [39237832222](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39237832222): **54 tests passed, 0 failed**; production client build passed.
-- CI validates automated tests and the client build, not the configured external-service/browser end-to-end journey.
+- Late-capture safeguard PR run [39252695461](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39252695461): passed.
+- Signed webhook PR run [39254248827](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39254248827): passed.
+- Current merged `main` run [39254366630](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39254366630): **69 tests passed, 0 failed**; production client build passed.
+- CI does not establish configured Razorpay Dashboard delivery, live MongoDB transaction behavior, email delivery, refunds, or the full browser-to-provider end-to-end journey.
 
 ## Remaining before calling it fully end-to-end tested
 - Run a configured browser journey: register → verify email → sign in → build pizza → create order → Razorpay test payment → verify payment → see live order updates → advance order from the admin session.
 - Exercise MongoDB replica-set transactions, concurrent stock contention/out-of-stock, SMTP delivery and outage behavior, Razorpay timeout/failure/duplicate callbacks, and expired-reservation reconciliation.
 - Test Socket.IO with two separate customer sessions and an admin session, including expiry, logout/password-reset invalidation, rejected origins and reconnect after a dropped connection.
-- **Payment-expiry safety remains a blocker before production:** the app's 15-minute inventory TTL is local, while the current Razorpay Orders checkout flow has no demonstrated provider-side invalidation at that time. Test and implement a late-capture-safe solution (for example an expiring/cancellable payment resource, or signed webhook with idempotent re-reservation/refund handling) before live payment traffic.
-- Add and test a signature-verified Razorpay webhook plus audited refund/reconciliation procedures before any production payment traffic.
+- Configure the webhook in Razorpay Test Mode with `payment.captured` and `payment.failed` enabled, set the same secret in the Razorpay Dashboard and `server/.env`, and verify duplicate deliveries and out-of-order events.
+- Implement and audit the manual refund/reconciliation process for `payment_review` orders before production payments; webhook review flags do not issue refunds automatically.
 - Deployment needs HTTPS, exact CORS/socket origins, verified `MAIL_FROM`, secure cookie settings and restricted MongoDB network access. Use Razorpay test credentials only during assessment.
 
 ## Local setup
