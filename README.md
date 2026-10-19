@@ -7,8 +7,9 @@ Pizza House is a MERN full-stack internship project for custom pizza ordering, s
 ### Customer experience
 - Register and sign in with email verification, HttpOnly-cookie sessions, logout, forgot-password and reset-password.
 - Browse featured pizzas, filter the menu, build a custom pizza, manage the cart and view server-calculated totals.
-- Start Razorpay Test Mode checkout and retry server verification for the same payment when confirmation is uncertain.
-- See order history and authenticated Socket.IO order updates.
+- Enter and validate recipient, mobile number and delivery address before creating a payable order; update destination details while payment is pending.
+- Start Razorpay Test Mode checkout and retry server verification for the same payment when confirmation is uncertain, including after a page reload in the same browser tab/session.
+- See saved delivery details in order history and authenticated Socket.IO order updates.
 
 ### Admin experience
 - Separate admin login; public registration cannot create admin accounts.
@@ -23,7 +24,9 @@ Pizza House is a MERN full-stack internship project for custom pizza ordering, s
 - Checkout verification checks the payment signature and independently verifies provider payment status, order linkage, amount and INR currency.
 - Signed POST /api/payments/webhook validates the raw request body with the separate RAZORPAY_WEBHOOK_SECRET.
 - Webhook event receipts make duplicate deliveries idempotent. payment.failed is not treated as final proof that an order can be released; late-capture attempts are protected by a conservative hold window.
-- Captures that mismatch the order, amount, currency or reservation are placed in payment_review instead of being sent to the kitchen.
+- Captures that mismatch the order, amount, currency, active inventory reservation or required delivery details are placed in payment_review instead of being sent to the kitchen.
+- Captured-payment verification exceptions create admin-visible review receipts; customers are told not to pay again when manual review is required.
+- Expired unpaid reservations are marked cancelled after safe reconciliation. Provider order references are retained so late captures can still be tied to the original order; uncertain provider state defers release.
 
 ## Technology
 - Frontend: React, Vite
@@ -61,10 +64,12 @@ Run npm test and npm run build from the repository root. GitHub Actions runs dep
 | POST | /api/auth/login | Customer sign-in |
 | POST | /api/auth/admin/login | Admin sign-in |
 | GET | /api/catalog | Get menu and options |
-| POST | /api/orders | Create server-priced order |
+| POST | /api/orders | Create server-priced order with validated delivery details |
 | GET | /api/orders/my | Customer order history |
-| POST | /api/payments/create-order | Reserve stock and create Razorpay order |
-| POST | /api/payments/verify | Verify checkout payment |
+| GET | /api/orders/:id | Read an order owned by the customer (admins can inspect any order) |
+| PATCH | /api/orders/:id/delivery-details | Update destination while payment is pending |
+| POST | /api/payments/create-order | Validate destination, reserve stock and create Razorpay order |
+| POST | /api/payments/verify | Verify checkout payment and record captured exceptions for review |
 | POST | /api/payments/webhook | Verify signed payment/refund webhook |
 | GET | /api/admin/orders | Admin order queue |
 | GET | /api/admin/payment-reviews | Captured-payment review queue |
@@ -83,7 +88,7 @@ Configure the deployed API endpoint POST /api/payments/webhook in the Razorpay D
 
 ## Verified repository status
 
-- Main application commit: 19255d728af2eb30941846241487c8d56af83ae1.
-- Latest merged-main CI run: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39298719596
-- Verified in that run: 77 tests passed, 0 failed; production client build passed.
+- Latest merged application hardening commit: `7f915ad55d96fcf1b7ef9dff3c63d185e1dcf176` (PR #17).
+- PR #17 CI, tested against code SHA `6b710511e22ab6c0a86e7dfd557b36adeec341d0`: [pull request check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319136556) and [push check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319133025) both passed unit/smoke tests and production client build.
+- These checks do not prove live MongoDB transaction behaviour, Razorpay payment/webhook/refund delivery, SMTP delivery or browser end-to-end success. Those remain in the final setup/integration phase.
 - See PROJECT_STATUS.md for current verification evidence and remaining integration work.

@@ -5,55 +5,61 @@ Last updated: 2026-10-20
 ## Current Git state
 
 - Repository: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application
-- Default branch: main.
-- Latest merged application commit: 19255d728af2eb30941846241487c8d56af83ae1 — admin payment-review full-refund recovery.
-- Payment-safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, and #15 guarded admin full-refund recovery.
-- PR #14 was a stale status-document snapshot and has been closed as superseded.
-- Historical Socket.IO live order tracking merge: fb3baf38ba2926c033ea1a11e93e6f1350c15d77.
-- Historical Socket.IO session-expiry hardening merge: 71d18fec59dd4106a43d6efd34327639035a7a25.
+- Default branch: `main`.
+- Latest merged application hardening commit: `7f915ad55d96fcf1b7ef9dff3c63d185e1dcf176` — checkout, captured-payment and reservation recovery hardening (PR #17).
+- Delivery details collection and persistence merged in PR #16.
+- Payment-safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, #15 guarded admin full-refund recovery, #16 delivery destination fields, and #17 checkout/recovery hardening.
+- PR #14 was a stale status-document snapshot and is closed as superseded.
+- Historical Socket.IO live order tracking merge: `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
+- Historical Socket.IO session-expiry hardening merge: `71d18fec59dd4106a43d6efd34327639035a7a25`.
 - Real environment credentials and database exports must not be committed.
 
-## Implemented and merged
+## Implemented
 
-- React/Vite customer UI with menu, custom pizza builder, cart, checkout, authentication and order history.
-- Express/Mongoose API with registration/email verification, secure sessions, password reset, server-priced orders and admin-only operations.
+- React/Vite customer UI with featured menu, custom pizza builder, cart, checkout, authentication, order history and a responsive delivery details form.
+- Express/Mongoose API with registration/email verification, secure cookie sessions, password reset, server-priced orders and admin-only operations.
+- Validated delivery recipient, Indian mobile number, street address, city, state and PIN code; details are saved with the order and visible in customer/admin order views.
+- Pending destination can be updated only while the order is unpaid and awaiting payment.
 - Transactional ingredient stock reservation before checkout and cautious expired-reservation reconciliation.
-- Server-side Razorpay checkout signature and provider-state verification.
-- Signed POST /api/payments/webhook validating the exact raw request body using a separate RAZORPAY_WEBHOOK_SECRET.
-- Event-ID receipts for duplicate webhook deliveries; payment.failed is non-terminal, and captured payments that cannot safely fulfill an order are placed in payment_review.
-- Admin payment-review queue and guarded full-refund action for eligible review holds.
-- Refund requests use a deterministic idempotency key; signed refund events reconcile pending/processed/failed state. Uncertain outcomes and multiple captured payments remain on manual review instead of being automatically treated as resolved.
-- Inventory is released as part of the confirmed full-refund transaction only; customer/admin order views surface review/refunded states.
+- Razorpay Test Mode checkout signature validation and independent provider-state verification.
+- Signed `POST /api/payments/webhook` validates the exact raw request body with the separate `RAZORPAY_WEBHOOK_SECRET`.
+- Event-ID receipts make duplicate webhook deliveries idempotent; payment.failed is not treated as a final payment outcome while late capture remains possible.
+- Captured payments that cannot safely fulfill because of amount, currency, order linkage, inventory reservation, multiple captures or invalid/missing destination are placed in `payment_review` and made visible to the admin.
+- Client verification retry is preserved in session storage for the current tab/session so a reload does not automatically restart checkout.
+- Expired unpaid orders become cancelled after safe reservation reconciliation. The provider-order reference is retained so a late capture can still be linked and reviewed.
+- Admin payment-review queue and guarded full-refund recovery for eligible review holds. Refund requests use deterministic provider idempotency; extra captures, failed refunds and uncertain states remain on manual review.
+- Inventory is released only after a confirmed full refund or a safely reconciled expired unpaid checkout; ambiguous provider state preserves the hold.
 - Authenticated Socket.IO updates with role-derived rooms, session-expiry checks and REST refresh on reconnect.
-- Admin inventory controls, scheduled low-stock email notifications and fulfillment-status transition validation.
-- CI installs root/server/client dependencies, runs the complete configured Node test suite and builds the production client.
+- Admin inventory controls, low-stock notification job and fulfillment status transition validation.
+- CI installs root/server/client dependencies, runs the configured server/client test suite and builds the production client. A passing CI run is not the same as live end-to-end verification.
 
 ## Latest verified automated checks
 
-- Main application commit: 19255d728af2eb30941846241487c8d56af83ae1.
-- Main CI run 39298719596: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39298719596
-- Result: 77 tests passed, 0 failed; production client build passed.
-- PR #15 CI run 39298561324 also passed.
-- CI confirms automated tests and the frontend production build only; it is not proof of live external-service integration.
+- PR #17 code head: `6b710511e22ab6c0a86e7dfd557b36adeec341d0`.
+- Pull-request check: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319136556 — passed.
+- Push check: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319133025 — passed.
+- Both checks completed dependency installation, configured tests/smoke checks and the production client build successfully.
+- They do not verify external MongoDB, Razorpay, SMTP or deployed-browser behaviour.
 
-## Remaining before full end-to-end verification
+## Final setup and end-to-end verification — still pending
 
-1. Configure Razorpay Test Mode webhook delivery with the separate webhook secret and the payment/refund events. Verify valid/invalid signatures, duplicate delivery and out-of-order events on the deployed API.
-2. Run a browser journey end to end: customer registration/email verification → login → build cart → create order → Razorpay test payment → confirmation → customer order history → admin fulfillment.
-3. Exercise refund processing and failure/retry using provider Test Mode, including uncertain request responses and multiple-capture manual reconciliation.
-4. Verify MongoDB replica-set transactions, concurrent stock contention/out-of-stock and expired-reservation reconciliation using the configured database.
-5. Verify actual SMTP email delivery and outages, plus Socket.IO with separate customer/admin sessions, logout/session expiry and reconnect.
-6. Confirm deployed HTTPS, exact CORS/cookie configuration, required environment variables, health endpoint and logs.
+1. Configure a transaction-capable MongoDB replica set/Atlas environment and seed inventory; test concurrent stock contention, sold-out items and expired reservations.
+2. Configure Razorpay Test Mode keys and the separate webhook secret; test checkout capture, invalid signature, duplicate and out-of-order webhook delivery, ambiguous verification, multiple captured payments, refunds and retry/reconciliation.
+3. Run the browser journey: register → email verification → login → choose/build pizza → enter address → create order → payment → customer order history → admin fulfillment.
+4. Confirm pending payment recovery after reload; test cancelled expired orders and captured payments routed to manual review without asking the customer to pay twice.
+5. Verify SMTP email verification/reset/low-stock notification and provider outage behaviour.
+6. Test customer/admin Socket.IO updates, reconnect, logout/session expiry, and make sure private order events stay scoped to the right sessions.
+7. Validate production HTTPS, exact CORS origins, secure cookie policy, environment variables, health endpoint and server logs.
 
 ## Local assessment runbook
 
-1. Copy root .env.example to server/.env; do not commit secrets.
-2. Configure transaction-capable MongoDB, strong JWT secret, app/frontend URLs, SMTP and Razorpay Test Mode keys plus separate webhook secret.
-3. Run npm run install:all.
-4. Run npm run seed:inventory.
-5. Set ADMIN_EMAIL and ADMIN_PASSWORD and run npm run seed:admin.
-6. Run npm run dev.
-7. Verify frontend at http://localhost:5173 and API health at http://localhost:4000/api/health.
-8. Run npm test and npm run build.
+1. Copy root `.env.example` to `server/.env`; never commit secrets.
+2. Configure transaction-capable MongoDB, unique JWT secret, exact application/frontend URLs, SMTP and Razorpay Test Mode keys plus a separate webhook secret.
+3. Run `npm run install:all`.
+4. Run `npm run seed:inventory`.
+5. Set `ADMIN_EMAIL` and a strong `ADMIN_PASSWORD` in `server/.env`, then run `npm run seed:admin`.
+6. Run `npm run dev`.
+7. Verify frontend at `http://localhost:5173` and API health at `http://localhost:4000/api/health`.
+8. Run `npm test` and `npm run build`.
 
-Do not call the app fully end-to-end verified until the configuration-backed journey and external provider/database/email checks above pass. Use Test Mode during internship assessment; do not enable live payment traffic yet.
+Do not describe this as fully end-to-end verified until the configuration-backed browser flow and real provider/database/email checks above pass. Use Razorpay Test Mode during assessment; do not enable live payment traffic yet.
