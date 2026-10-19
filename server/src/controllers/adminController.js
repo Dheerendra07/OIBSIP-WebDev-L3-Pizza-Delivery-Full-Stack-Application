@@ -2,6 +2,7 @@ import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { validateOrderStatusTransition } from '../utils/orderRules.js';
 
 export const summary = asyncHandler(async (_req, res) => {
   const [ordersTotal, paidOrders, revenue, pendingOrders, usersTotal, lowStock] = await Promise.all([
@@ -26,12 +27,11 @@ export const listOrders = asyncHandler(async (_req, res) => {
   const orders = await Order.find().sort({ createdAt: -1 }).limit(200).populate('user', 'name email').lean();
   res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, user: o.user, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, createdAt: o.createdAt })) });
 });
-const NEXT_STATUSES = { order_received: ['in_kitchen'], in_kitchen: ['sent_to_delivery'], sent_to_delivery: ['delivered'] };
 export const updateOrderStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
   const order = await Order.findById(req.params.id); if (!order) return res.status(404).json({ error: 'Order not found' });
-  if (order.paymentStatus !== 'paid') return res.status(409).json({ error: 'Only paid orders can be moved through fulfillment' });
-  if (!NEXT_STATUSES[order.status]?.includes(status)) return res.status(400).json({ error: `Invalid status transition from ${order.status}` });
+  const transition = validateOrderStatusTransition(order, status);
+  if (!transition.allowed) return res.status(transition.statusCode).json({ error: transition.message });
   order.status = status; await order.save();
   res.json({ order: { id: order.id, orderNumber: order.orderNumber, status: order.status, paymentStatus: order.paymentStatus } });
 });

@@ -1,0 +1,80 @@
+import { FEATURED_PIZZAS, calculateCustomPizza } from './catalog.js';
+
+const NEXT_ORDER_STATUSES = Object.freeze({
+  order_received: ['in_kitchen'],
+  in_kitchen: ['sent_to_delivery'],
+  sent_to_delivery: ['delivered'],
+});
+
+function invalidInput(message) {
+  return Object.assign(new Error(message), { statusCode: 400 });
+}
+
+/** Build a persisted order line exclusively from allowlisted server catalog data. */
+export function buildOrderItem(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw invalidInput('Each order line must be a valid featured or custom pizza');
+  }
+
+  if (raw.type === 'featured') {
+    const pizza = FEATURED_PIZZAS.find((item) => item.id === raw.pizzaId);
+    if (!pizza) throw invalidInput('Choose a valid menu pizza');
+
+    const quantity = Number(raw.quantity ?? 1);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) {
+      throw invalidInput('Quantity must be between 1 and 10');
+    }
+
+    const inventory = calculateCustomPizza({ ...pizza.ingredients, quantity });
+    return {
+      name: pizza.name,
+      quantity,
+      unitPrice: pizza.price,
+      lineTotal: pizza.price * quantity,
+      ingredients: pizza.ingredients,
+      inventoryKeys: inventory.inventoryKeys,
+    };
+  }
+
+  if (raw.type === 'custom') {
+    const item = calculateCustomPizza(raw);
+    return {
+      name: item.name,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      lineTotal: item.lineTotal,
+      ingredients: item.ingredients,
+      inventoryKeys: item.inventoryKeys,
+    };
+  }
+
+  throw invalidInput('Each order line must be a valid featured or custom pizza');
+}
+
+/** Validate the collection before mapping to avoid malformed bodies becoming 500 errors. */
+export function buildOrderItems(rawItems) {
+  if (!Array.isArray(rawItems) || rawItems.length < 1 || rawItems.length > 12) {
+    throw invalidInput('An order must contain 1–12 pizza lines');
+  }
+  return rawItems.map(buildOrderItem);
+}
+
+/** Client-supplied totals are never used. */
+export function calculateOrderTotals(items) {
+  if (!Array.isArray(items) || items.length < 1 || items.length > 12) {
+    throw invalidInput('An order must contain 1–12 pizza lines');
+  }
+  const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  const deliveryFee = subtotal >= 499 ? 0 : 29;
+  return { subtotal, deliveryFee, total: subtotal + deliveryFee };
+}
+
+export function validateOrderStatusTransition(order, nextStatus) {
+  if (order?.paymentStatus !== 'paid') {
+    return { allowed: false, statusCode: 409, message: 'Only paid orders can be moved through fulfillment' };
+  }
+  if (!NEXT_ORDER_STATUSES[order.status]?.includes(nextStatus)) {
+    return { allowed: false, statusCode: 400, message: `Invalid status transition from ${order.status}` };
+  }
+  return { allowed: true };
+}
