@@ -1,4 +1,4 @@
-const requiredForProduction = ['MONGODB_URI', 'JWT_SECRET', 'CLIENT_ORIGIN', 'CLIENT_BASE_URL', 'APP_BASE_URL', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'MAIL_FROM', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'ADMIN_ALERT_EMAIL'];
+const requiredForProduction = ['MONGODB_URI', 'JWT_SECRET', 'CLIENT_ORIGIN', 'CLIENT_BASE_URL', 'APP_BASE_URL', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'MAIL_FROM', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET', 'ADMIN_ALERT_EMAIL'];
 const validSameSiteValues = new Set(['strict', 'lax', 'none']);
 
 function isExactHttpsOrigin(value) {
