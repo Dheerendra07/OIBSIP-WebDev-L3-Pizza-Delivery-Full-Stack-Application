@@ -6,30 +6,12 @@ import { FEATURED_PIZZAS, calculateCustomPizza, inventoryRequirements } from '..
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { getRazorpayClient, verifyRazorpaySignature } from '../services/payments.js';
 
-function orderInputToItem(raw) {
-  if (raw?.type === 'featured') {
-    const pizza = FEATURED_PIZZAS.find((item) => item.id === raw.pizzaId);
-    if (!pizza) throw Object.assign(new Error('Choose a valid menu pizza'), { statusCode: 400 });
-    const quantity = Number(raw.quantity ?? 1);
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) throw Object.assign(new Error('Quantity must be between 1 and 10'), { statusCode: 400 });
-    const custom = calculateCustomPizza({ ...pizza.ingredients, quantity });
-    return { name: pizza.name, quantity, unitPrice: pizza.price, lineTotal: pizza.price * quantity, ingredients: pizza.ingredients, inventoryKeys: custom.inventoryKeys };
-  }
-  if (raw?.type === 'custom') {
-    const item = calculateCustomPizza(raw);
-    return { name: item.name, quantity: item.quantity, unitPrice: item.unitPrice, lineTotal: item.lineTotal, ingredients: item.ingredients, inventoryKeys: item.inventoryKeys };
-  }
-  throw Object.assign(new Error('Each order line must be a valid featured or custom pizza'), { statusCode: 400 });
-}
-
 export const createOrder = asyncHandler(async (req, res) => {
-  if (!Array.isArray(req.body.items) || req.body.items.length < 1 || req.body.items.length > 12) return res.status(400).json({ error: 'An order must contain 1–12 pizza lines' });
-  const items = req.body.items.map(orderInputToItem);
-  const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0); const deliveryFee = subtotal >= 499 ? 0 : 29;
-  const order = await Order.create({ orderNumber: `PH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, user: req.user._id, items, subtotal, deliveryFee, total: subtotal + deliveryFee });
+  const items = buildOrderItems(req.body?.items);
+  const { subtotal, deliveryFee, total } = calculateOrderTotals(items);
+  const order = await Order.create({ orderNumber: `PH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, user: req.user._id, items, subtotal, deliveryFee, total });
   res.status(201).json({ order: { id: order.id, orderNumber: order.orderNumber, items: order.items, subtotal, deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus } });
 });
-
 export const myOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(50).lean();
   res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, createdAt: o.createdAt, updatedAt: o.updatedAt })) });
