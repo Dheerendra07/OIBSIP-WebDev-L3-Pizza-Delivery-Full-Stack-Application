@@ -168,7 +168,7 @@ export const verifyPayment = asyncHandler(async (req, res) => {
   const providerAmountMismatch = !Number.isSafeInteger(providerPayment.amount) ||
     providerPayment.amount <= 0 || providerPayment.amount !== initial.total * 100;
   const providerCurrencyMismatch = providerPayment.currency !== 'INR';
-  let reviewReason = providerAmountMismatch
+  const providerReviewReason = providerAmountMismatch
     ? 'captured_amount_mismatch'
     : providerCurrencyMismatch
       ? 'captured_currency_mismatch'
@@ -177,6 +177,7 @@ export const verifyPayment = asyncHandler(async (req, res) => {
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
+      let reviewReason = providerReviewReason;
       const order = await Order.findOne({ _id: orderId, user: req.user._id }).session(session);
       if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
 
