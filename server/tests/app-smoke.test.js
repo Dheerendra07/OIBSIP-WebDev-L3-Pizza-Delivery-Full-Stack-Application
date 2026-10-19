@@ -23,9 +23,13 @@ test('HTTP app exposes health and structured not-found responses with security h
   const health = await fetch(`${origin}/api/health`);
   assert.equal(health.status, 200);
   assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
-  assert.deepEqual(await health.json(), {
-    status: 'ok',
-    service: 'pizza-house-api',
-    timestamp: assert.match.string,
-  });
+  const payload = await health.json();
+  assert.equal(payload.status, 'ok');
+  assert.equal(payload.service, 'pizza-house-api');
+  assert.equal(typeof payload.timestamp, 'string');
+  assert.ok(Number.isFinite(Date.parse(payload.timestamp)));
+
+  const missing = await fetch(`${origin}/api/not-a-real-route`);
+  assert.equal(missing.status, 404);
+  assert.deepEqual(await missing.json(), { error: 'Route not found: GET /api/not-a-real-route' });
 });
