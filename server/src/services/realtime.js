@@ -8,6 +8,7 @@ const allowedOrigins = String(config.clientOrigin || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 let realtimeServer = null;
 
@@ -27,6 +28,54 @@ export function readSessionToken(cookieHeader) {
 
 export function isAllowedRealtimeOrigin(origin, origins = allowedOrigins) {
   return Boolean(origin && origins.includes(origin));
+}
+
+export function getSessionExpiry(payload, now = Date.now()) {
+  if (!Number.isSafeInteger(payload?.exp)) return null;
+  const expiresAt = payload.exp * 1000;
+  return Number.isSafeInteger(expiresAt) && expiresAt > now ? expiresAt : null;
+}
+
+/**
+ * Disconnect an authenticated socket when its JWT expires.
+ * Long lifetimes are scheduled in safe timer-sized chunks; disconnect cleans up the timer.
+ */
+export function scheduleSocketExpiry(
+  socket,
+  expiresAt,
+  { now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout } = {},
+) {
+  if (!Number.isFinite(expiresAt) || expiresAt <= now()) {
+    socket.disconnect(true);
+    return false;
+  }
+
+  let active = true;
+  let timer = null;
+  const cleanup = () => {
+    if (!active) return;
+    active = false;
+    if (timer !== null) clearTimer(timer);
+    timer = null;
+  };
+  const scheduleNextCheck = () => {
+    if (!active) return;
+    const remaining = expiresAt - now();
+    if (!Number.isFinite(remaining) || remaining <= 0) {
+      cleanup();
+      socket.disconnect(true);
+      return;
+    }
+    timer = setTimer(() => {
+      timer = null;
+      scheduleNextCheck();
+    }, Math.min(remaining, MAX_TIMER_DELAY_MS));
+    if (typeof timer?.unref === 'function') timer.unref();
+  };
+
+  socket.once('disconnect', cleanup);
+  scheduleNextCheck();
+  return true;
 }
 
 export function buildOrderUpdatePayload(order) {
@@ -117,6 +166,9 @@ export function attachRealtimeServer(httpServer) {
         return next(new Error('Authentication required'));
       }
 
+      const expiresAt = getSessionExpiry(payload);
+      if (expiresAt === null) return next(new Error('Authentication required'));
+
       const user = await User.findById(payload.sub).select('name email role emailVerifiedAt sessionVersion');
       if (
         !user ||
@@ -129,6 +181,7 @@ export function attachRealtimeServer(httpServer) {
 
       socket.data.userId = String(user._id);
       socket.data.role = user.role;
+      socket.data.expiresAt = expiresAt;
       return next();
     } catch {
       return next(new Error('Authentication required'));
@@ -136,6 +189,7 @@ export function attachRealtimeServer(httpServer) {
   });
 
   io.on('connection', (socket) => {
+    if (!scheduleSocketExpiry(socket, socket.data.expiresAt)) return;
     socket.join(`user:${socket.data.userId}`);
     if (socket.data.role === 'admin') socket.join('role:admin');
   });
