@@ -57,6 +57,33 @@ export function publishOrderUpdate(order, target = realtimeServer) {
   return true;
 }
 
+export async function disconnectUserSockets(userId, target = realtimeServer) {
+  if (!target || userId == null) return 0;
+  const sockets = await target.in(`user:${String(userId)}`).fetchSockets();
+  for (const socket of sockets) socket.disconnect(true);
+  return sockets.length;
+}
+
+export async function disconnectCurrentSessionSockets(cookieHeader) {
+  const token = readSessionToken(cookieHeader);
+  if (!token) return 0;
+
+  let payload;
+  try {
+    payload = jwt.verify(token, config.jwtSecret, {
+      issuer: 'pizza-house-api',
+      audience: 'pizza-house-client',
+    });
+  } catch {
+    return 0;
+  }
+  if (!payload?.sub) return 0;
+
+  const user = await User.findById(payload.sub).select('emailVerifiedAt sessionVersion');
+  if (!user || !user.emailVerifiedAt || !isSessionVersionCurrent(payload.sv, user.sessionVersion)) return 0;
+  return disconnectUserSockets(user._id);
+}
+
 export function attachRealtimeServer(httpServer) {
   const io = new Server(httpServer, {
     cors: { origin: allowedOrigins, credentials: true },
