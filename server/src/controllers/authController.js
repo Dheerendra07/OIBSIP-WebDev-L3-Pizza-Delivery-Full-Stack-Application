@@ -12,7 +12,8 @@ const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const publicUser = (user) => ({ id: user.id, name: user.name, email: user.email, role: user.role });
 
 export const register = asyncHandler(async (req, res) => {
-  const name = String(req.body.name || '').trim(); const email = String(req.body.email || '').trim().toLowerCase(); const password = req.body.password;
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const name = String(body.name || '').trim(); const email = String(body.email || '').trim().toLowerCase(); const password = body.password;
   if (name.length < 2 || name.length > 80) return res.status(400).json({ error: 'Name must be between 2 and 80 characters' });
   if (!validEmail(email)) return res.status(400).json({ error: 'Enter a valid email address' });
   if (!isStrongEnough(password)) return res.status(400).json({ error: 'Password must be 10–72 characters with uppercase, lowercase and a number' });
@@ -35,7 +36,8 @@ export const verifyEmail = asyncHandler(async (req, res) => {
 });
 
 async function loginCommon(req, res, adminOnly) {
-  const email = String(req.body.email || '').trim().toLowerCase(); const password = req.body.password;
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const email = String(body.email || '').trim().toLowerCase(); const password = body.password;
   if (!validEmail(email) || typeof password !== 'string' || password.length > 72) return res.status(400).json({ error: 'Enter valid sign-in details' });
   const user = await User.findOne({ email }).select('+passwordHash');
   if (!user || !(await verifyPassword(password, user.passwordHash))) return res.status(401).json({ error: 'Email or password is incorrect' });
@@ -55,7 +57,8 @@ export const logout = asyncHandler(async (req, res) => {
 export const me = asyncHandler(async (req, res) => res.json({ user: publicUser(req.user) }));
 
 export const forgotPassword = asyncHandler(async (req, res) => {
-  const email = String(req.body.email || '').trim().toLowerCase();
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const email = String(body.email || '').trim().toLowerCase();
   const response = { message: 'If an account exists for this email, reset instructions will be sent.' };
   if (!validEmail(email)) return res.json(response);
   const user = await User.findOne({ email }); if (!user) return res.json(response);
@@ -68,7 +71,8 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 });
 
 export const resetPassword = asyncHandler(async (req, res) => {
-  const password = req.body.password;
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const password = body.password;
   if (!isStrongEnough(password)) return res.status(400).json({ error: 'Password must be 10–72 characters with uppercase, lowercase and a number' });
   const user = await User.findOne({ passwordResetTokenHash: hashToken(req.params.token), passwordResetExpiresAt: { $gt: new Date() } }).select('+passwordResetTokenHash +passwordResetExpiresAt');
   if (!user) return res.status(400).json({ error: 'Reset link is invalid or expired' });
