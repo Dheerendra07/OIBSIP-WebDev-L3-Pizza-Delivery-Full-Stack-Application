@@ -25,6 +25,8 @@ async function reconcileCapturedPayment(payment) {
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
+      outcome = { status: 'review_required', reason: 'invalid_captured_payment_payload', orderId: null };
+      updatedOrderId = null;
       const order = providerOrderId
         ? await Order.findOne({ razorpayOrderId: providerOrderId }).session(session)
         : null;
