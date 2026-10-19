@@ -2,11 +2,13 @@ import cron from 'node-cron';
 import mongoose from 'mongoose';
 import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
+import PaymentWebhookReceipt from '../models/PaymentWebhookReceipt.js';
 import { config } from '../config/env.js';
 import { sendMail } from '../services/email.js';
 import { getRazorpayClient } from '../services/payments.js';
 import { inventoryRequirements } from '../utils/catalog.js';
 import { classifyOrderPayments } from '../utils/paymentReconciliation.js';
+import { classifyCapturedPayment } from '../utils/paymentWebhook.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
 
 export async function scanLowStock() {
@@ -41,14 +43,41 @@ export async function releaseExpiredReservations(now = new Date()) {
     }
     const session = await mongoose.startSession();
     let reconciledOrderId = null;
-    let inventoryWasReleased = false;
     try {
       await session.withTransaction(async () => {
-        inventoryWasReleased = false;
         const order = await Order.findOne({ _id: candidate._id, inventoryReserved: true, paymentStatus: 'pending', stockReservationExpiresAt: { $lte: now } }).session(session);
         if (!order) return;
         if (captured) {
+          const captureDecision = classifyCapturedPayment(captured, order);
+          if (captureDecision.action !== 'fulfill') {
+            order.paymentStatus = 'paid';
+            order.razorpayPaymentId = captured.id;
+            order.paidAt = order.paidAt || new Date();
+            order.status = 'payment_review';
+            order.paymentReviewRequired = true;
+            order.paymentReviewReason = captureDecision.reason || 'captured_payment_requires_manual_review';
+            await order.save({ session });
+            await PaymentWebhookReceipt.updateOne(
+              { eventId: `reservation-${captured.id}` },
+              {
+                $setOnInsert: {
+                  eventId: `reservation-${captured.id}`,
+                  eventType: 'payment.reservation.review',
+                  status: 'review_required',
+                  providerOrderId: candidate.razorpayOrderId,
+                  paymentId: captured.id,
+                  order: order._id,
+                  reason: order.paymentReviewReason,
+                },
+              },
+              { upsert: true, session },
+            );
+            reconciledOrderId = order._id;
+            reconciled += 1;
+            return;
+          }
           order.paymentStatus = 'paid'; order.razorpayPaymentId = captured.id; order.paidAt = new Date(); order.status = 'order_received';
+          order.paymentReviewRequired = false; order.paymentReviewReason = null;
           order.inventoryReserved = false; order.paymentOrderCreationInProgress = false; order.stockReservedAt = null; order.stockReservationExpiresAt = null;
           await order.save({ session }); reconciledOrderId = order._id; reconciled += 1; return;
         }
@@ -57,11 +86,13 @@ export async function releaseExpiredReservations(now = new Date()) {
         // An unpaid reservation that expires is no longer an active order.
         // Mark it cancelled so customers can distinguish it from a payable order.
         order.status = 'cancelled';
-        await order.save({ session }); released += 1; inventoryWasReleased = true; reconciledOrderId = order._id;
+        await order.save({ session }); released += 1; reconciledOrderId = order._id;
       });
     } finally { await session.endSession(); }
-    if (reconciledOrderId) publishOrderUpdate(await Order.findById(reconciledOrderId).lean());
-    if (inventoryWasReleased) publishAdminRefresh();
+    if (reconciledOrderId) {
+      publishOrderUpdate(await Order.findById(reconciledOrderId).lean());
+      publishAdminRefresh();
+    }
   }
   return { released, reconciled, deferred };
 }
