@@ -4,7 +4,7 @@ import InventoryItem from '../models/InventoryItem.js';
 import PaymentWebhookReceipt from '../models/PaymentWebhookReceipt.js';
 import { getRazorpayClient, createRazorpayRefund } from './payments.js';
 import { inventoryRequirements } from '../utils/catalog.js';
-import { createFullRefundIdempotencyKey, classifyRefundWebhook } from '../utils/paymentRefund.js';
+import { createFullRefundIdempotencyKey, classifyRefundWebhook, classifyRefundCaptureSet } from '../utils/paymentRefund.js';
 import { publishAdminRefresh, publishOrderUpdate } from './realtime.js';
 
 function httpError(statusCode, message) {
@@ -167,11 +167,15 @@ export async function requestFullPaymentReviewRefund(orderId, paymentId, adminUs
 
   let razorpay;
   let providerPayment;
+  let providerOrderPayments;
   try {
     razorpay = getRazorpayClient();
-    providerPayment = await razorpay.payments.fetch(paymentId);
+    [providerPayment, providerOrderPayments] = await Promise.all([
+      razorpay.payments.fetch(paymentId),
+      razorpay.orders.fetchPayments(order.razorpayOrderId),
+    ]);
   } catch {
-    throw httpError(502, 'Could not verify the current Razorpay payment. No new refund was submitted.');
+    throw httpError(502, 'Could not verify the payment and order capture history with Razorpay. No new refund was submitted.');
   }
 
   const isSafeRetry = existingRefundStatus === 'requested' && Boolean(order.refundIdempotencyKey);
@@ -186,6 +190,18 @@ export async function requestFullPaymentReviewRefund(orderId, paymentId, adminUs
       : providerPayment.amount_refunded === 0);
   if (!validPayment) {
     throw httpError(409, 'The provider payment does not match a refundable captured payment, or an earlier refund may already exist. Manual review is required.');
+  }
+
+  const captureSet = classifyRefundCaptureSet(providerOrderPayments?.items, {
+    orderId: order.razorpayOrderId,
+    paymentId,
+    amountPaise: providerPayment.amount,
+  });
+  if (!captureSet.allowed && captureSet.reason === 'multiple_captured_payments_for_order') {
+    throw httpError(409, 'Razorpay reports multiple captured payments for this order. Automatic refund is blocked until each payment is reconciled separately.');
+  }
+  if (!captureSet.allowed) {
+    throw httpError(409, 'Razorpay order capture history could not confirm this as the only captured payment. Manual review is required.');
   }
 
   const deterministicKey = createFullRefundIdempotencyKey(String(order._id));
