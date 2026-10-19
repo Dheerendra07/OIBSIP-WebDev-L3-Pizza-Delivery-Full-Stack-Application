@@ -5,6 +5,7 @@ import Order from '../models/Order.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { verifyRazorpayWebhookSignature } from '../utils/paymentSignature.js';
 import { classifyCapturedPayment } from '../utils/paymentWebhook.js';
+import { reconcileRefundWebhook } from '../services/refunds.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
 
 function headerString(req, name) {
@@ -132,6 +133,8 @@ export const handleRazorpayWebhook = asyncHandler(async (req, res) => {
 
   if (webhook.event === 'payment.captured') {
     result = await reconcileCapturedPayment(webhook.payload?.payment?.entity);
+  } else if (['refund.created', 'refund.processed', 'refund.failed'].includes(webhook.event)) {
+    result = await reconcileRefundWebhook(webhook.event, webhook.payload?.refund?.entity);
   } else if (webhook.event === 'payment.failed') {
     // A failed attempt is not final for an order: later attempts may still succeed.
     const payment = webhook.payload?.payment?.entity;

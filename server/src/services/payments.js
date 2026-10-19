@@ -7,3 +7,45 @@ export function getRazorpayClient() {
   if (!config.razorpayKeyId || !config.razorpayKeySecret) { const error = new Error('Razorpay test keys are not configured on the server'); error.statusCode = 503; throw error; }
   return new Razorpay({ key_id: config.razorpayKeyId, key_secret: config.razorpayKeySecret });
 }
+
+
+/**
+ * Submit a full refund using Razorpay's native idempotency header.
+ * Repeated requests with the same key and amount cannot create duplicate refunds.
+ */
+export async function createRazorpayRefund(paymentId, amount, idempotencyKey, notes = {}) {
+  getRazorpayClient();
+  if (typeof paymentId !== 'string' || !paymentId ||
+      !Number.isSafeInteger(amount) || amount <= 0 ||
+      typeof idempotencyKey !== 'string' || idempotencyKey.length < 10) {
+    throw Object.assign(new Error('A valid payment, amount and refund idempotency key are required'), { statusCode: 400 });
+  }
+
+  let response;
+  try {
+    response = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}/refund`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${config.razorpayKeyId}:${config.razorpayKeySecret}`).toString('base64')}`,
+        'Content-Type': 'application/json',
+        'X-Refund-Idempotency': idempotencyKey,
+      },
+      body: JSON.stringify({ amount, notes }),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch {
+    throw Object.assign(new Error('Razorpay did not confirm the refund request. The saved idempotency key is retained for a safe retry.'), { statusCode: 502 });
+  }
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (response.status === 409) {
+      throw Object.assign(new Error('Razorpay is processing this idempotent refund request. Refresh the review queue before retrying.'), { statusCode: 409 });
+    }
+    if (response.status >= 500) {
+      throw Object.assign(new Error('Razorpay is temporarily unavailable. The refund request remains recoverable using the same idempotency key.'), { statusCode: 502 });
+    }
+    throw Object.assign(new Error('Razorpay rejected the refund request. Manual provider review is required before another action.'), { statusCode: 400 });
+  }
+  return body;
+}
