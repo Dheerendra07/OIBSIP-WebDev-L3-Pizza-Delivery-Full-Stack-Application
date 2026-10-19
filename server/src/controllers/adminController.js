@@ -2,6 +2,7 @@ import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
 import PaymentWebhookReceipt from '../models/PaymentWebhookReceipt.js';
+import { requestFullPaymentReviewRefund } from '../services/refunds.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateOrderStatusTransition } from '../utils/orderRules.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
@@ -28,7 +29,7 @@ export const updateInventory = asyncHandler(async (req, res) => {
 });
 export const listOrders = asyncHandler(async (_req, res) => {
   const orders = await Order.find().sort({ createdAt: -1 }).limit(200).populate('user', 'name email').lean();
-  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, user: o.user, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, paymentReviewReason: o.paymentReviewReason, createdAt: o.createdAt })) });
+  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, user: o.user, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, paymentReviewReason: o.paymentReviewReason, refundStatus: o.refundStatus, createdAt: o.createdAt })) });
 });
 export const updateOrderStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
@@ -43,7 +44,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
 export const listPaymentReviews = asyncHandler(async (_req, res) => {
   const receipts = await PaymentWebhookReceipt.find({ status: 'review_required' })
     .sort({ receivedAt: -1 }).limit(100)
-    .populate('order', 'orderNumber status total paymentStatus')
+    .populate('order', 'orderNumber status total paymentStatus paymentReviewRequired paymentReviewReason razorpayPaymentId refundStatus')
     .lean();
   res.json({ events: receipts.map((event) => ({
     eventId: event.eventId,
@@ -59,6 +60,23 @@ export const listPaymentReviews = asyncHandler(async (_req, res) => {
       status: event.order.status,
       total: event.order.total,
       paymentStatus: event.order.paymentStatus,
+      paymentReviewRequired: event.order.paymentReviewRequired,
+      paymentReviewReason: event.order.paymentReviewReason,
+      razorpayPaymentId: event.order.razorpayPaymentId,
+      refundStatus: event.order.refundStatus,
     } : null,
   })) });
+});
+
+
+export const refundPaymentReview = asyncHandler(async (req, res) => {
+  const result = await requestFullPaymentReviewRefund(req.params.id, req.body?.paymentId, req.user._id);
+  const message = result.refundStatus === 'processed'
+    ? 'Full refund confirmed by Razorpay'
+    : result.refundStatus === 'pending'
+      ? 'Refund submitted and awaiting Razorpay confirmation'
+      : result.refundStatus === 'failed'
+        ? 'Refund failed; manual provider review is required'
+        : 'Refund request saved for safe reconciliation';
+  res.json({ message, ...result });
 });
