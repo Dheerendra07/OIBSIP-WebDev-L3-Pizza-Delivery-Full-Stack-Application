@@ -10,11 +10,14 @@ import orderRoutes from './routes/orderRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import { notFound, errorHandler } from './middleware/errors.js';
+import { handleRazorpayWebhook } from './controllers/paymentWebhookController.js';
 
 const app = express();
 app.disable('x-powered-by');
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(cors({ origin: config.clientOrigin.split(',').map((s) => s.trim()), credentials: true, methods: ['GET', 'POST', 'PATCH', 'OPTIONS'], allowedHeaders: ['Content-Type'] }));
+app.use(cors({ origin: config.clientOrigin.split(',').map((s) => s.trim()), credentials: true, methods: ['GET', 'POST', 'PATCH', 'OPTIONS'], allowedHeaders: ['Content-Type', 'X-Razorpay-Signature', 'X-Razorpay-Event-Id'] }));
+// Razorpay signs the exact raw request body, so mount this endpoint before express.json().
+app.post('/api/payments/webhook', rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }), express.raw({ type: 'application/json', limit: '64kb' }), handleRazorpayWebhook);
 app.use(express.json({ limit: '32kb', strict: true }));
 app.use(cookieParser());
 app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
