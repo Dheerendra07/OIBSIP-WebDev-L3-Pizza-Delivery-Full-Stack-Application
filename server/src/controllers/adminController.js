@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import User from '../models/User.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateOrderStatusTransition } from '../utils/orderRules.js';
+import { publishOrderUpdate } from '../services/realtime.js';
 
 export const summary = asyncHandler(async (_req, res) => {
   const [ordersTotal, paidOrders, revenue, pendingOrders, usersTotal, lowStock] = await Promise.all([
@@ -33,5 +34,6 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   const transition = validateOrderStatusTransition(order, status);
   if (!transition.allowed) return res.status(transition.statusCode).json({ error: transition.message });
   order.status = status; await order.save();
+  publishOrderUpdate(order);
   res.json({ order: { id: order.id, orderNumber: order.orderNumber, status: order.status, paymentStatus: order.paymentStatus } });
 });
