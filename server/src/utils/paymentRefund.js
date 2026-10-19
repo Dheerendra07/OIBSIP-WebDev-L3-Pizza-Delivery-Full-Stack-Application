@@ -49,3 +49,32 @@ export function classifyRefundWebhook(eventType, refund, order) {
 
   return { action: 'apply', status, refundId: refund.id, amount: refund.amount };
 }
+
+/**
+ * Automatic full-refund recovery is allowed only when the provider lists exactly
+ * one captured payment for the Razorpay order and it is the same payment being
+ * reviewed. A second capture may not have delivered its webhook yet, so local
+ * webhook receipts alone are not sufficient evidence.
+ */
+export function classifyRefundCaptureSet(items, { orderId, paymentId, amountPaise }) {
+  const payments = Array.isArray(items) ? items : [];
+  const captured = payments.filter((payment) => payment?.status === 'captured');
+
+  if (captured.length > 1) {
+    return { allowed: false, reason: 'multiple_captured_payments_for_order', paymentIds: captured.map((payment) => payment?.id).filter(Boolean) };
+  }
+  if (captured.length !== 1) {
+    return { allowed: false, reason: 'captured_payment_not_found' };
+  }
+
+  const [payment] = captured;
+  if (payment?.id !== paymentId || payment?.order_id !== orderId) {
+    return { allowed: false, reason: 'captured_payment_mismatch' };
+  }
+  if (payment.currency !== 'INR' || !Number.isSafeInteger(payment.amount) ||
+      payment.amount <= 0 || payment.amount !== amountPaise) {
+    return { allowed: false, reason: 'captured_payment_mismatch' };
+  }
+
+  return { allowed: true, payment };
+}
