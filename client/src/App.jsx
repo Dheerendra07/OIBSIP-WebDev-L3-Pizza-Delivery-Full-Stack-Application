@@ -157,13 +157,14 @@ export default function App() {
     const setQty = (key, delta) => setCart(prev => prev.map(x => x.cartKey === key ? { ...x, quantity: Math.max(1, Math.min(10, x.quantity + delta)) } : x));
     const removeCart = (key) => setCart(prev => prev.filter(x => x.cartKey !== key));
     const verifyCheckoutPayment = async (orderId, response) => { const attempt = { orderId, response }; setPendingVerification(attempt); setPending(true); try {
-        await api('/payments/verify', { method: 'POST', body: { orderId, ...response } });
+        const verification = await api('/payments/verify', { method: 'POST', body: { orderId, ...response } });
         setPendingVerification(null);
         setActiveOrderId(null);
         setCart([]);
         await refreshOrders();
      setPage('dashboard');
-        notify('Payment verified! Your pizza is in the queue.');
+        if (verification.order?.status === 'payment_review' || verification.order?.paymentReviewRequired) notify('Payment received, but your order needs manual review. Do not pay again.', 'error');
+        else notify('Payment verified! Your pizza is in the queue.');
     }
     catch (error) {
         notify(`Payment confirmation is incomplete. Do not pay again yet; retry confirmation below. ${error.message}`, 'error');
