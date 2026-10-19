@@ -6,11 +6,13 @@ import { inventoryRequirements } from '../utils/catalog.js';
 import { buildOrderItems, calculateOrderTotals } from '../utils/orderRules.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { getRazorpayClient, verifyRazorpaySignature } from '../services/payments.js';
+import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
 
 export const createOrder = asyncHandler(async (req, res) => {
   const items = buildOrderItems(req.body?.items);
   const { subtotal, deliveryFee, total } = calculateOrderTotals(items);
   const order = await Order.create({ orderNumber: `PH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, user: req.user._id, items, subtotal, deliveryFee, total });
+  publishOrderUpdate(order);
   res.status(201).json({ order: { id: order.id, orderNumber: order.orderNumber, items: order.items, subtotal, deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus } });
 });
 export const myOrders = asyncHandler(async (req, res) => {
@@ -33,7 +35,11 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
   const razorpay = getRazorpayClient();
   const now = new Date();
   if (order.inventoryReserved && order.stockReservationExpiresAt && order.stockReservationExpiresAt <= now) return res.status(409).json({ error: 'The ingredient reservation expired. Please restart checkout with a new order.' });
-  if (order.inventoryReserved && order.razorpayOrderId) return res.json({ keyId: process.env.RAZORPAY_KEY_ID, paymentOrderId: order.razorpayOrderId, amount: order.total * 100, currency: 'INR', orderId: order.id, orderNumber: order.orderNumber, customer: { name: req.user.name, email: req.user.email } });
+  if (order.inventoryReserved && order.razorpayOrderId) {
+    publishAdminRefresh();
+    publishOrderUpdate(order);
+    return res.json({ keyId: process.env.RAZORPAY_KEY_ID, paymentOrderId: order.razorpayOrderId, amount: order.total * 100, currency: 'INR', orderId: order.id, orderNumber: order.orderNumber, customer: { name: req.user.name, email: req.user.email } });
+  }
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
@@ -53,10 +59,17 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
     });
   } finally { await session.endSession(); }
   const reserved = await Order.findOne({ _id: order._id, user: req.user._id });
-  if (reserved.razorpayOrderId) return res.json({ keyId: process.env.RAZORPAY_KEY_ID, paymentOrderId: reserved.razorpayOrderId, amount: reserved.total * 100, currency: 'INR', orderId: reserved.id, orderNumber: reserved.orderNumber, customer: { name: req.user.name, email: req.user.email } });
+  if (!reserved) return res.status(404).json({ error: 'Order not found' });
+  if (reserved.razorpayOrderId) {
+    publishAdminRefresh();
+    publishOrderUpdate(reserved);
+    return res.json({ keyId: process.env.RAZORPAY_KEY_ID, paymentOrderId: reserved.razorpayOrderId, amount: reserved.total * 100, currency: 'INR', orderId: reserved.id, orderNumber: reserved.orderNumber, customer: { name: req.user.name, email: req.user.email } });
+  }
   try {
     const paymentOrder = await razorpay.orders.create({ amount: reserved.total * 100, currency: 'INR', receipt: reserved.orderNumber, notes: { internalOrderId: reserved.id } });
     reserved.razorpayOrderId = paymentOrder.id; reserved.paymentOrderCreationInProgress = false; await reserved.save();
+    publishAdminRefresh();
+    publishOrderUpdate(reserved);
     res.json({ keyId: process.env.RAZORPAY_KEY_ID, paymentOrderId: paymentOrder.id, amount: paymentOrder.amount, currency: paymentOrder.currency, orderId: reserved.id, orderNumber: reserved.orderNumber, customer: { name: req.user.name, email: req.user.email } });
   } catch (error) {
     const releaseSession = await mongoose.startSession();
@@ -68,6 +81,7 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
         current.inventoryReserved = false; current.paymentOrderCreationInProgress = false; current.stockReservedAt = null; current.stockReservationExpiresAt = null; current.razorpayOrderId = null; await current.save({ session: releaseSession });
       });
     } finally { await releaseSession.endSession(); }
+    publishAdminRefresh();
     throw error;
   }
 });
@@ -100,5 +114,6 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     });
   } finally { await session.endSession(); }
   const paid = await Order.findById(orderId);
+  publishOrderUpdate(paid);
   res.json({ message: 'Payment verified', order: { id: paid.id, orderNumber: paid.orderNumber, status: paid.status, paymentStatus: paid.paymentStatus } });
 });

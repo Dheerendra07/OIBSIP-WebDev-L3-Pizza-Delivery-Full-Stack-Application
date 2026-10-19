@@ -8,7 +8,7 @@ A MERN application for custom pizza ordering, account verification, test-mode ch
 - Email-based registration and verification; JWT session in an HttpOnly cookie; sign-in, sign-out, forgot-password and reset-password flows.
 - Menu of featured pizzas plus a custom pizza builder (5 bases, 5 sauces, several cheese choices and selectable vegetable toppings).
 - Server-priced order summary, delivery-fee calculation, Razorpay test checkout and retryable server-side payment confirmation.
-- Customer order history and polling-based status updates: Order received → In the kitchen → On the way → Delivered.
+- Customer order history and authenticated Socket.IO live status updates: Order received → In the kitchen → On the way → Delivered. The client refreshes persisted API state on reconnect.
 
 **Admin workflow**
 - Separately provisioned admin sign-in; public registration always creates a customer role.
@@ -22,7 +22,7 @@ A MERN application for custom pizza ordering, account verification, test-mode ch
 - `server/src/models/`: users, inventory and orders.
 - `server/src/jobs/stockAlerts.js`: scheduled low-stock notifications and cautious expired-payment/stock reconciliation.
 - `server/src/utils/`: catalog/pricing, order rules, signature/session/token and environment validation.
-- `server/tests/` and `client/tests/`: deterministic unit tests.
+- `server/tests/` and `client/tests/`: deterministic unit tests, including Socket.IO event-payload and room-routing checks.
 - `PROJECT_STATUS.md`: verified repository state, checks actually run, limitations and handoff.
 
 ## Prerequisites
@@ -38,7 +38,7 @@ A MERN application for custom pizza ordering, account verification, test-mode ch
 5. Set `ADMIN_EMAIL` and a strong `ADMIN_PASSWORD` in `server/.env`, then run `npm run seed:admin`. Public sign-up cannot create admins.
 6. Start both services: `npm run dev`.
 7. Frontend: `http://localhost:5173`; API health: `http://localhost:4000/api/health`.
-8. Run tests: `npm test`.
+8. Run tests: `npm test`. GitHub Actions also runs the test suite and production client build on pushes to `main`, `feat/**`, and `fix/**` branches and on pull requests to `main`.
 
 ## Checkout integrity
 - Client-supplied prices/totals are ignored; the API rebuilds every line from allowlisted catalog choices.

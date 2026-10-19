@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock3, CreditCard, Flame, Leaf, LoaderCircle, LogIn, LogOut, Menu, Minus, Plus, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Truck, UserRound, X, CheckCircle2, CircleUserRound, PackageCheck, ChefHat, Boxes, RefreshCw, Mail, LockKeyhole } from 'lucide-react';
-import { api } from './api.js';
+import { io } from 'socket.io-client';
+import { api, API_ORIGIN } from './api.js';
 import { orderMatchesCart } from './checkout.js';
 const DEFAULT_CATALOG = {
     bases: [{ id: 'classic', name: 'Classic Hand-Tossed', price: 0 }, { id: 'thin', name: 'Thin & Crispy', price: 30 }, { id: 'whole-wheat', name: 'Whole Wheat', price: 40 }, { id: 'pan', name: 'Pan Crust', price: 50 }, { id: 'cheese-burst', name: 'Cheese Burst', price: 70 }],
@@ -76,16 +77,27 @@ export default function App() {
         setAuthMode('reset');
     } if (params.get('payment') === 'failed')
         notify('Payment was not completed. Your order is still unpaid.', 'error'); }, [refreshCatalog, refreshMe, notify]);
-    useEffect(() => { if (user?.role === 'user') {
-        refreshOrders();
-        const timer = setInterval(refreshOrders, 12000);
-        return () => clearInterval(timer);
-    } }, [user, refreshOrders]);
-    useEffect(() => { if (user?.role === 'admin' && page === 'admin') {
-        refreshAdmin();
-        const timer = setInterval(refreshAdmin, 15000);
-        return () => clearInterval(timer);
-    } }, [user, page, refreshAdmin]);
+    useEffect(() => {
+        if (user?.role === 'user') refreshOrders();
+    }, [user, refreshOrders]);
+    useEffect(() => {
+        if (user?.role === 'admin' && page === 'admin') refreshAdmin();
+    }, [user, page, refreshAdmin]);
+    useEffect(() => {
+        if (!user) return;
+        const socket = io(API_ORIGIN, { withCredentials: true });
+        const synchronizeOrders = () => {
+            if (user.role === 'admin') refreshAdmin();
+            else refreshOrders();
+        };
+        socket.on('connect', synchronizeOrders);
+        socket.on('order:update', synchronizeOrders);
+        socket.on('admin:refresh', synchronizeOrders);
+        socket.on('connect_error', (error) => {
+            console.warn('Live order updates unavailable:', error.message);
+        });
+        return () => socket.disconnect();
+    }, [user, refreshOrders, refreshAdmin]);
     const builderPrice = useMemo(() => { const find = (group, id) => catalog[group]?.find(x => x.id === id)?.price || 0; return 199 + find('bases', builder.base) + find('sauces', builder.sauce) + find('cheeses', builder.cheese) + builder.vegetables.reduce((sum, id) => sum + find('vegetables', id), 0); }, [catalog, builder]);
     const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
     const deliveryFee = subtotal >= 499 ? 0 : cart.length ? 29 : 0;

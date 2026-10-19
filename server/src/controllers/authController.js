@@ -6,6 +6,7 @@ import { issueSession, clearSession } from '../middleware/auth.js';
 import { sendMail, verificationEmailUrl, passwordResetUrl } from '../services/email.js';
 import { isMailConfigured } from '../utils/emailConfig.js';
 import { config } from '../config/env.js';
+import { disconnectCurrentSessionSockets, disconnectUserSockets } from '../services/realtime.js';
 
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const publicUser = (user) => ({ id: user.id, name: user.name, email: user.email, role: user.role });
@@ -45,7 +46,12 @@ async function loginCommon(req, res, adminOnly) {
 }
 export const login = asyncHandler(async (req, res) => loginCommon(req, res, false));
 export const adminLogin = asyncHandler(async (req, res) => loginCommon(req, res, true));
-export const logout = asyncHandler(async (_req, res) => { clearSession(res); res.json({ message: 'Signed out' }); });
+export const logout = asyncHandler(async (req, res) => {
+  // A stale or missing session must still be allowed to clear the browser cookie.
+  try { await disconnectCurrentSessionSockets(req.headers.cookie); } catch { /* Cookie clearing remains the priority. */ }
+  clearSession(res);
+  res.json({ message: 'Signed out' });
+});
 export const me = asyncHandler(async (req, res) => res.json({ user: publicUser(req.user) }));
 
 export const forgotPassword = asyncHandler(async (req, res) => {
@@ -66,6 +72,8 @@ export const resetPassword = asyncHandler(async (req, res) => {
   if (!isStrongEnough(password)) return res.status(400).json({ error: 'Password must be 10–72 characters with uppercase, lowercase and a number' });
   const user = await User.findOne({ passwordResetTokenHash: hashToken(req.params.token), passwordResetExpiresAt: { $gt: new Date() } }).select('+passwordResetTokenHash +passwordResetExpiresAt');
   if (!user) return res.status(400).json({ error: 'Reset link is invalid or expired' });
-  user.passwordHash = await hashPassword(password); user.passwordResetTokenHash = null; user.passwordResetExpiresAt = null; user.sessionVersion = (user.sessionVersion || 0) + 1; await user.save(); clearSession(res);
+  user.passwordHash = await hashPassword(password); user.passwordResetTokenHash = null; user.passwordResetExpiresAt = null; user.sessionVersion = (user.sessionVersion || 0) + 1; await user.save();
+  await disconnectUserSockets(user._id);
+  clearSession(res);
   res.json({ message: 'Password updated. Sign in with your new password.' });
 });

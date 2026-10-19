@@ -7,6 +7,7 @@ import { sendMail } from '../services/email.js';
 import { getRazorpayClient } from '../services/payments.js';
 import { inventoryRequirements } from '../utils/catalog.js';
 import { classifyOrderPayments } from '../utils/paymentReconciliation.js';
+import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
 
 export async function scanLowStock() {
   if (!config.adminAlertEmail) return { skipped: true, reason: 'ADMIN_ALERT_EMAIL is not configured' };
@@ -39,20 +40,25 @@ export async function releaseExpiredReservations(now = new Date()) {
       else if (assessment.state === 'in_flight') { deferred += 1; continue; }
     }
     const session = await mongoose.startSession();
+    let reconciledOrderId = null;
+    let inventoryWasReleased = false;
     try {
       await session.withTransaction(async () => {
+        inventoryWasReleased = false;
         const order = await Order.findOne({ _id: candidate._id, inventoryReserved: true, paymentStatus: 'pending', stockReservationExpiresAt: { $lte: now } }).session(session);
         if (!order) return;
         if (captured) {
           order.paymentStatus = 'paid'; order.razorpayPaymentId = captured.id; order.paidAt = new Date(); order.status = 'order_received';
           order.inventoryReserved = false; order.paymentOrderCreationInProgress = false; order.stockReservedAt = null; order.stockReservationExpiresAt = null;
-          await order.save({ session }); reconciled += 1; return;
+          await order.save({ session }); reconciledOrderId = order._id; reconciled += 1; return;
         }
         for (const requirement of inventoryRequirements(order.items)) await InventoryItem.updateOne({ key: requirement.key }, { $inc: { stock: requirement.quantity } }, { session });
         order.inventoryReserved = false; order.paymentOrderCreationInProgress = false; order.stockReservedAt = null; order.stockReservationExpiresAt = null; order.razorpayOrderId = null;
-        await order.save({ session }); released += 1;
+        await order.save({ session }); released += 1; inventoryWasReleased = true;
       });
     } finally { await session.endSession(); }
+    if (reconciledOrderId) publishOrderUpdate(await Order.findById(reconciledOrderId).lean());
+    if (inventoryWasReleased) publishAdminRefresh();
   }
   return { released, reconciled, deferred };
 }
