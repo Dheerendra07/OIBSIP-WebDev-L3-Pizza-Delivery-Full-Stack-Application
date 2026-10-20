@@ -147,3 +147,97 @@
 .price-review-actions .button{min-height:46px;white-space:normal;padding:12px}
 @media(max-width:520px){.price-review-backdrop{padding:12px;align-items:flex-start}.price-review-modal{max-height:calc(100dvh - 24px);padding:20px 16px}.price-review-item{gap:10px;padding:11px}.price-review-item-total{font-size:11px}.price-review-actions{grid-template-columns:1fr}.price-review-heading h2{font-size:27px}.price-review-lines{max-height:30vh}}
 @media(prefers-reduced-motion:reduce){.price-review-modal *{scroll-behavior:auto!important}}
+
+/* P0.3 readability baseline: preserve the warm brand while keeping operational text usable. */
+.eyebrow{font-size:10px;letter-spacing:.1em}
+.hero-proof small{font-size:12px;color:var(--text-secondary)}
+.floating-note strong{font-size:12px}
+.floating-note small{font-size:11px;line-height:1.4}
+.promise-strip b{font-size:13px}
+.promise-strip small{font-size:12px;line-height:1.4}
+.pizza-label{font-size:10px;letter-spacing:.04em}
+.text-link,.customize-link,.main-nav button{min-height:44px}
+.filter-label{font-size:13px}
+.filter-chip{min-height:44px;padding:10px 13px;font-size:11px;letter-spacing:.025em}
+.builder-step p{font-size:13px;line-height:1.45}
+.builder-step>b{font-size:12px}
+.builder-option,.veg-option{min-height:44px;padding:10px 12px;font-size:13px;line-height:1.35}
+.builder-option small,.veg-option small{font-size:12px}
+.summary-subtitle{font-size:13px;line-height:1.45}
+.ingredient-row{font-size:13px;line-height:1.45}
+.ingredient-row b{font-size:13px}
+.summary-qty,.summary-total{font-size:13px}
+.summary-footnote{font-size:12px;line-height:1.45}
+.cart-line-info p{font-size:12px;line-height:1.5}
+.cart-line-price button{min-height:44px;padding:8px 10px;font-size:12px}
+.price-row{font-size:14px;line-height:1.45}
+.free-delivery-hint{font-size:12px;line-height:1.5}
+.terms-note{font-size:12px;line-height:1.55}
+.dashboard-metrics span{font-size:12px;letter-spacing:.035em;line-height:1.4}
+.dashboard-metrics small{font-size:12px;line-height:1.45}
+.order-card p{font-size:12px;line-height:1.5}
+.status-pill{font-size:12px;line-height:1.35;padding:7px 10px;white-space:normal}
+.status-pill.waiting{color:#785022}
+.status-pill.paid{color:#3f5b2a}
+.timeline-step small{font-size:12px;line-height:1.35}
+.pending-message{font-size:12px;line-height:1.5}
+.admin-metric span{font-size:12px;line-height:1.4}
+.panel-heading p{font-size:13px;line-height:1.5}
+.inventory-row{font-size:13px;line-height:1.4}
+.inventory-row>div:first-child small{font-size:12px;line-height:1.4}
+.inventory-row input{min-height:44px;padding:8px;font-size:14px}
+.inventory-header{font-size:12px;letter-spacing:.04em}
+.inventory-state{font-size:12px;line-height:1.4}
+.inventory-state button{min-height:44px;padding:8px 10px;font-size:12px}
+.small-button{min-height:44px;padding:8px 12px;font-size:12px}
+.empty-small{font-size:13px;line-height:1.5}
+.back-top{min-height:44px;font-size:12px}
+.footer-bottom{font-size:12px;line-height:1.45}
+.auth-modal>p{font-size:14px;line-height:1.6}
+.field{font-size:13px;line-height:1.4}
+.field-input{height:46px}
+.field-input input{font-size:16px}
+.forgot-link{min-height:44px;padding:8px;font-size:12px}
+.auth-switch{font-size:12px;line-height:1.5}
+.auth-switch button{min-height:44px;padding:8px 6px;font-size:12px}
+.auth-privacy{font-size:11px;line-height:1.45}
+.toast{font-size:13px;line-height:1.5}
+.toast button{width:44px;height:44px;flex-shrink:0}
+.payment-retry-panel strong{font-size:14px;line-height:1.4}
+.payment-retry-panel p{font-size:12px;line-height:1.55}
+.payment-review-event p{font-size:12px;line-height:1.5}
+.payment-review-event small{font-size:12px;line-height:1.5}
+.delivery-details-heading p{font-size:13px;line-height:1.55}
+.delivery-instructions{font-size:12px;line-height:1.45}
+.order-delivery-details small{font-size:12px;line-height:1.5}
+.price-review-heading .eyebrow{font-size:10px}
+@media(max-width:800px){
+  .icon-button{width:44px;height:44px}
+  .inventory-row{grid-template-columns:minmax(0,1.2fr) 70px 70px minmax(80px,.9fr);gap:8px}
+}
+@media(max-width:520px){
+  .hero-proof small{font-size:11px}
+  .floating-note strong{font-size:11px}
+  .floating-note small{font-size:10px}
+  .promise-strip b{font-size:12px}
+  .promise-strip small{font-size:11px}
+  .pizza-label{font-size:8px}
+  .filter-chip{min-height:44px;padding:9px 11px;font-size:10px}
+  .builder-option,.veg-option{padding:10px 8px;font-size:12px}
+  .builder-option small,.veg-option small{font-size:12px}
+  .cart-line-info p{font-size:12px}
+  .cart-line-price{font-size:12px}
+  .dashboard-metrics span{font-size:11px}
+  .status-pill{font-size:11px;padding:7px 8px}
+  .timeline-step small{font-size:11px;line-height:1.35}
+  .admin-metric span{font-size:11px}
+  .inventory-row{grid-template-columns:minmax(0,1fr) 64px 64px;gap:7px;font-size:12px;padding:12px 2px}
+  .inventory-row>div:first-child{grid-column:1/-1}
+  .inventory-row input{min-height:44px;font-size:14px}
+  .inventory-state{grid-column:1/-1;justify-content:space-between;flex-wrap:nowrap;font-size:12px}
+  .inventory-state button{margin-left:auto}
+  .inventory-header{font-size:10px;letter-spacing:0}
+  .small-button{font-size:12px}
+  .footer-bottom{font-size:11px}
+  .terms-note{font-size:11px}
+}
