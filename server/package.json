@@ -27,5 +27,8 @@
   },
   "engines": {
     "node": ">=20.19.0"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.2.3"
   }
 }
