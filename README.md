@@ -95,4 +95,5 @@ Configure the deployed API endpoint POST /api/payments/webhook in the Razorpay D
 - Latest merged application hardening commit: `3f6778f33136cd5beb42159d1aceaee3227321f3` (PR #18).
 - PR #18 CI, tested against code SHA `e29bf1f78c9206c9d222d87dabb2c5bf5fb70aea`: [pull-request check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319853575) and [push check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319845265) both passed unit/smoke tests and production client build.
 - These checks do not prove live MongoDB transaction behaviour, Razorpay payment/webhook/refund delivery, SMTP delivery or browser end-to-end success. Those remain in the final setup/integration phase.
+- [Product discovery and differentiation roadmap](docs/PRODUCT_DISCOVERY.md) captures the research sources, code-audit findings, UI contract, prioritized feature backlog and test discipline.
 - See PROJECT_STATUS.md for current verification evidence and remaining integration work.

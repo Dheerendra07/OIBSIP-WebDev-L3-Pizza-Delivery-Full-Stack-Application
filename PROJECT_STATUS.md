@@ -4,6 +4,8 @@ Last updated: 2026-10-20
 
 ## Current Git state
 
+- Product-discovery plan: [docs/PRODUCT_DISCOVERY.md](docs/PRODUCT_DISCOVERY.md). Phase 1 is the shared card-state system and truthful catalog loading/error behavior; visual and accessibility cleanup follows before larger features.
+
 - Repository: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application
 - Default branch: `main`.
 - Latest merged application hardening commit: `3f6778f33136cd5beb42159d1aceaee3227321f3` — custom-pizza validation and provider-verified refund capture history (PR #18).
