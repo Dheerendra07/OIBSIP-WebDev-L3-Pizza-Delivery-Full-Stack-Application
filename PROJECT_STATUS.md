@@ -1,6 +1,6 @@
 # Project Status — Pizza House
 
-Last updated: 2026-10-20
+Last updated: 2026-10-21
 
 ## Current Git state
 
@@ -8,7 +8,7 @@ Last updated: 2026-10-20
 
 - Repository: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application
 - Default branch: `main`.
-- Latest merged code commit: `30e526c10e867c73a22e6eaa2ffcbb1e05b69ff2` — order issue reporting and admin case queue (PR #27). Reproducible npm lockfiles and `npm ci` are in PR #26; safe repeat-order and Nodemailer security fix are in PRs #23 and #24.
+- Latest merged code commit: `a6803bf16d5157204dd217bd499f75cd42c6b7e8` — disposable MongoDB issue-lifecycle integration coverage (PR #29). Order issue reporting is PR #27; reproducible npm lockfiles and `npm ci` are PR #26; safe repeat-order and Nodemailer security fix are PRs #23 and #24.
 - Delivery details collection and persistence merged in PR #16.
 - Trust/safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, #15 guarded admin full-refund recovery, #16 delivery destination fields, #17 checkout/recovery hardening, #18 custom-pizza validation/provider capture-history checks, #20 shared card loading/error states and live catalog gating, and #21 explicit server-quote confirmation before payment, #23 live-catalog-based repeat order, and #24 Nodemailer security-range upgrade, plus #27 authenticated order-issue reporting and admin case management.
 - PR #14 was a stale status-document snapshot and is closed as superseded.
@@ -20,7 +20,7 @@ Last updated: 2026-10-20
 - Nodemailer is now declared as `^10.1.7` after PR #24. The isolated upgrade verification passed 124/124 tests, production build, and `npm audit --prefix server` with zero reported vulnerabilities; real SMTP provider delivery still needs a configuration-backed test.
 - Reproducible dependency installation now uses root/server/client lockfileVersion 3 manifests and `npm run install:all` runs `npm ci` in all three packages. Clean install, full tests (124/124), production build and root/server/client audits (0 vulnerabilities each) passed on Node 22.22.2/npm 10.9.7 outside GitHub Actions.
 - PR #27 adds authenticated issue reports for eligible paid orders, a partial unique index for one active case per order/customer, an admin queue with `open → under_review → resolved` transitions, and customer-visible updates. PR #27's initial check used mocked APIs in Chrome; no page errors and no 390px horizontal overflow were observed.
-- Candidate branch `test/mongodb-issue-lifecycle` adds an opt-in/CI MongoDB integration test via `mongodb-memory-server`. On Node 22.22.2/npm 10.9.7, clean `npm ci` for root/server/client passed; full suite including actual MongoDB 7.0.14 passed 142/142; Vite build passed; root/server/client audits each reported zero vulnerabilities. The test proved persistence across reconnect, customer ownership, admin-only access, `open → under_review → resolved`, a new case after resolution, and two parallel submits returning one 201 and one 409. The real MongoMemoryServer test is committed only on that branch and is awaiting review/merge.
+- PR #29 merges `mongodb-memory-server`-backed issue lifecycle integration tests into the suite. On Node 22.22.2/npm 10.9.7, clean `npm ci` for root/server/client passed; full suite including actual MongoDB 7.0.14 passed 142/142; Vite build passed; root/server/client audits each reported zero vulnerabilities. The test proved persistence across reconnect, customer ownership, admin-only access, `open → under_review → resolved`, a new case after resolution, and two parallel submits returning one 201 and one 409. GitHub Actions run `39517058359` completed successfully. The production/Atlas database is still not verified.
 - Real environment credentials and database exports must not be committed.
 
 ## Implemented
@@ -46,7 +46,7 @@ Last updated: 2026-10-20
 ## Latest verified automated checks
 
 - PR #27 verification on the merged source: 141/141 tests passed; production client build passed; root/server/client npm audits reported zero vulnerabilities; unauthenticated customer/admin issue routes returned HTTP 401; issue submission/admin review/customer refresh was exercised in Chrome with mocked API responses.
-- `test/mongodb-issue-lifecycle` candidate: full `npm test` with the actual disposable MongoDB integration test passed 142/142; production build passed; root/server/client audits reported zero vulnerabilities. The DB test creates/syncs real indexes, tests HTTP endpoints using real Mongoose documents, verifies persistence after reconnect, and races both API requests and raw document inserts against the partial unique index.
+- PR #29 merged DB integration suite: full `CI=true npm test` passed 142/142 locally, and GitHub Actions run `39517058359` passed dependency installation, the configured test suite and production build. Root/server/client audits reported zero vulnerabilities. The DB test syncs actual indexes, exercises HTTP endpoints with real Mongoose documents, verifies persistence after reconnect, and races API requests and direct inserts against the partial unique index.
 - PR #26 reproducible installs: root, server and client `package-lock.json` generated with npm 10.9.4 (lockfileVersion 3); `npm run install:all` executed clean `npm ci` installs on Node 22.22.2/npm 10.9.7. At that checkpoint, 124/124 tests, Vite production build, and all three audits passed. This verification ran in an isolated workspace, not via GitHub Actions.
 - Latest non-GitHub-Actions verification for the merged PR #23 + #24 source: full `npm test` passed 124/124; `npm run build` succeeded; `npm audit --prefix server` reported 0 vulnerabilities for Nodemailer `^10.1.7`. Chrome rendered home, desktop/mobile order history, and repeat-order cart with mocked API responses; no page errors, and 390px viewport width matched document scroll width. External MongoDB, SMTP delivery, Razorpay, and production deployment were not tested.
 - PR #22 source commit: `652c2bd7489372e24671cfd9f9dbefe78d4f52be` — GitHub Actions run `39448534587` passed dependency installation, the configured client/server test suite, and the production client build for the P0.3 readability, touch-target, and responsive inventory-field changes. Follow-up commits in PR #22 synchronize the status and roadmap documentation.

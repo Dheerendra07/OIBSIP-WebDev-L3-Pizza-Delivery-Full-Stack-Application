@@ -69,7 +69,7 @@ Remove-Item Env:RUN_MONGODB_INTEGRATION
 ```
 The first run downloads the temporary MongoDB binary. The test does not connect to your configured database or require Razorpay/SMTP credentials.
 
-Reproducible installs: the root, `server/`, and `client/` `package-lock.json` files are tracked together. `npm run install:all` uses `npm ci` for all three manifests, and CI caches all three lockfiles. This change passed clean installs on Node 22.22.2/npm 10.9.7, the 124-test suite, production build, and all three npm audits. MongoDB, live Razorpay, and real SMTP/browser checkout still require configuration-backed end-to-end verification.
+Reproducible installs: the root, `server/`, and `client/` `package-lock.json` files are tracked together. `npm run install:all` uses `npm ci` for all three manifests, and CI caches all three lockfiles. The root, server and client clean installs passed on Node 22.22.2/npm 10.9.7; the full 142-test suite (including the disposable MongoDB integration test), production build, and all three npm audits passed. MongoDB, live Razorpay, and real SMTP/browser checkout still require configuration-backed end-to-end verification.
 
 ## Key API routes
 
