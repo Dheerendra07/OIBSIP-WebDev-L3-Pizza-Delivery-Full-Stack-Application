@@ -7,12 +7,14 @@
     "dev": "concurrently -k -n API,WEB -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
-    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
+    "install:all": "npm ci && npm --prefix server ci && npm --prefix client ci",
     "build": "npm --prefix client run build",
     "test": "node --test server/tests/*.test.js client/tests/*.test.js",
     "seed:inventory": "npm --prefix server run seed:inventory",
     "seed:admin": "npm --prefix server run seed:admin",
     "start": "npm --prefix server start"
   },
-  "devDependencies": { "concurrently": "^9.2.1" }
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
 }

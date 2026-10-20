@@ -57,9 +57,9 @@ Pizza House is a MERN full-stack internship project for custom pizza ordering, s
 7. Open http://localhost:5173; API health is at http://localhost:4000/api/health.
 
 ### Verify
-Run npm test and npm run build from the repository root. GitHub Actions runs dependency installation, all configured tests and the production client build on pushes to main, feat/**, and fix/**, and on pull requests targeting main.
+Run npm test and npm run build from the repository root. GitHub Actions runs dependency installation, all configured tests and the production client build on pushes to main, feat/**, fix/**, build/**, and docs/**, and on pull requests targeting main.
 
-Dependency-locking note: this repository currently has no committed root/server/client package-lock.json files, so npm install resolves the allowed semver ranges at install time. Before calling installs reproducible, generate and commit all three lockfiles with npm registry access, switch CI/local clean installs to npm ci, then rerun the full checks.
+Reproducible installs: the root, `server/`, and `client/` `package-lock.json` files are tracked together. `npm run install:all` uses `npm ci` for all three manifests, and CI caches all three lockfiles. This change passed clean installs on Node 22.22.2/npm 10.9.7, the 124-test suite, production build, and all three npm audits. MongoDB, live Razorpay, and real SMTP/browser checkout still require configuration-backed end-to-end verification.
 
 ## Key API routes
 
