@@ -265,85 +265,197 @@ export default function App() {
     } };
     const retryPaymentVerification = async () => { if (!pendingVerification || pending)
         return; await verifyCheckoutPayment(pendingVerification.orderId, pendingVerification.response); };
-    const startCheckout = async () => { if (!cart.length)
-        return; if (!canCheckoutWithCatalog(catalogStatus)) {
-        notify('Current prices and availability are not confirmed. Refresh the menu before checkout.', 'error');
-        setPage('menu');
-        if (catalogStatus === 'error') void refreshCatalog();
-        return;
-    } if (!user) {
-        openAuth('login');
-        notify('Sign in before checkout.', 'error');
-        return;
-    } if (pendingVerification) {
-        notify('Confirm the previous payment before opening checkout again.', 'error');
-        return;
-    }
-    let normalizedDeliveryDetails;
-    try {
-        normalizedDeliveryDetails = normalizeDeliveryDetails(deliveryDetails);
-    } catch (error) {
-        notify(error.message, 'error');
-        return;
-    }
-    setPending(true); try {
-        let orderId = activeOrderId;
-        if (orderId) {
-            try {
-                const existing = await api(`/orders/${orderId}`);
-                const cartMatches = orderMatchesCart(existing.order.items, cart, featured);
-                const checkoutState = classifyExistingCheckout(existing.order, cartMatches);
-                if (checkoutState === 'review') {
-                    setActiveOrderId(null);
-                    setCart([]);
-                    await refreshOrders();
-                    setPage('dashboard');
-                    notify('Payment received, but this order needs manual review. Do not pay again.', 'error');
-                    return;
-                }
-                if (checkoutState === 'already-paid') {
-                    setActiveOrderId(null);
-                    setCart([]);
-                    await refreshOrders();
-                    setPage('dashboard');
-                    notify('This order is already paid and confirmed.');
-                    return;
-                }
-                if (checkoutState === 'new') {
-                    orderId = null;
-                    setActiveOrderId(null);
-                } else {
-                    await api(`/orders/${orderId}/delivery-details`, { method: 'PATCH', body: { deliveryDetails: normalizedDeliveryDetails } });
+
+    const startCheckout = async () => {
+        if (!cart.length) return;
+        if (!canCheckoutWithCatalog(catalogStatus)) {
+            notify('Current prices and availability are not confirmed. Refresh the menu before checkout.', 'error');
+            setPage('menu');
+            if (catalogStatus === 'error') void refreshCatalog();
+            return;
+        }
+        if (!user) {
+            openAuth('login');
+            notify('Sign in before checkout.', 'error');
+            return;
+        }
+        if (pendingVerification) {
+            notify('Confirm the previous payment before opening checkout again.', 'error');
+            return;
+        }
+
+        let normalizedDeliveryDetails;
+        try {
+            normalizedDeliveryDetails = normalizeDeliveryDetails(deliveryDetails);
+        } catch (error) {
+            notify(error.message, 'error');
+            return;
+        }
+
+        setPending(true);
+        try {
+            let orderId = activeOrderId;
+            let serverOrder = null;
+            if (orderId) {
+                try {
+                    const existing = await api('/orders/' + orderId);
+                    serverOrder = existing.order;
+                    const cartMatches = orderMatchesCart(serverOrder.items, cart, featured);
+                    const checkoutState = classifyExistingCheckout(serverOrder, cartMatches);
+                    if (checkoutState === 'review') {
+                        setActiveOrderId(null);
+                        setCart([]);
+                        await refreshOrders();
+                        setPage('dashboard');
+                        notify('Payment received, but this order needs manual review. Do not pay again.', 'error');
+                        return;
+                    }
+                    if (checkoutState === 'already-paid') {
+                        setActiveOrderId(null);
+                        setCart([]);
+                        await refreshOrders();
+                        setPage('dashboard');
+                        notify('This order is already paid and confirmed.');
+                        return;
+                    }
+                    if (checkoutState === 'new') {
+                        orderId = null;
+                        serverOrder = null;
+                        setActiveOrderId(null);
+                    } else {
+                        await api('/orders/' + orderId + '/delivery-details', {
+                            method: 'PATCH',
+                            body: { deliveryDetails: normalizedDeliveryDetails },
+                        });
+                    }
+                } catch (error) {
+                    if (error.status === 404) {
+                        orderId = null;
+                        serverOrder = null;
+                        setActiveOrderId(null);
+                    } else {
+                        throw error;
+                    }
                 }
             }
-            catch (error) {
-                if (error.status === 404) {
-                    orderId = null;
-                    setActiveOrderId(null);
-                }
-                else
-                    throw error;
+
+            if (!orderId) {
+                const created = await api('/orders', {
+                    method: 'POST',
+                    body: {
+                        items: cart.map(item => item.type === 'featured'
+                            ? { type: 'featured', pizzaId: item.pizzaId, quantity: item.quantity }
+                            : {
+                                type: 'custom',
+                                base: item.base,
+                                sauce: item.sauce,
+                                cheese: item.cheese,
+                                vegetables: item.vegetables,
+                                quantity: item.quantity,
+                            }),
+                        deliveryDetails: normalizedDeliveryDetails,
+                    },
+                });
+                serverOrder = created.order;
+                orderId = serverOrder.id;
+                setActiveOrderId(orderId);
             }
+
+            if (!serverOrder) {
+                serverOrder = (await api('/orders/' + orderId)).order;
+            }
+            if (!serverOrder || !serverOrder.id) {
+                throw new Error('We could not verify the server-priced order. No payment was started; please retry.');
+            }
+
+            if (requiresPriceConfirmation({
+                cart,
+                order: serverOrder,
+                displayedSubtotal: subtotal,
+                displayedDeliveryFee: deliveryFee,
+            })) {
+                setPriceReview(buildPriceReview(serverOrder));
+                return;
+            }
+
+            const payment = await api('/payments/create-order', { method: 'POST', body: { orderId } });
+            await loadRazorpay();
+            const checkout = new window.Razorpay({
+                key: payment.keyId,
+                amount: payment.amount,
+                currency: payment.currency,
+                name: 'Pizza House',
+                description: 'Order ' + payment.orderNumber,
+                order_id: payment.paymentOrderId,
+                prefill: payment.customer,
+                theme: { color: '#cf4d2c' },
+                handler: (response) => { void verifyCheckoutPayment(payment.orderId, response); },
+                modal: {
+                    ondismiss: () => notify(
+                        'Checkout closed. Your order remains unpaid; its temporary stock hold will be reconciled automatically.',
+                        'error',
+                    ),
+                },
+            });
+            checkout.on('payment.failed', () => notify(
+                'Payment failed. You can safely retry the same order; its stock hold will be reconciled if abandoned.',
+                'error',
+            ));
+            checkout.open();
+        } catch (error) {
+            if (error.status === 409 && /reservation expired/i.test(error.message)) setActiveOrderId(null);
+            notify(error.message, 'error');
+        } finally {
+            setPending(false);
         }
-        if (!orderId) {
-            const created = await api('/orders', { method: 'POST', body: { items: cart.map(item => item.type === 'featured' ? { type: 'featured', pizzaId: item.pizzaId, quantity: item.quantity } : { type: 'custom', base: item.base, sauce: item.sauce, cheese: item.cheese, vegetables: item.vegetables, quantity: item.quantity }), deliveryDetails: normalizedDeliveryDetails } });
-            orderId = created.order.id;
-            setActiveOrderId(orderId);
-        }
-        const payment = await api('/payments/create-order', { method: 'POST', body: { orderId } });
-        await loadRazorpay();
-        const checkout = new window.Razorpay({ key: payment.keyId, amount: payment.amount, currency: payment.currency, name: 'Pizza House', description: `Order ${payment.orderNumber}`, order_id: payment.paymentOrderId, prefill: payment.customer, theme: { color: '#cf4d2c' }, handler: (response) => { void verifyCheckoutPayment(payment.orderId, response); }, modal: { ondismiss: () => notify('Checkout closed. Your order remains unpaid; its temporary stock hold will be reconciled automatically.', 'error') } });
-        checkout.on('payment.failed', () => notify('Payment failed. You can safely retry the same order; its stock hold will be reconciled if abandoned.', 'error'));
-        checkout.open();
-    }
-    catch (error) {
-        if (error.status === 409 && /reservation expired/i.test(error.message))
+    };
+
+    const acceptPriceReview = async () => {
+        const review = priceReview;
+        if (!review || pending) return;
+        if (!matchesCartSnapshot(review.cartSnapshot, cart)) {
+            setPriceReview(null);
             setActiveOrderId(null);
-        notify(error.message, 'error');
-    }
-    finally {
-        setPending(false);
-    } };
+            notify('Your bag changed while the quote was open. Review the bag and start checkout again.', 'error');
+            return;
+        }
+
+        setPending(true);
+        try {
+            const latest = (await api('/orders/' + review.orderId)).order;
+            if (!sameServerQuote(review.serverOrder, latest) ||
+                latest.status !== 'pending_payment' ||
+                latest.paymentStatus !== 'pending') {
+                setPriceReview(null);
+                setActiveOrderId(null);
+                notify('This quote changed or is no longer pending. Restart checkout to review the latest quote.', 'error');
+                return;
+            }
+
+            const liveCatalog = normalizeCatalogResponse(await api('/catalog'));
+            const synchronizedCart = syncCartToServerQuote(cart, latest, liveCatalog.catalog);
+            setCatalog(liveCatalog.catalog);
+            setFeatured(liveCatalog.featuredPizzas);
+            setCatalogStatus('ready');
+            setCatalogError('');
+            setCart(synchronizedCart);
+            setActiveOrderId(String(latest.id));
+            setPriceReview(null);
+            notify('Updated server quote accepted. Review the new total, then choose Checkout securely again.');
+        } catch (error) {
+            notify(error.message || 'We could not refresh the quote. No payment was started; please retry.', 'error');
+        } finally {
+            setPending(false);
+        }
+    };
+
+    const declinePriceReview = () => {
+        if (pending) return;
+        setPriceReview(null);
+        setActiveOrderId(null);
+        notify('Quote declined. Your original bag is unchanged and no payment was started.');
+    };
+
     const updateInventory = async (item, values) => { try {
         const d = await api(`/admin/inventory/${encodeURIComponent(item.key)}`, { method: 'PATCH', body: { stock: Number(values.stock), lowStockThreshold: Number(values.lowStockThreshold) } });
         setAdminData(prev => ({ ...prev, inventory: prev.inventory.map(x => x.key === item.key ? d.item : x) }));
@@ -435,6 +547,7 @@ export default function App() {
     </main>
     <footer className="site-footer"><div className="footer-main"><a className="brand footer-brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>GOOD FOOD. GOOD MOOD.</small></span></a><p>Made for the good days.<br />And the days that need a little help.</p><button className="back-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Back to the top <ArrowUpRight size={16}/></button></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Pizza House. Made with a little extra cheese.</span><div><span>Fresh food, honest ingredients</span><span className="footer-dot">·</span><span>Secure payments</span></div></div></footer>
     <Toast toast={toast} onClose={() => setToast(null)}/>
+    {priceReview && <PriceReviewDialog review={priceReview} catalog={catalog} pending={pending} onAccept={acceptPriceReview} onCancel={declinePriceReview}/>}
     {authMode && <div className="modal-backdrop" role="presentation" onMouseDown={e => e.target === e.currentTarget && setAuthMode(null)}><div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title"><IconButton className="modal-close" label="Close dialog" onClick={() => setAuthMode(null)}><X size={19}/></IconButton><div className="auth-brand-mark">P<span>.</span></div><div className="eyebrow">{authMode === 'admin' ? 'TEAM ACCESS' : 'COME ON IN'}</div><h2 id="auth-title">{authMode === 'register' ? 'Make yourself at home.' : authMode === 'forgot' ? 'A fresh start.' : authMode === 'reset' ? 'New password, new slice.' : authMode === 'admin' ? 'Welcome back, team.' : 'Your table is waiting.'}</h2><p>{authMode === 'register' ? 'Create an account to follow every lovely order.' : authMode === 'forgot' ? 'We’ll send a secure reset link if your account exists.' : authMode === 'reset' ? 'Choose a strong new password to get back in.' : authMode === 'admin' ? 'Sign in with your separately provisioned admin account.' : 'Sign in for order updates and a little more pizza joy.'}</p><form onSubmit={submitAuth}>{authMode === 'register' && <Field label="Your name" icon={UserRound} placeholder="How should we call you?" autoComplete="name" required minLength={2} maxLength={80} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/>}{authMode === 'forgot' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={emailOnly} onChange={e => setEmailOnly(e.target.value)}/>}{!['forgot'].includes(authMode) && authMode !== 'reset' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/>}{(authMode === 'login' || authMode === 'register' || authMode === 'admin' || authMode === 'reset') && <Field label={authMode === 'reset' ? 'New password' : 'Password'} icon={LockKeyhole} type="password" placeholder={authMode === 'reset' ? '10+ characters, mixed case and a number' : 'At least 10 characters'} required minLength={10} autoComplete={authMode === 'login' || authMode === 'admin' ? 'current-password' : 'new-password'} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}/>}{authMode === 'login' && <button type="button" className="forgot-link" onClick={() => setAuthMode('forgot')}>Forgot password?</button>}<button disabled={pending} className="button button-dark full-button auth-submit">{pending ? <LoaderCircle size={17} className="spin"/> : authMode === 'reset' ? <LockKeyhole size={17}/> : authMode === 'forgot' ? <Mail size={17}/> : authMode === 'admin' ? <ShieldCheck size={17}/> : authMode === 'register' ? <UserRound size={17}/> : <LogIn size={17}/>} {pending ? 'Please wait…' : authMode === 'register' ? 'Create my account' : authMode === 'forgot' ? 'Send reset link' : authMode === 'reset' ? 'Update password' : authMode === 'admin' ? 'Sign in as admin' : 'Sign in'}</button></form>{authMode === 'login' ? <div className="auth-switch">New around here? <button onClick={() => setAuthMode('register')}>Create an account</button><button className="admin-link" onClick={() => setAuthMode('admin')}>Team sign in</button></div> : authMode === 'register' ? <div className="auth-switch">Already part of the house? <button onClick={() => setAuthMode('login')}>Sign in</button></div> : authMode === 'admin' ? <div className="auth-switch">Customer account? <button onClick={() => setAuthMode('login')}>Customer sign in</button></div> : <div className="auth-switch"><button onClick={() => setAuthMode('login')}>Back to sign in</button></div>}<small className="auth-privacy"><ShieldCheck size={13}/> Your details stay protected. We never store card numbers.</small></div></div>}
   </div>;
 }
@@ -458,4 +571,78 @@ function OrderCard({ order, admin = false, onStatus }) { const current = ORDER_S
 function InventoryRow({ item, onSave }) { const [stock, setStock] = useState(String(item.stock)); const [threshold, setThreshold] = useState(String(item.lowStockThreshold)); useEffect(() => { setStock(String(item.stock)); setThreshold(String(item.lowStockThreshold)); }, [item.stock, item.lowStockThreshold]); const changed = Number(stock) !== item.stock || Number(threshold) !== item.lowStockThreshold; return <div className="inventory-row"><div><b>{item.name}</b><small>{item.category}</small></div><input aria-label={`${item.name} stock`} type="number" min="0" value={stock} onChange={e => setStock(e.target.value)}/><input aria-label={`${item.name} low stock threshold`} type="number" min="0" value={threshold} onChange={e => setThreshold(e.target.value)}/><div className="inventory-state"><span className={`stock-dot ${item.stock <= item.lowStockThreshold ? 'low' : ''}`}/><span>{item.stock <= item.lowStockThreshold ? 'Low stock' : 'Healthy'}</span>{changed && <button onClick={() => onSave(item, { stock, lowStockThreshold: threshold })}>Save</button>}</div></div>; }
 async function loadRazorpay() { if (window.Razorpay)
     return; await new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = 'https://checkout.razorpay.com/v1/checkout.js'; script.onload = resolve; script.onerror = () => reject(new Error('Could not load Razorpay Checkout. Check your connection and try again.')); document.body.appendChild(script); }); }
+
+function PriceReviewDialog({ review, catalog, pending, onAccept, onCancel }) {
+    const dialogRef = useRef(null);
+    useEffect(() => { dialogRef.current?.focus(); }, []);
+    const serverItems = Array.isArray(review.serverOrder?.items) ? review.serverOrder.items : [];
+    const rowCount = Math.max(review.previousItems.length, serverItems.length);
+    const optionName = (group, id) => catalog?.[group]?.find(option => option.id === id)?.name || id || 'Not selected';
+    const describeRecipe = (recipe = {}) => [
+        'Base: ' + optionName('bases', recipe.base),
+        'Sauce: ' + optionName('sauces', recipe.sauce),
+        'Cheese: ' + optionName('cheeses', recipe.cheese),
+        'Toppings: ' + ((Array.isArray(recipe.vegetables) && recipe.vegetables.length)
+            ? recipe.vegetables.map(id => optionName('vegetables', id)).join(', ')
+            : 'None'),
+    ].join(' · ');
+
+    return <div className="modal-backdrop price-review-backdrop" role="presentation"
+        onMouseDown={event => event.target === event.currentTarget && !pending && onCancel()}>
+        <section className="price-review-modal" role="dialog" aria-modal="true"
+            aria-labelledby="price-review-title" aria-describedby="price-review-description"
+            tabIndex={-1} ref={dialogRef}
+            onKeyDown={event => event.key === 'Escape' && !pending && onCancel()}>
+            <div className="price-review-heading">
+                <span className="auth-brand-mark">P<span>.</span></span>
+                <div className="eyebrow">PRICE & RECIPE CHECK</div>
+                <h2 id="price-review-title">One quick check before you pay.</h2>
+                <p id="price-review-description">The server's saved order differs from the price or recipe shown in your bag. No payment has been started and no stock has been reserved. Review the exact quote before accepting it.</p>
+            </div>
+            <div className="price-review-lines" aria-label="Item-by-item quote comparison">
+                {Array.from({ length: rowCount }, (_, index) => {
+                    const previous = review.previousItems[index];
+                    const current = serverItems[index];
+                    const oldRecipe = review.cartSnapshot?.[index]?.ingredients;
+                    const nextRecipe = current?.ingredients;
+                    const oldDescription = oldRecipe ? describeRecipe(oldRecipe) : '';
+                    const nextDescription = nextRecipe ? describeRecipe(nextRecipe) : '';
+                    const recipeChanged = Boolean(oldDescription && nextDescription && oldDescription !== nextDescription);
+                    return <article className="price-review-item" key={(current?.name || previous?.name || 'item') + '-' + index}>
+                        <div className="price-review-item-title">
+                            <strong>{current?.name || previous?.name || ('Item ' + (index + 1))}</strong>
+                            {previous && <small>Before: {previous.quantity} × {currency(previous.unitPrice)} = {currency(previous.lineTotal)}</small>}
+                            {current && <small>Server quote: {current.quantity} × {currency(current.unitPrice)} = {currency(current.lineTotal)}</small>}
+                            {!current && <small>This item is not present in the server quote.</small>}
+                            {recipeChanged
+                                ? <><small className="price-review-recipe-change">Previous recipe: {oldDescription}</small><small className="price-review-recipe-change">Updated recipe: {nextDescription}</small></>
+                                : nextDescription && <small className="price-review-recipe">Recipe: {nextDescription}</small>}
+                        </div>
+                        <div className="price-review-item-total">
+                            <span>Current quote</span>
+                            <strong>{current ? currency(current.lineTotal) : 'Not included'}</strong>
+                        </div>
+                    </article>;
+                })}
+            </div>
+            <div className="price-review-totals">
+                <div><span>Previous subtotal</span><strong>{currency(review.previousSubtotal)}</strong></div>
+                <div><span>Previous delivery</span><strong>{currency(review.previousDeliveryFee)}</strong></div>
+                <div><span>Previous total</span><strong>{currency(review.previousTotal)}</strong></div>
+                <div className="price-review-total-new"><span>Server subtotal</span><strong>{currency(review.serverOrder.subtotal)}</strong></div>
+                <div><span>Server delivery</span><strong>{currency(review.serverOrder.deliveryFee)}</strong></div>
+                <div className="price-review-grand-total"><span>New payable total</span><strong>{currency(review.serverOrder.total)}</strong></div>
+            </div>
+            <p className="price-review-safety-note"><ShieldCheck size={16}/> Accepting updates your bag only. You must review the updated total and press Checkout securely again before any payment begins.</p>
+            <div className="price-review-actions">
+                <button type="button" className="button button-light" disabled={pending} onClick={onCancel}>Keep my original bag</button>
+                <button type="button" className="button button-dark" disabled={pending} onClick={onAccept}>
+                    {pending ? <LoaderCircle size={17} className="spin"/> : <CheckCircle2 size={17}/>}
+                    {pending ? 'Rechecking quote…' : 'Accept updated quote'}
+                </button>
+            </div>
+        </section>
+    </div>;
+}
+
 function PaymentRetryPanel({ pending, onRetry }) { return <div className="payment-retry-panel" role="alert"><strong>Payment needs confirmation</strong><p>We could not confirm the previous payment yet. Do not open another payment. Retry the server verification for the same payment.</p><button disabled={pending} className="button button-light full-button" onClick={onRetry}>{pending ? <LoaderCircle className="spin" size={17}/> : <RefreshCw size={16}/>} {pending ? 'Checking payment…' : 'Retry payment confirmation'}</button></div>; }
