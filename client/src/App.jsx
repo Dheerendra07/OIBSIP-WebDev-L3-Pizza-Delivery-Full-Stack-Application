@@ -572,6 +572,7 @@ export default function App() {
             notify('Describe what went wrong in 10–600 characters.', 'error');
             return;
         }
+        event.currentTarget.querySelector('textarea')?.focus();
         setPendingIssue(true);
         try {
             const response = await api('/issues', {
