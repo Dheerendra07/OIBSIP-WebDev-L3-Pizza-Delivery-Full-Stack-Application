@@ -97,3 +97,50 @@ export function sameServerQuote(previous, latest) {
         JSON.stringify(normalizedIngredients(next.ingredients));
   });
 }
+
+/** Apply a quote only after the user explicitly accepts the server's amounts. */
+export function syncCartToServerQuote(cart, order, catalog) {
+  if (!Array.isArray(cart) || !Array.isArray(order?.items) || cart.length !== order.items.length) {
+    throw new Error('The reviewed order no longer matches your bag. Refresh your bag before checkout.');
+  }
+
+  return cart.map((item, index) => {
+    const line = order.items[index];
+    const unitPrice = Number(line?.unitPrice);
+    const quantity = Number(line?.quantity);
+    if (!line || !Number.isFinite(unitPrice) || unitPrice < 0 ||
+        !Number.isInteger(quantity) || quantity < 1) {
+      throw new Error('The reviewed order contains invalid item pricing. Please refresh the menu.');
+    }
+
+    if (item.type === 'featured') {
+      return {
+        ...item,
+        name: line.name,
+        unitPrice,
+        quantity,
+        ingredients: line.ingredients,
+      };
+    }
+
+    if (item.type === 'custom') {
+      const base = line.ingredients?.base;
+      const sauce = line.ingredients?.sauce;
+      const cheese = line.ingredients?.cheese;
+      const vegetables = Array.isArray(line.ingredients?.vegetables) ? [...line.ingredients.vegetables] : [];
+      const baseName = catalog?.bases?.find((option) => option.id === base)?.name || 'Pizza';
+      return {
+        ...item,
+        name: `Custom ${baseName}`,
+        unitPrice,
+        quantity,
+        base,
+        sauce,
+        cheese,
+        vegetables,
+      };
+    }
+
+    throw new Error('The reviewed order contains an unsupported item type.');
+  });
+}
