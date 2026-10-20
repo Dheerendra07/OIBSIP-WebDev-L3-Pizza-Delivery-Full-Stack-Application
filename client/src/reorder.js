@@ -68,7 +68,8 @@ export function buildReorderCart(order, catalog, featuredPizzas) {
     }
 
     const featured = featuredPizzas.find((pizza) =>
-      pizza?.ingredients && normalizedIngredients(pizza.ingredients) === normalizedIngredients(recipe)
+      pizza?.name === line.name && pizza?.ingredients &&
+      normalizedIngredients(pizza.ingredients) === normalizedIngredients(recipe)
     );
 
     if (featured && featured.available === false) {
