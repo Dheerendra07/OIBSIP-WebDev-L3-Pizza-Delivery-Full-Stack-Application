@@ -8,7 +8,7 @@ Last updated: 2026-10-20
 
 - Repository: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application
 - Default branch: `main`.
-- Latest merged code commit: `7fd0e8920f848142a141882a848a2ecbbb2c3f16` — Nodemailer security-range fix (PR #24). Safe repeat-order from PR #23 merged as `b7706036a7e7674497837fef8906b489233170a3`.
+- Latest merged code commit: `070a9966e2faf1799ece59163a17d14816aa6ad9` — reproducible npm lockfiles and `npm ci` installation path (PR #26). The repeat-order feature and Nodemailer security fix are also merged in PRs #23 and #24.
 - Delivery details collection and persistence merged in PR #16.
 - Trust/safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, #15 guarded admin full-refund recovery, #16 delivery destination fields, #17 checkout/recovery hardening, #18 custom-pizza validation/provider capture-history checks, #20 shared card loading/error states and live catalog gating, and #21 explicit server-quote confirmation before payment, #23 live-catalog-based repeat order, and #24 Nodemailer security-range upgrade.
 - PR #14 was a stale status-document snapshot and is closed as superseded.
@@ -19,6 +19,7 @@ Last updated: 2026-10-20
 - Verification outside GitHub Actions: isolated utility tests passed 10/10; full `npm test` passed 124/124 and Vite production build passed in a remote workspace using Node 26.8.2/npm 12.2.0. Chrome rendered the home page, order history, and repeat-order cart with deterministic mocked API responses at desktop and 390px mobile; no page errors were recorded, and mobile document width matched scroll width (390px). These are UI/component checks, not live API/payment proof.
 - Nodemailer is now declared as `^10.1.7` after PR #24. The isolated upgrade verification passed 124/124 tests, production build, and `npm audit --prefix server` with zero reported vulnerabilities; real SMTP provider delivery still needs a configuration-backed test.
 - Reproducible dependency installation now uses root/server/client lockfileVersion 3 manifests and `npm run install:all` runs `npm ci` in all three packages. Clean install, full tests (124/124), production build and root/server/client audits (0 vulnerabilities each) passed on Node 22.22.2/npm 10.9.7 outside GitHub Actions.
+- Candidate feature branch `feat/order-issue-reporting` adds authenticated issue reports for paid orders, an admin issue queue, status transitions and customer-visible updates. It is not merged yet. In isolated Node 22.22.2/npm 10.9.7 verification, `npm test` passed 141/141, Vite build passed, and root/server/client audits reported zero vulnerabilities. Chrome exercised the real frontend source with mocked API responses through customer report → admin review/message → customer refresh; no page errors and no 390px horizontal overflow were observed. Live MongoDB/provider/email behaviour remains unverified.
 - Real environment credentials and database exports must not be committed.
 
 ## Implemented
@@ -43,6 +44,7 @@ Last updated: 2026-10-20
 
 ## Latest verified automated checks
 
+- `feat/order-issue-reporting` verification: 141/141 tests passed; production client build passed; root/server/client npm audits reported zero vulnerabilities; unauthenticated customer/admin issue routes returned HTTP 401; issue submission/admin review/customer refresh was exercised in Chrome with mocked API responses.
 - Reproducible-install candidate (`build/reproducible-npm-lockfiles`): root, server and client `package-lock.json` generated with npm 10.9.4 (lockfileVersion 3); `npm run install:all` executed clean `npm ci` installs on Node 22.22.2/npm 10.9.7. `npm test`: 124/124 passed; Vite production build passed; `npm audit` at root/server/client reported zero vulnerabilities each. This verification ran in an isolated workspace, not via GitHub Actions.
 - Latest non-GitHub-Actions verification for the merged PR #23 + #24 source: full `npm test` passed 124/124; `npm run build` succeeded; `npm audit --prefix server` reported 0 vulnerabilities for Nodemailer `^10.1.7`. Chrome rendered home, desktop/mobile order history, and repeat-order cart with mocked API responses; no page errors, and 390px viewport width matched document scroll width. External MongoDB, SMTP delivery, Razorpay, and production deployment were not tested.
 - PR #22 source commit: `652c2bd7489372e24671cfd9f9dbefe78d4f52be` — GitHub Actions run `39448534587` passed dependency installation, the configured client/server test suite, and the production client build for the P0.3 readability, touch-target, and responsive inventory-field changes. Follow-up commits in PR #22 synchronize the status and roadmap documentation.

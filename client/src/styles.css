@@ -275,3 +275,57 @@
 .order-card .pending-message{font-size:12px;line-height:1.55}
 .order-card .order-delivery-details small{font-size:12px;line-height:1.55}
 .order-card .payment-review-warning small{font-size:12px;line-height:1.5}
+
+
+/* Customer issue reporting and transparent case follow-up. */
+.order-issue-actions,.issue-status-card{display:flex;align-items:center;justify-content:space-between;gap:14px;border-top:1px solid var(--border);margin-top:14px;padding-top:14px}
+.order-issue-actions p,.issue-status-copy>p{margin:0;color:var(--text-secondary);font-size:12px;line-height:1.55}
+.order-issue-actions .button{min-height:44px;white-space:nowrap}
+.issue-status-card{align-items:flex-start;border:1px solid var(--border);border-left:3px solid var(--brand);border-radius:8px;background:var(--surface);padding:14px;margin-top:15px}
+.issue-status-under_review{border-left-color:#a46b17;background:#fffaf0}
+.issue-status-resolved{border-left-color:var(--success);background:#f5f8f0}
+.issue-status-copy{display:grid;gap:7px;min-width:0}
+.issue-status-copy strong{font-size:13px}
+.issue-status-copy .eyebrow{font-size:10px}
+.issue-refresh{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;align-self:flex-start;font-size:11px;background:none;border:0;padding:5px 0}
+.issue-customer-update{border-top:1px solid var(--border);margin-top:4px;padding-top:9px}
+.issue-customer-update b{display:block;color:var(--text-primary);font-size:11px;margin-bottom:5px}
+.issue-customer-update p{margin:0;color:var(--text-secondary);font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.issue-report-modal .auth-brand-mark{display:grid;place-items:center;background:#f6e8dc;color:var(--brand);border-radius:50%}
+.issue-field{display:grid;gap:7px;font-size:12px;font-weight:700;color:var(--text-primary);min-width:0}
+.issue-field select,.issue-field textarea{width:100%;min-width:0;border:1px solid var(--border);border-radius:6px;background:var(--surface);padding:11px 12px;color:var(--text-primary);font:inherit;font-weight:400;line-height:1.5}
+.issue-field select{min-height:44px}
+.issue-field textarea{resize:vertical;min-height:88px}
+.issue-field select:focus-visible,.issue-field textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.issue-form-footnote{display:grid;gap:4px;color:var(--text-secondary);font-size:10px;line-height:1.5}
+.issue-report-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.issue-report-actions .button{min-height:44px}
+.issue-case-list{display:grid;gap:12px}
+.issue-case-card{display:grid;gap:12px;border:1px solid var(--border);border-radius:var(--radius-card);background:var(--surface);padding:18px;min-width:0}
+.issue-case-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.issue-case-head h3{font-family:var(--serif);font-size:18px;font-weight:500;line-height:1.3;margin:6px 0 0;overflow-wrap:anywhere}
+.issue-case-head .eyebrow{font-size:11px}
+.issue-case-description{margin:0;color:var(--text-primary);font-size:13px;line-height:1.65;overflow-wrap:anywhere}
+.issue-case-meta{display:grid;gap:5px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:10px 0;color:var(--text-secondary);font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.issue-case-meta b{color:var(--text-primary)}
+.issue-customer-update-field textarea{min-height:66px}
+.issue-note-hint{color:var(--text-secondary);font-size:10px;line-height:1.5}
+.issue-admin-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.issue-admin-actions .button{min-height:42px}
+.issue-case-skeletons{display:grid;gap:12px}
+.issue-case-skeleton{display:grid;gap:13px;padding:16px;border:1px solid var(--border);border-radius:var(--radius-card);background:var(--surface)}
+.issue-case-skeleton .skeleton-line{height:13px}
+.issue-case-skeleton .skeleton-meta{width:32%}
+.issue-case-skeleton .skeleton-description{width:78%}
+.issue-case-skeleton .skeleton-description.short{width:53%}
+@media(max-width:600px){
+  .order-issue-actions,.issue-status-card{align-items:stretch;flex-direction:column;gap:10px}
+  .order-issue-actions .button{width:100%;min-height:46px}
+  .issue-refresh{align-self:flex-start;min-height:36px}
+  .issue-report-modal{padding:30px 20px 22px}
+  .issue-report-actions{flex-direction:column-reverse}
+  .issue-report-actions .button{width:100%}
+  .issue-case-card{padding:14px}
+  .issue-case-head{align-items:flex-start}
+  .issue-admin-actions .button{flex:1 1 140px}
+}

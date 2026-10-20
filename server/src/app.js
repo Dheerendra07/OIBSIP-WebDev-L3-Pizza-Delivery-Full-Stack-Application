@@ -9,6 +9,7 @@ import catalogRoutes from './routes/catalogRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import issueRoutes from './routes/issueRoutes.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { handleRazorpayWebhook } from './controllers/paymentWebhookController.js';
 
@@ -25,6 +26,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'pizza-h
 app.use('/api/auth', authRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/issues', issueRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use(notFound); app.use(errorHandler);

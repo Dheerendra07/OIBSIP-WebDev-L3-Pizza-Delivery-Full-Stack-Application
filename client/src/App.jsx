@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock3, CreditCard, Flame, Leaf, LoaderCircle, LogIn, LogOut, Menu, Minus, Plus, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Truck, UserRound, X, CheckCircle2, CircleUserRound, PackageCheck, ChefHat, Boxes, RefreshCw, Mail, LockKeyhole } from 'lucide-react';
+import { ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock3, CreditCard, Flame, Leaf, LoaderCircle, LogIn, LogOut, Menu, Minus, Plus, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Truck, UserRound, X, CheckCircle2, CircleUserRound, PackageCheck, ChefHat, Boxes, RefreshCw, Mail, LockKeyhole, MessageCircle } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { api, API_ORIGIN } from './api.js';
 import { orderMatchesCart, classifyExistingCheckout } from './checkout.js';
@@ -21,6 +21,8 @@ const FEATURED = [
     { id: 'white-garden', name: 'White Garden', description: 'Garlic, earthy mushrooms and plant-based cheese.', price: 379, tag: 'PLANT-BASED', emoji: '🌿', tone: 'cream', ingredients: { base: 'whole-wheat', sauce: 'white-garlic', cheese: 'vegan', vegetables: ['mushroom', 'capsicum', 'tomato'] } },
 ];
 const ORDER_STEPS = [{ id: 'order_received', label: 'Order received', icon: PackageCheck }, { id: 'in_kitchen', label: 'In the kitchen', icon: ChefHat }, { id: 'sent_to_delivery', label: 'On the way', icon: Truck }, { id: 'delivered', label: 'Delivered', icon: CheckCircle2 }];
+const ISSUE_CATEGORY_LABELS = { missing_item: 'Missing item', wrong_item: 'Wrong item received', quality_issue: 'Food quality concern', delivery_delay: 'Delivery delay', other: 'Something else' };
+const NEW_ISSUE_FORM = { category: 'missing_item', description: '' };
 const currency = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 function IconButton({ children, onClick, label, className = '', disabled = false }) { return <button type="button" aria-label={label} title={label} className={`icon-button ${className}`} onClick={onClick} disabled={disabled}>{children}</button>; }
 function Toast({ toast, onClose }) { useEffect(() => { if (!toast)
@@ -39,7 +41,14 @@ export default function App() {
     const [adminStatus, setAdminStatus] = useState('idle');
     const [adminError, setAdminError] = useState('');
     const adminLoaded = useRef(false);
-    const [adminData, setAdminData] = useState({ summary: null, inventory: [], orders: [], paymentReviews: [] });
+    const [adminData, setAdminData] = useState({ summary: null, inventory: [], orders: [], paymentReviews: [], issues: [] });
+    const [issues, setIssues] = useState([]);
+    const [issuesStatus, setIssuesStatus] = useState('idle');
+    const [issuesError, setIssuesError] = useState('');
+    const [issueReportOrder, setIssueReportOrder] = useState(null);
+    const [issueForm, setIssueForm] = useState(NEW_ISSUE_FORM);
+    const [pendingIssue, setPendingIssue] = useState(false);
+    const [pendingAdminIssueId, setPendingAdminIssueId] = useState(null);
     const [catalogStatus, setCatalogStatus] = useState('loading');
     const [catalogError, setCatalogError] = useState('');
     const [pending, setPending] = useState(false);
@@ -105,18 +114,35 @@ export default function App() {
             return false;
         }
     }, []);
+    const refreshIssues = useCallback(async () => {
+        setIssuesError('');
+        setIssuesStatus('loading');
+        try {
+            const response = await api('/issues/my');
+            if (!Array.isArray(response.issues)) throw new Error('Invalid customer issue response');
+            setIssues(response.issues);
+            setIssuesStatus('ready');
+            return true;
+        } catch (error) {
+            setIssuesError('We couldn’t refresh your reported cases. Try again to see the latest status.');
+            setIssuesStatus('error');
+            return false;
+        }
+    }, []);
+
     const refreshAdmin = useCallback(async () => {
         if (!adminLoaded.current) setAdminStatus('loading');
         setAdminError('');
         try {
-            const [summaryResponse, inventoryResponse, orderResponse, paymentResponse] = await Promise.all([
+            const [summaryResponse, inventoryResponse, orderResponse, paymentResponse, issueResponse] = await Promise.all([
                 api('/admin/summary'),
                 api('/admin/inventory'),
                 api('/admin/orders'),
                 api('/admin/payment-reviews'),
+                api('/admin/issues'),
             ]);
             if (!Array.isArray(inventoryResponse.items) || !Array.isArray(orderResponse.orders) ||
-                !Array.isArray(paymentResponse.events)) {
+                !Array.isArray(paymentResponse.events) || !Array.isArray(issueResponse.issues)) {
                 throw new Error('Invalid admin dashboard response');
             }
             setAdminData({
@@ -124,6 +150,7 @@ export default function App() {
                 inventory: inventoryResponse.items,
                 orders: orderResponse.orders,
                 paymentReviews: paymentResponse.events,
+                issues: issueResponse.issues,
             });
             adminLoaded.current = true;
             setAdminStatus('ready');
@@ -157,8 +184,15 @@ export default function App() {
     } if (params.get('payment') === 'failed')
         notify('Payment was not completed. Your order is still unpaid.', 'error'); }, [refreshCatalog, refreshMe, notify]);
     useEffect(() => {
-        if (user?.role === 'user') refreshOrders();
-    }, [user, refreshOrders]);
+        if (user?.role === 'user') {
+            void refreshOrders();
+            void refreshIssues();
+        } else {
+            setIssues([]);
+            setIssuesStatus('idle');
+            setIssuesError('');
+        }
+    }, [user, refreshOrders, refreshIssues]);
     useEffect(() => {
         if (user?.name) setDeliveryDetails(current => current.recipientName ? current : { ...current, recipientName: user.name });
     }, [user?.name]);
@@ -503,6 +537,43 @@ export default function App() {
     catch (e) {
         notify(e.message, 'error');
     } };
+    const updateIssue = async (issue, updates) => {
+        setPendingAdminIssueId(issue.id);
+        try {
+            const response = await api(`/admin/issues/${issue.id}`, { method: 'PATCH', body: updates });
+            await refreshAdmin();
+            notify(`Case ${response.issue.reference} updated.`);
+        } catch (error) {
+            notify(error.message || 'The case update could not be saved.', 'error');
+        } finally {
+            setPendingAdminIssueId(null);
+        }
+    };
+    const submitIssueReport = async (event) => {
+        event.preventDefault();
+        if (!issueReportOrder || pendingIssue) return;
+        const description = issueForm.description.trim();
+        if (description.length < 10 || description.length > 600) {
+            notify('Describe what went wrong in 10–600 characters.', 'error');
+            return;
+        }
+        setPendingIssue(true);
+        try {
+            const response = await api('/issues', {
+                method: 'POST',
+                body: { orderId: issueReportOrder.id, category: issueForm.category, description },
+            });
+            setIssueReportOrder(null);
+            setIssueForm(NEW_ISSUE_FORM);
+            await refreshIssues();
+            notify(`Case ${response.issue.reference} submitted. You can follow its status from this order.`);
+        } catch (error) {
+            if (error.status === 409) await refreshIssues();
+            notify(error.message || 'The issue report could not be submitted.', 'error');
+        } finally {
+            setPendingIssue(false);
+        }
+    };
     const requestReviewRefund = async (event) => {
         const order = event.order;
         if (!order?.id || !event.paymentId) return;
@@ -572,13 +643,14 @@ export default function App() {
       <label className="delivery-instructions"><span>Delivery instructions (optional)</span><textarea rows={2} maxLength={200} placeholder="Gate, floor, or call-on-arrival notes" value={deliveryDetails.instructions} onChange={e => setDeliveryDetails(p => ({ ...p, instructions: e.target.value }))}/></label>
     </section></div><aside className="order-summary"><h2>Little details.</h2><div className="price-row"><span>Subtotal</span><b>{currency(subtotal)}</b></div><div className="price-row"><span>Delivery</span><b>{deliveryFee === 0 ? 'On us!' : currency(deliveryFee)}</b></div><div className="free-delivery-hint">{subtotal >= 499 ? 'Lovely — delivery is on us!' : `Add ${currency(499 - subtotal)} for free delivery.`}</div><div className="summary-divider"/><div className="price-row final"><span>Total</span><b>{currency(subtotal + deliveryFee)}</b></div><button disabled={pending || Boolean(pendingVerification) || !canCheckoutWithCatalog(catalogStatus)} className="button button-dark full-button" onClick={startCheckout}>{pending ? <LoaderCircle className="spin" size={17}/> : catalogStatus === 'ready' ? <CreditCard size={17}/> : <RefreshCw size={17}/>} {pending ? 'Getting checkout ready' : pendingVerification ? 'Confirm previous payment first' : catalogStatus === 'loading' ? 'Confirming live prices…' : catalogStatus === 'error' ? 'Refresh menu before checkout' : 'Checkout securely'}</button><small className="summary-footnote"><ShieldCheck size={14}/> Payments secured by Razorpay</small><p className="terms-note">Test mode only. You won’t be charged real money while test credentials are active.</p></aside></div>}</section>}
 
-    {page === 'dashboard' && <section className="section-wrap page-section"><div className="dashboard-top"><div><div className="eyebrow">YOUR PIZZA DIARY</div><h1>Good to see you, <em>{user?.name?.split(' ')[0] || 'friend'}.</em></h1><p>Every great day deserves a great slice.</p></div><button className="button button-light" onClick={() => navigate('menu')}>Order something lovely <ArrowRight size={16}/></button></div>{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <DashboardMetricSkeleton/> : <div className="dashboard-metrics"><div><span>ORDERS MADE</span><strong>{ordersStatus === 'ready' ? orders.length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'And counting' : 'Not available'}</small></div><div><span>ON THE WAY</span><strong>{ordersStatus === 'ready' ? orders.filter(o => ['order_received', 'in_kitchen', 'sent_to_delivery'].includes(o.status)).length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'Good things incoming' : 'Not available'}</small></div><div><span>YOUR LAST ORDER</span><strong>{ordersStatus === 'ready' && orders[0] ? currency(orders[0].total) : '—'}</strong><small>{ordersStatus === 'ready' ? orders[0]?.orderNumber || 'Your first slice awaits' : 'Not available'}</small></div></div>}<div className="section-heading dashboard-heading"><div><h2>Order <em>updates.</em></h2><p>We’ll keep you in the loop. This list refreshes automatically.</p></div><button className="text-link" onClick={refreshOrders}><RefreshCw size={15}/> Refresh</button></div>{ordersError && ordersStatus === 'ready' && <InlineDataWarning message={ordersError} onRetry={refreshOrders} />}{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <OrderListSkeleton count={2}/> : ordersStatus === 'error' ? <DataUnavailable title="Your orders haven’t loaded" message="We couldn’t confirm your order history. Please retry instead of assuming there are no orders." onRetry={refreshOrders}/> : orders.length ? <div className="orders-list">{orders.map(order => <OrderCard key={order.id} order={order} onReorder={repeatOrder}/>)}</div> : <div className="empty-state compact-empty"><div className="empty-art">🥡</div><h2>The first one’s always special.</h2><p>Place an order and watch the magic happen here.</p><button className="button button-dark" onClick={() => navigate('menu')}>Explore the menu <ArrowRight size={17}/></button></div>}</section>}
+    {page === 'dashboard' && <section className="section-wrap page-section"><div className="dashboard-top"><div><div className="eyebrow">YOUR PIZZA DIARY</div><h1>Good to see you, <em>{user?.name?.split(' ')[0] || 'friend'}.</em></h1><p>Every great day deserves a great slice.</p></div><button className="button button-light" onClick={() => navigate('menu')}>Order something lovely <ArrowRight size={16}/></button></div>{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <DashboardMetricSkeleton/> : <div className="dashboard-metrics"><div><span>ORDERS MADE</span><strong>{ordersStatus === 'ready' ? orders.length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'And counting' : 'Not available'}</small></div><div><span>ON THE WAY</span><strong>{ordersStatus === 'ready' ? orders.filter(o => ['order_received', 'in_kitchen', 'sent_to_delivery'].includes(o.status)).length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'Good things incoming' : 'Not available'}</small></div><div><span>YOUR LAST ORDER</span><strong>{ordersStatus === 'ready' && orders[0] ? currency(orders[0].total) : '—'}</strong><small>{ordersStatus === 'ready' ? orders[0]?.orderNumber || 'Your first slice awaits' : 'Not available'}</small></div></div>}<div className="section-heading dashboard-heading"><div><h2>Order <em>updates.</em></h2><p>We’ll keep you in the loop. This list refreshes automatically.</p></div><button className="text-link" onClick={refreshOrders}><RefreshCw size={15}/> Refresh</button></div>{ordersError && ordersStatus === 'ready' && <InlineDataWarning message={ordersError} onRetry={refreshOrders} />}{issuesError && <InlineDataWarning message={issuesError} onRetry={refreshIssues} />}{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <OrderListSkeleton count={2}/> : ordersStatus === 'error' ? <DataUnavailable title="Your orders haven’t loaded" message="We couldn’t confirm your order history. Please retry instead of assuming there are no orders." onRetry={refreshOrders}/> : orders.length ? <div className="orders-list">{orders.map(order => <OrderCard key={order.id} order={order} onReorder={repeatOrder} issue={issues.find(item => item.orderId === order.id)} onReportIssue={setIssueReportOrder} onRefreshIssues={refreshIssues}/>)}</div> : <div className="empty-state compact-empty"><div className="empty-art">🥡</div><h2>The first one’s always special.</h2><p>Place an order and watch the magic happen here.</p><button className="button button-dark" onClick={() => navigate('menu')}>Explore the menu <ArrowRight size={17}/></button></div>}</section>}
 
-    {page === 'admin' && <section className="section-wrap page-section admin-page"><div className="admin-heading"><div><div className="eyebrow">BEHIND THE COUNTER</div><h1>Good food takes <em>good care.</em></h1><p>Live order events refresh the queue. Use Refresh data to recheck inventory and payment status.</p></div><button className="button button-light" onClick={refreshAdmin}><RefreshCw size={16}/> Refresh data</button></div>{!user || user.role !== 'admin' ? <div className="empty-state"><div className="empty-art">🔐</div><h2>Admin access only.</h2><p>Sign in through the separate admin sign-in flow.</p><button className="button button-dark" onClick={() => openAuth('admin')}>Admin sign in <ArrowRight size={16}/></button></div> : (adminStatus === 'loading' || adminStatus === 'idle') ? <AdminPanelsSkeleton/> : adminStatus === 'error' ? <DataUnavailable title="Operations data isn’t available" message="Inventory, order and payment-review data could not be confirmed. Retry to load the live dashboard." onRetry={refreshAdmin}/> : <>{adminError && <InlineDataWarning message={adminError} onRetry={refreshAdmin}/>}<div className="admin-metrics">{[{ label: 'Total orders', value: adminData.summary?.ordersTotal ?? '—', icon: ShoppingBag }, { label: 'Paid orders', value: adminData.summary?.paidOrders ?? '—', icon: BadgeCheck }, { label: 'Revenue', value: currency(adminData.summary?.revenue), icon: ArrowUpRight }, { label: 'Low-stock items', value: adminData.summary?.lowStock ?? '—', icon: Boxes }].map(item => <div className="admin-metric" key={item.label}><span><item.icon size={17}/>{item.label}</span><strong>{item.value}</strong></div>)}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Inventory room</h2><p>Update stock counts and per-item alert thresholds.</p></div><Boxes size={20}/></div><div className="inventory-table"><div className="inventory-row inventory-header"><span>Item</span><span>In stock</span><span>Alert at</span><span>State</span></div>{adminData.inventory.length ? adminData.inventory.map(item => <InventoryRow key={item.key} item={item} onSave={updateInventory}/>) : <div className="empty-small">No inventory items were returned by the API.</div>}</div></div><div className="admin-panel"><div className="panel-heading"><div><h2>Payment review queue</h2><p>Signed webhook events needing manual reconciliation.</p></div><ShieldCheck size={20}/></div>{adminData.paymentReviews.length ? <div className="payment-review-list">{adminData.paymentReviews.map(event => <article className="payment-review-event" key={event.eventId}><div><strong>{event.eventType}</strong><small>{event.order?.orderNumber || 'Unmatched provider order'} · {new Date(event.receivedAt).toLocaleString()}</small></div><p>{event.reason?.replaceAll('_', ' ') || 'Manual review required'}</p><small>Provider order: {event.providerOrderId || 'not supplied'} · Payment: {event.paymentId || 'not supplied'}</small><small>Event ID: {event.eventId}</small>{event.order?.refundStatus === 'pending' && <p className="refund-status-note">Refund pending with Razorpay. Do not submit another refund.</p>}{event.order?.refundStatus === 'failed' && <p className="refund-status-note">Refund failed or was rejected. Manual provider review is required.</p>}{event.order?.id && event.order.status === 'payment_review' && event.order.paymentReviewRequired && event.order.paymentStatus === 'paid' && event.paymentId === event.order.razorpayPaymentId && event.reason !== 'multiple_captured_payments_for_order' && !adminData.paymentReviews.some(item => item.order?.id === event.order.id && item.paymentId && item.paymentId !== item.order?.razorpayPaymentId) && !['pending', 'processed', 'failed'].includes(event.order.refundStatus || 'none') && <div className="payment-review-actions"><small>{event.order.refundStatus === 'requested' ? 'A retry reuses the same provider idempotency key.' : 'Use only after reviewing the captured-payment exception.'}</small><button type="button" className="button button-light small-button" disabled={pendingRefundOrderId === event.order.id} onClick={() => requestReviewRefund(event)}>{pendingRefundOrderId === event.order.id ? 'Submitting…' : event.order.refundStatus === 'requested' ? 'Retry safely' : 'Issue full refund'}</button></div>}</article>)}</div> : <div className="empty-small">No payment webhook reviews are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Incoming orders</h2><p>Move paid orders through the kitchen and delivery.</p></div><ShoppingBag size={20}/></div>{adminData.orders.length ? <div className="orders-list">{adminData.orders.map(order => <OrderCard key={order.id} order={order} admin onStatus={updateStatus}/>)}</div> : <div className="empty-small">No orders have come in yet.</div>}</div></>}</section>}
+    {page === 'admin' && <section className="section-wrap page-section admin-page"><div className="admin-heading"><div><div className="eyebrow">BEHIND THE COUNTER</div><h1>Good food takes <em>good care.</em></h1><p>Live order events refresh the queue. Use Refresh data to recheck inventory and payment status.</p></div><button className="button button-light" onClick={refreshAdmin}><RefreshCw size={16}/> Refresh data</button></div>{!user || user.role !== 'admin' ? <div className="empty-state"><div className="empty-art">🔐</div><h2>Admin access only.</h2><p>Sign in through the separate admin sign-in flow.</p><button className="button button-dark" onClick={() => openAuth('admin')}>Admin sign in <ArrowRight size={16}/></button></div> : (adminStatus === 'loading' || adminStatus === 'idle') ? <AdminPanelsSkeleton/> : adminStatus === 'error' ? <DataUnavailable title="Operations data isn’t available" message="Inventory, order and payment-review data could not be confirmed. Retry to load the live dashboard." onRetry={refreshAdmin}/> : <>{adminError && <InlineDataWarning message={adminError} onRetry={refreshAdmin}/>}<div className="admin-metrics">{[{ label: 'Total orders', value: adminData.summary?.ordersTotal ?? '—', icon: ShoppingBag }, { label: 'Paid orders', value: adminData.summary?.paidOrders ?? '—', icon: BadgeCheck }, { label: 'Revenue', value: currency(adminData.summary?.revenue), icon: ArrowUpRight }, { label: 'Low-stock items', value: adminData.summary?.lowStock ?? '—', icon: Boxes }].map(item => <div className="admin-metric" key={item.label}><span><item.icon size={17}/>{item.label}</span><strong>{item.value}</strong></div>)}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Inventory room</h2><p>Update stock counts and per-item alert thresholds.</p></div><Boxes size={20}/></div><div className="inventory-table"><div className="inventory-row inventory-header"><span>Item</span><span>In stock</span><span>Alert at</span><span>State</span></div>{adminData.inventory.length ? adminData.inventory.map(item => <InventoryRow key={item.key} item={item} onSave={updateInventory}/>) : <div className="empty-small">No inventory items were returned by the API.</div>}</div></div><div className="admin-panel"><div className="panel-heading"><div><h2>Payment review queue</h2><p>Signed webhook events needing manual reconciliation.</p></div><ShieldCheck size={20}/></div>{adminData.paymentReviews.length ? <div className="payment-review-list">{adminData.paymentReviews.map(event => <article className="payment-review-event" key={event.eventId}><div><strong>{event.eventType}</strong><small>{event.order?.orderNumber || 'Unmatched provider order'} · {new Date(event.receivedAt).toLocaleString()}</small></div><p>{event.reason?.replaceAll('_', ' ') || 'Manual review required'}</p><small>Provider order: {event.providerOrderId || 'not supplied'} · Payment: {event.paymentId || 'not supplied'}</small><small>Event ID: {event.eventId}</small>{event.order?.refundStatus === 'pending' && <p className="refund-status-note">Refund pending with Razorpay. Do not submit another refund.</p>}{event.order?.refundStatus === 'failed' && <p className="refund-status-note">Refund failed or was rejected. Manual provider review is required.</p>}{event.order?.id && event.order.status === 'payment_review' && event.order.paymentReviewRequired && event.order.paymentStatus === 'paid' && event.paymentId === event.order.razorpayPaymentId && event.reason !== 'multiple_captured_payments_for_order' && !adminData.paymentReviews.some(item => item.order?.id === event.order.id && item.paymentId && item.paymentId !== item.order?.razorpayPaymentId) && !['pending', 'processed', 'failed'].includes(event.order.refundStatus || 'none') && <div className="payment-review-actions"><small>{event.order.refundStatus === 'requested' ? 'A retry reuses the same provider idempotency key.' : 'Use only after reviewing the captured-payment exception.'}</small><button type="button" className="button button-light small-button" disabled={pendingRefundOrderId === event.order.id} onClick={() => requestReviewRefund(event)}>{pendingRefundOrderId === event.order.id ? 'Submitting…' : event.order.refundStatus === 'requested' ? 'Retry safely' : 'Issue full refund'}</button></div>}</article>)}</div> : <div className="empty-small">No payment webhook reviews are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Customer issue cases</h2><p>Track missing items, wrong items, quality concerns and delivery delays. Customer messages are visible to the customer.</p></div><MessageCircle size={20}/></div>{adminData.issues.length ? <div className="issue-case-list">{adminData.issues.map(issue => <AdminIssueCard key={issue.id} issue={issue} pending={pendingAdminIssueId === issue.id} onUpdate={updateIssue}/>)}</div> : <div className="empty-small">No customer issue reports are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Incoming orders</h2><p>Move paid orders through the kitchen and delivery.</p></div><ShoppingBag size={20}/></div>{adminData.orders.length ? <div className="orders-list">{adminData.orders.map(order => <OrderCard key={order.id} order={order} admin onStatus={updateStatus}/>)}</div> : <div className="empty-small">No orders have come in yet.</div>}</div></>}</section>}
     </main>
     <footer className="site-footer"><div className="footer-main"><a className="brand footer-brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>GOOD FOOD. GOOD MOOD.</small></span></a><p>Made for the good days.<br />And the days that need a little help.</p><button className="back-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Back to the top <ArrowUpRight size={16}/></button></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Pizza House. Made with a little extra cheese.</span><div><span>Fresh food, honest ingredients</span><span className="footer-dot">·</span><span>Secure payments</span></div></div></footer>
     <Toast toast={toast} onClose={() => setToast(null)}/>
     {priceReview && <PriceReviewDialog review={priceReview} catalog={catalog} pending={pending} onAccept={acceptPriceReview} onCancel={declinePriceReview}/>}
+    {issueReportOrder && <IssueReportDialog order={issueReportOrder} form={issueForm} setForm={setIssueForm} pending={pendingIssue} onSubmit={submitIssueReport} onCancel={() => { if (!pendingIssue) { setIssueReportOrder(null); setIssueForm(NEW_ISSUE_FORM); } }}/>}
     {authMode && <div className="modal-backdrop" role="presentation" onMouseDown={e => e.target === e.currentTarget && setAuthMode(null)}><div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title"><IconButton className="modal-close" label="Close dialog" onClick={() => setAuthMode(null)}><X size={19}/></IconButton><div className="auth-brand-mark">P<span>.</span></div><div className="eyebrow">{authMode === 'admin' ? 'TEAM ACCESS' : 'COME ON IN'}</div><h2 id="auth-title">{authMode === 'register' ? 'Make yourself at home.' : authMode === 'forgot' ? 'A fresh start.' : authMode === 'reset' ? 'New password, new slice.' : authMode === 'admin' ? 'Welcome back, team.' : 'Your table is waiting.'}</h2><p>{authMode === 'register' ? 'Create an account to follow every lovely order.' : authMode === 'forgot' ? 'We’ll send a secure reset link if your account exists.' : authMode === 'reset' ? 'Choose a strong new password to get back in.' : authMode === 'admin' ? 'Sign in with your separately provisioned admin account.' : 'Sign in for order updates and a little more pizza joy.'}</p><form onSubmit={submitAuth}>{authMode === 'register' && <Field label="Your name" icon={UserRound} placeholder="How should we call you?" autoComplete="name" required minLength={2} maxLength={80} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/>}{authMode === 'forgot' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={emailOnly} onChange={e => setEmailOnly(e.target.value)}/>}{!['forgot'].includes(authMode) && authMode !== 'reset' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/>}{(authMode === 'login' || authMode === 'register' || authMode === 'admin' || authMode === 'reset') && <Field label={authMode === 'reset' ? 'New password' : 'Password'} icon={LockKeyhole} type="password" placeholder={authMode === 'reset' ? '10+ characters, mixed case and a number' : 'At least 10 characters'} required minLength={10} autoComplete={authMode === 'login' || authMode === 'admin' ? 'current-password' : 'new-password'} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}/>}{authMode === 'login' && <button type="button" className="forgot-link" onClick={() => setAuthMode('forgot')}>Forgot password?</button>}<button disabled={pending} className="button button-dark full-button auth-submit">{pending ? <LoaderCircle size={17} className="spin"/> : authMode === 'reset' ? <LockKeyhole size={17}/> : authMode === 'forgot' ? <Mail size={17}/> : authMode === 'admin' ? <ShieldCheck size={17}/> : authMode === 'register' ? <UserRound size={17}/> : <LogIn size={17}/>} {pending ? 'Please wait…' : authMode === 'register' ? 'Create my account' : authMode === 'forgot' ? 'Send reset link' : authMode === 'reset' ? 'Update password' : authMode === 'admin' ? 'Sign in as admin' : 'Sign in'}</button></form>{authMode === 'login' ? <div className="auth-switch">New around here? <button onClick={() => setAuthMode('register')}>Create an account</button><button className="admin-link" onClick={() => setAuthMode('admin')}>Team sign in</button></div> : authMode === 'register' ? <div className="auth-switch">Already part of the house? <button onClick={() => setAuthMode('login')}>Sign in</button></div> : authMode === 'admin' ? <div className="auth-switch">Customer account? <button onClick={() => setAuthMode('login')}>Customer sign in</button></div> : <div className="auth-switch"><button onClick={() => setAuthMode('login')}>Back to sign in</button></div>}<small className="auth-privacy"><ShieldCheck size={13}/> Your details stay protected. We never store card numbers.</small></div></div>}
   </div>;
 }
@@ -588,7 +660,20 @@ function InlineDataWarning({ message, onRetry }) { return <div className="inline
 function DashboardMetricSkeleton() { return <div className="dashboard-metrics dashboard-metrics-loading" role="status" aria-live="polite" aria-busy="true"><span className="sr-only">Loading order summary…</span>{Array.from({ length: 3 }, (_, i) => <div className="dashboard-metric-placeholder" key={i}><span className="skeleton-line skeleton-meta"/><span className="skeleton-line skeleton-metric-number"/><span className="skeleton-line skeleton-meta short"/></div>)}</div>; }
 function OrderCardSkeleton({ showAction = false }) { return <article className="order-card order-card-skeleton" aria-hidden="true"><span className="skeleton-line skeleton-meta"/><span className="skeleton-line skeleton-order-title"/><span className="skeleton-line skeleton-description"/><div className="skeleton-order-bottom"><span className="skeleton-line skeleton-price"/><span className="skeleton-line skeleton-status"/></div>{showAction && <div className="order-repeat-actions order-repeat-skeleton"><span className="skeleton-line skeleton-repeat-copy"/><span className="skeleton-line skeleton-repeat-action"/></div>}</article>; }
 function OrderListSkeleton({ count = 2 }) { return <div className="orders-list" role="status" aria-live="polite" aria-busy="true"><span className="sr-only">Loading orders…</span>{Array.from({ length: count }, (_, i) => <OrderCardSkeleton key={i} showAction/>)}</div>; }
-function AdminPanelsSkeleton() { return <div className="admin-panels-loading" role="status" aria-live="polite" aria-busy="true"><span className="sr-only">Loading live operations…</span><DashboardAdminMetricSkeleton /><div className="admin-panel"><span className="skeleton-line skeleton-panel-title"/><div className="admin-row-skeletons">{Array.from({ length: 5 }, (_, i) => <div className="inventory-row-skeleton" key={i}><span className="skeleton-line"/><span className="skeleton-line"/><span className="skeleton-line"/><span className="skeleton-line"/></div>)}</div></div><div className="admin-panel"><span className="skeleton-line skeleton-panel-title"/>{Array.from({ length: 2 }, (_, i) => <OrderCardSkeleton key={i}/>)}</div><div className="admin-panel"><span className="skeleton-line skeleton-panel-title"/><div className="orders-list">{Array.from({ length: 2 }, (_, i) => <OrderCardSkeleton key={i}/>)}</div></div></div>; }
+function AdminPanelsSkeleton() {
+    return <div className="admin-panels-loading" role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">Loading live operations…</span>
+        <DashboardAdminMetricSkeleton />
+        <div className="admin-panel"><span className="skeleton-line skeleton-panel-title"/>
+            <div className="admin-row-skeletons">{Array.from({ length: 5 }, (_, i) => <div className="inventory-row-skeleton" key={i}><span className="skeleton-line"/><span className="skeleton-line"/><span className="skeleton-line"/><span className="skeleton-line"/></div>)}</div>
+        </div>
+        <div className="admin-panel"><span className="skeleton-line skeleton-panel-title"/>{Array.from({ length: 2 }, (_, i) => <OrderCardSkeleton key={i}/>)}</div>
+        <div className="admin-panel"><span className="skeleton-line skeleton-panel-title"/>
+            <div className="issue-case-skeletons">{Array.from({ length: 2 }, (_, i) => <div className="issue-case-skeleton" key={i}><span className="skeleton-line skeleton-meta"/><span className="skeleton-line skeleton-description"/><span className="skeleton-line skeleton-description short"/></div>)}</div>
+        </div>
+        <div className="admin-panel"><span className="skeleton-line skeleton-panel-title"/><div className="orders-list">{Array.from({ length: 2 }, (_, i) => <OrderCardSkeleton key={i}/>)}</div></div>
+    </div>;
+}
 function DashboardAdminMetricSkeleton() { return <div className="admin-metrics dashboard-metrics-loading">{Array.from({ length: 4 }, (_, i) => <div className="dashboard-metric-placeholder" key={i}><span className="skeleton-line skeleton-meta"/><span className="skeleton-line skeleton-metric-number"/><span className="skeleton-line skeleton-meta short"/></div>)}</div>; }
 function PizzaCardSkeleton() { return <article className="pizza-card pizza-card-skeleton" aria-hidden="true"><div className="skeleton-art"/><div className="pizza-card-body skeleton-card-body"><span className="skeleton-line skeleton-title"/><span className="skeleton-line skeleton-description"/><span className="skeleton-line skeleton-description short"/><div className="skeleton-card-bottom"><span className="skeleton-line skeleton-price"/><span className="skeleton-line skeleton-action"/></div><span className="skeleton-line skeleton-link"/></div></article>; }
 function PizzaGridSkeleton({ count = 3, full = false }) { return <div className={`pizza-grid ${full ? 'full-grid' : ''}`} role="status" aria-live="polite" aria-busy="true"><span className="sr-only">Loading pizza choices…</span>{Array.from({ length: count }, (_, i) => <PizzaCardSkeleton key={i}/>)}</div>; }
@@ -598,8 +683,63 @@ function BuilderSkeleton() { return <div className="builder-layout builder-loadi
 
 function BuilderGroup({ step, title, subtitle, options, value, onChange }) { return <div className="builder-group"><div className="builder-step"><span>{step}</span><div><h3>{title}</h3><p>{subtitle}</p></div></div><div className="option-list">{options.map(option => <button key={option.id} disabled={option.available === false} aria-pressed={value === option.id} className={`builder-option ${value === option.id ? 'chosen' : ''}`} onClick={() => onChange(option.id)}><span className="radio-dot"/><span>{option.name}</span><small>{option.price === 0 ? 'Included' : `+${currency(option.price)}`}</small></button>)}</div></div>; }
 function Ingredient({ label, value }) { return <div className="ingredient-row"><span>{label}</span><b>{value || 'Not selected'}</b></div>; }
-function OrderCard({ order, admin = false, onStatus, onReorder }) { const current = ORDER_STEPS.findIndex(s => s.id === order.status); const paid = order.paymentStatus === 'paid'; const refunded = order.paymentStatus === 'refunded'; const cancelled = order.status === 'cancelled'; const reviewNeeded = Boolean(order.paymentReviewRequired) || order.status === 'payment_review';
-    const canRepeat = !admin && !reviewNeeded && ['delivered', 'cancelled'].includes(order.status) && Array.isArray(order.items) && order.items.length > 0; const next = order.status === 'order_received' ? 'in_kitchen' : order.status === 'in_kitchen' ? 'sent_to_delivery' : order.status === 'sent_to_delivery' ? 'delivered' : null; return <article className="order-card"><div className="order-card-top"><div><span className="eyebrow">ORDER {order.orderNumber}</span><h3>{order.items?.map(i => `${i.quantity}× ${i.name}`).join(', ') || 'Pizza order'}</h3><p>{admin && order.user ? `${order.user.name} · ${order.user.email}` : new Date(order.createdAt).toLocaleString()} · {currency(order.total)}</p>{order.deliveryDetails && <div className="order-delivery-details"><small><strong>Deliver to:</strong> {order.deliveryDetails.recipientName} · {order.deliveryDetails.addressLine}, {order.deliveryDetails.city}, {order.deliveryDetails.state} {order.deliveryDetails.postalCode}</small><small><strong>Mobile:</strong> {order.deliveryDetails.phone}</small>{order.deliveryDetails.landmark && <small><strong>Landmark:</strong> {order.deliveryDetails.landmark}</small>}{order.deliveryDetails.instructions && <small><strong>Note:</strong> {order.deliveryDetails.instructions}</small>}</div>}</div><span className={`status-pill ${reviewNeeded ? 'review' : refunded ? 'refunded' : cancelled ? 'cancelled' : paid ? 'paid' : 'waiting'}`}>{reviewNeeded ? '⚠ Review required' : refunded ? '↺ Refunded' : cancelled ? '× Cancelled' : paid ? '● Paid' : '○ Payment pending'}</span></div>{reviewNeeded ? <div className="payment-review-warning" role="alert"><strong>Payment captured — order on hold.</strong><p>This order needs a manual payment and inventory review before kitchen preparation or delivery.</p>{admin && order.paymentReviewReason && <small>Reason: {order.paymentReviewReason.replaceAll('_', ' ')}</small>}</div> : refunded ? <div className="pending-message"><ShieldCheck size={15}/> Full refund confirmed; order cancelled.</div> : cancelled ? <div className="pending-message"><X size={15}/> This unpaid order expired and was cancelled. Start a new checkout to order again.</div> : paid ? <div className="order-timeline">{ORDER_STEPS.map((step, i) => <div key={step.id} className={`timeline-step ${i <= current ? 'complete' : ''} ${i === current ? 'current' : ''}`}><span className="timeline-icon"><step.icon size={16}/></span><small>{step.label}</small></div>)}</div> : <div className="pending-message"><Clock3 size={15}/> Waiting for a verified payment before kitchen preparation.</div>}{admin && next && paid && !reviewNeeded && <div className="order-admin-actions"><span>Update status</span><button className="button button-light small-button" onClick={() => onStatus(order, next)}>Move to {next.replaceAll('_', ' ')} <ArrowRight size={15}/></button></div>}{canRepeat && <div className="order-repeat-actions"><p>Want this one again? We’ll use the current menu and prices, not the old total.</p><button type="button" className="button button-light small-button" onClick={() => onReorder?.(order)}><RefreshCw size={16}/> Order again</button></div>}</article>; }
+function OrderCard({ order, admin = false, onStatus, onReorder, issue, onReportIssue, onRefreshIssues }) {
+    const current = ORDER_STEPS.findIndex(s => s.id === order.status);
+    const paid = order.paymentStatus === 'paid';
+    const refunded = order.paymentStatus === 'refunded';
+    const cancelled = order.status === 'cancelled';
+    const reviewNeeded = Boolean(order.paymentReviewRequired) || order.status === 'payment_review';
+    const next = order.status === 'order_received' ? 'in_kitchen'
+        : order.status === 'in_kitchen' ? 'sent_to_delivery'
+            : order.status === 'sent_to_delivery' ? 'delivered' : null;
+    const canRepeat = !admin && !reviewNeeded && ['delivered', 'cancelled'].includes(order.status) &&
+        Array.isArray(order.items) && order.items.length > 0;
+    const canReportIssue = !admin && paid && !reviewNeeded && !refunded &&
+        ['order_received', 'in_kitchen', 'sent_to_delivery', 'delivered'].includes(order.status);
+
+    return <article className="order-card">
+        <div className="order-card-top">
+            <div>
+                <span className="eyebrow">ORDER {order.orderNumber}</span>
+                <h3>{order.items?.map(i => `${i.quantity}× ${i.name}`).join(', ') || 'Pizza order'}</h3>
+                <p>{admin && order.user ? `${order.user.name} · ${order.user.email}` : new Date(order.createdAt).toLocaleString()} · {currency(order.total)}</p>
+                {order.deliveryDetails && <div className="order-delivery-details">
+                    <small><strong>Deliver to:</strong> {order.deliveryDetails.recipientName} · {order.deliveryDetails.addressLine}, {order.deliveryDetails.city}, {order.deliveryDetails.state} {order.deliveryDetails.postalCode}</small>
+                    <small><strong>Mobile:</strong> {order.deliveryDetails.phone}</small>
+                    {order.deliveryDetails.landmark && <small><strong>Landmark:</strong> {order.deliveryDetails.landmark}</small>}
+                    {order.deliveryDetails.instructions && <small><strong>Note:</strong> {order.deliveryDetails.instructions}</small>}
+                </div>}
+            </div>
+            <span className={`status-pill ${reviewNeeded ? 'review' : refunded ? 'refunded' : cancelled ? 'cancelled' : paid ? 'paid' : 'waiting'}`}>
+                {reviewNeeded ? '⚠ Review required' : refunded ? '↺ Refunded' : cancelled ? '× Cancelled' : paid ? '● Paid' : '○ Payment pending'}
+            </span>
+        </div>
+        {reviewNeeded
+            ? <div className="payment-review-warning" role="alert"><strong>Payment captured — order on hold.</strong><p>This order needs a manual payment and inventory review before kitchen preparation or delivery.</p>{admin && order.paymentReviewReason && <small>Reason: {order.paymentReviewReason.replaceAll('_', ' ')}</small>}</div>
+            : refunded
+                ? <div className="pending-message"><ShieldCheck size={15}/> Full refund confirmed; order cancelled.</div>
+                : cancelled
+                    ? <div className="pending-message"><X size={15}/> This unpaid order expired and was cancelled. Start a new checkout to order again.</div>
+                    : paid
+                        ? <div className="order-timeline">{ORDER_STEPS.map((step, i) => <div key={step.id} className={`timeline-step ${i <= current ? 'complete' : ''} ${i === current ? 'current' : ''}`}><span className="timeline-icon"><step.icon size={16}/></span><small>{step.label}</small></div>)}</div>
+                        : <div className="pending-message"><Clock3 size={15}/> Waiting for a verified payment before kitchen preparation.</div>}
+        {!admin && issue && <div className={`issue-status-card issue-status-${issue.status}`}>
+            <div className="issue-status-copy">
+                <span className="eyebrow">CASE {issue.reference}</span>
+                <strong>{issue.status === 'resolved' ? 'Marked resolved' : issue.status === 'under_review' ? 'Team is reviewing this case' : 'Report received'}</strong>
+                <p>{issue.status === 'resolved' ? 'This case has been marked resolved.' : issue.status === 'under_review' ? 'Your report is under review. Check back for the latest update.' : 'Your report is saved and awaiting review.'}</p>
+                {issue.customerUpdate && <div className="issue-customer-update"><b>Message from Pizza House</b><p>{issue.customerUpdate}</p></div>}
+            </div>
+            <button type="button" className="text-link issue-refresh" onClick={() => onRefreshIssues?.()}><RefreshCw size={14}/> Refresh case</button>
+        </div>}
+        {canReportIssue && (!issue || issue.status === 'resolved') && <div className="order-issue-actions">
+            <p>{issue?.status === 'resolved' ? 'A new issue with this order? Open another case.' : 'Something missing, incorrect or not right? Tell us what happened.'}</p>
+            <button type="button" className="button button-light small-button" onClick={() => onReportIssue?.(order)}><MessageCircle size={16}/>{issue?.status === 'resolved' ? 'Report another problem' : 'Report a problem'}</button>
+        </div>}
+        {admin && next && paid && !reviewNeeded && <div className="order-admin-actions"><span>Update status</span><button className="button button-light small-button" onClick={() => onStatus(order, next)}>Move to {next.replaceAll('_', ' ')} <ArrowRight size={15}/></button></div>}
+        {canRepeat && <div className="order-repeat-actions"><p>Want this one again? We’ll use the current menu and prices, not the old total.</p><button type="button" className="button button-light small-button" onClick={() => onReorder?.(order)}><RefreshCw size={16}/> Order again</button></div>}
+    </article>;
+}
 
 function InventoryRow({ item, onSave }) {
     const [stock, setStock] = useState(String(item.stock));
@@ -703,6 +843,66 @@ function PriceReviewDialog({ review, catalog, pending, onAccept, onCancel }) {
             </div>
         </section>
     </div>;
+}
+
+function IssueReportDialog({ order, form, setForm, pending, onSubmit, onCancel }) {
+    return <div className="modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && !pending && onCancel()}>
+        <section className="auth-modal issue-report-modal" role="dialog" aria-modal="true" aria-labelledby="issue-report-title" aria-describedby="issue-report-description">
+            <IconButton className="modal-close" label="Close dialog" disabled={pending} onClick={onCancel}><X size={19}/></IconButton>
+            <div className="auth-brand-mark"><MessageCircle size={21}/></div>
+            <div className="eyebrow">ORDER SUPPORT</div>
+            <h2 id="issue-report-title">Let’s make this right.</h2>
+            <p id="issue-report-description">Tell us what happened with order {order.orderNumber}. We’ll create a reference you can follow from your order history. This report does not automatically issue a refund.</p>
+            <form onSubmit={onSubmit}>
+                <label className="issue-field"><span>What went wrong?</span>
+                    <select required value={form.category} onChange={event => setForm(current => ({ ...current, category: event.target.value }))}>
+                        {Object.entries(ISSUE_CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                </label>
+                <label className="issue-field"><span>Tell us what happened</span>
+                    <textarea required minLength={10} maxLength={600} rows={4} placeholder="For example, one item was missing from the delivery…" value={form.description} onChange={event => setForm(current => ({ ...current, description: event.target.value }))}/>
+                </label>
+                <div className="issue-form-footnote"><span>{form.description.trim().length}/600 characters</span><span>Please don’t include passwords or payment-card details.</span></div>
+                <div className="issue-report-actions">
+                    <button type="button" className="button button-light" disabled={pending} onClick={onCancel}>Cancel</button>
+                    <button type="submit" className="button button-dark" disabled={pending || form.description.trim().length < 10}>
+                        {pending ? <LoaderCircle size={17} className="spin"/> : <MessageCircle size={17}/>}
+                        {pending ? 'Submitting case…' : 'Submit report'}
+                    </button>
+                </div>
+            </form>
+        </section>
+    </div>;
+}
+
+function AdminIssueCard({ issue, pending, onUpdate }) {
+    const [customerUpdate, setCustomerUpdate] = useState(issue.customerUpdate || '');
+    useEffect(() => setCustomerUpdate(issue.customerUpdate || ''), [issue.customerUpdate]);
+    const saveMessage = () => onUpdate(issue, { customerUpdate });
+    const resolve = () => onUpdate(issue, { status: 'resolved', customerUpdate });
+    const review = () => onUpdate(issue, { status: 'under_review', customerUpdate });
+
+    return <article className="issue-case-card">
+        <div className="issue-case-head">
+            <div><span className="eyebrow">{issue.reference}</span><h3>{ISSUE_CATEGORY_LABELS[issue.category] || 'Customer issue'}</h3></div>
+            <span className={`status-pill ${issue.status === 'resolved' ? 'paid' : issue.status === 'under_review' ? 'waiting' : 'review'}`}>{issue.status.replaceAll('_', ' ')}</span>
+        </div>
+        <p className="issue-case-description">{issue.description}</p>
+        <div className="issue-case-meta">
+            <span><b>Order:</b> {issue.order?.orderNumber || 'Order unavailable'}</span>
+            <span><b>Customer:</b> {issue.user?.name || 'Customer'}{issue.user?.email ? ` · ${issue.user.email}` : ''}</span>
+            <span><b>Reported:</b> {issue.createdAt ? new Date(issue.createdAt).toLocaleString() : 'Time unavailable'}</span>
+        </div>
+        <label className="issue-field issue-customer-update-field"><span>Message for customer</span>
+            <textarea rows={2} maxLength={600} value={customerUpdate} onChange={event => setCustomerUpdate(event.target.value)} placeholder="Share an update the customer will see in order history."/>
+        </label>
+        <small className="issue-note-hint">This message is visible to the customer. Don’t place private internal notes here.</small>
+        <div className="issue-admin-actions">
+            <button type="button" className="button button-light small-button" disabled={pending} onClick={saveMessage}>{pending ? 'Saving…' : 'Save message'}</button>
+            {issue.status === 'open' && <button type="button" className="button button-light small-button" disabled={pending} onClick={review}>Mark in review</button>}
+            {issue.status !== 'resolved' && <button type="button" className="button button-dark small-button" disabled={pending} onClick={resolve}>Resolve case</button>}
+        </div>
+    </article>;
 }
 
 function PaymentRetryPanel({ pending, onRetry }) { return <div className="payment-retry-panel" role="alert"><strong>Payment needs confirmation</strong><p>We could not confirm the previous payment yet. Do not open another payment. Retry the server verification for the same payment.</p><button disabled={pending} className="button button-light full-button" onClick={onRetry}>{pending ? <LoaderCircle className="spin" size={17}/> : <RefreshCw size={16}/>} {pending ? 'Checking payment…' : 'Retry payment confirmation'}</button></div>; }
