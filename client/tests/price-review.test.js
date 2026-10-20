@@ -6,6 +6,7 @@ import {
   requiresPriceConfirmation,
   sameServerQuote,
   snapshotCart,
+  syncCartToServerQuote,
 } from '../src/priceReview.js';
 
 const cart = () => [{
@@ -138,4 +139,56 @@ test('custom-pizza snapshot comparison uses selected base, sauce, cheese and veg
     total: 288,
     items: [{ ...matchingOrder.items[0], ingredients: { ...matchingOrder.items[0].ingredients, base: 'thin' } }],
   })), false);
+});
+
+test('accepted server quote updates cart prices and recipe snapshot before retrying checkout', () => {
+  const oldCart = cart();
+  const newerOrder = order({
+    subtotal: 518,
+    deliveryFee: 0,
+    total: 518,
+    items: [{
+      name: 'Margherita Classic',
+      quantity: 2,
+      unitPrice: 259,
+      lineTotal: 518,
+      ingredients: { base: 'thin', sauce: 'tomato', cheese: 'mozzarella', vegetables: [] },
+    }],
+  });
+  const synced = syncCartToServerQuote(oldCart, newerOrder, { bases: [] });
+  assert.equal(synced[0].unitPrice, 259);
+  assert.equal(synced[0].quantity, 2);
+  assert.equal(synced[0].ingredients.base, 'thin');
+  assert.equal(matchesCartSnapshot(snapshotCart(synced), synced), true);
+});
+
+test('accepted custom-pizza quote updates its server-selected ingredient IDs safely', () => {
+  const oldCart = [{
+    cartKey: 'custom:one',
+    type: 'custom',
+    name: 'Custom Classic',
+    unitPrice: 259,
+    quantity: 1,
+    base: 'classic',
+    sauce: 'tomato',
+    cheese: 'mozzarella',
+    vegetables: ['onion'],
+  }];
+  const savedOrder = order({
+    subtotal: 289,
+    deliveryFee: 29,
+    total: 318,
+    items: [{
+      name: 'Build Your Own',
+      quantity: 1,
+      unitPrice: 289,
+      lineTotal: 289,
+      ingredients: { base: 'thin', sauce: 'pesto', cheese: 'mozzarella', vegetables: ['onion'] },
+    }],
+  });
+  const synced = syncCartToServerQuote(oldCart, savedOrder, { bases: [{ id: 'thin', name: 'Thin & Crispy' }] });
+  assert.equal(synced[0].unitPrice, 289);
+  assert.equal(synced[0].name, 'Custom Thin & Crispy');
+  assert.equal(synced[0].base, 'thin');
+  assert.equal(synced[0].sauce, 'pesto');
 });
