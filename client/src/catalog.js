@@ -18,6 +18,10 @@ function isPricedOption(item) {
  * Reject incomplete API data rather than silently showing the UI's demo defaults
  * as if those prices and stock flags came from the live catalog.
  */
+export function canCheckoutWithCatalog(status) {
+  return status === 'ready';
+}
+
 export function normalizeCatalogResponse(data) {
   const catalog = data?.catalog;
   const featuredPizzas = data?.featuredPizzas;
@@ -29,7 +33,7 @@ export function normalizeCatalogResponse(data) {
 
   for (const group of OPTION_GROUPS) {
     if (!Array.isArray(catalog[group]) || catalog[group].length === 0 ||
-        !catalog[group].every(isPricedOption)) {
+        !catalog[group].every((item) => isPricedOption(item) && typeof item.available === 'boolean')) {
       throw new Error(`The live menu is missing valid ${group} options.`);
     }
   }
@@ -38,6 +42,7 @@ export function normalizeCatalogResponse(data) {
     isPricedOption(pizza) &&
     typeof pizza.description === 'string' &&
     typeof pizza.tag === 'string' &&
+    typeof pizza.available === 'boolean' &&
     pizza.ingredients &&
     typeof pizza.ingredients === 'object' &&
     !Array.isArray(pizza.ingredients)
