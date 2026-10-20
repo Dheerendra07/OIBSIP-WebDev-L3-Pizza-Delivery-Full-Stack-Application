@@ -8,7 +8,7 @@ const issueSchema = new mongoose.Schema({
   description: { type: String, required: true, trim: true, minlength: 10, maxlength: 600 },
   status: { type: String, enum: ['open', 'under_review', 'resolved'], default: 'open', index: true },
   active: { type: Boolean, default: true, index: true },
-  adminNote: { type: String, trim: true, maxlength: 600, default: '' },
+  customerUpdate: { type: String, trim: true, maxlength: 600, default: '' },
   statusChangedAt: { type: Date, default: Date.now },
   resolvedAt: { type: Date, default: null },
 }, { timestamps: true, strict: 'throw' });
