@@ -24,6 +24,7 @@ The four moments we want to improve:
 | Signal | Source and observation | How strongly to interpret it |
 |---|---|---|
 | Price uncertainty | NDTV Profit reported results from a LocalCircles survey on Jan 6, 2026: up to 55% of respondents reported hidden fees/taxes or higher app menu prices, and 87% wanted dine-in and delivery prices shown side by side. The report also referenced 7,000+ grievances against delivery apps in 2024–25. | **Medium** for a broad transparency problem; these are survey/report figures, not a measurement of Pizza House users. |
+| Industry-specific UX gaps | Baymard's Aug 13, 2026 benchmark assessed 8 food-delivery/takeout apps against 390+ research-based UX parameters. It reports under-supported repeat ordering, weak dietary/customization paths, unclear orientation/back paths, and insufficient fulfillment timing detail. | **Medium-high within that benchmark sample**; valuable industry-grounded signals, but not India-specific or a study of Pizza House users. |
 | Missing-item reporting friction | A Reddit post in r/swiggy dated May 4, 2026 describes an order whose "missing item" support option appeared only after the app marked it delivered; the customer had already started eating and gave up on the claim. | **Low** on prevalence; useful as a concrete edge case we should test against. |
 | Support/recovery frustration | An r/swiggy post dated Aug 17, 2026 described missing items combined with an inaccessible support path. Another r/Zomato thread described missing/wrong items and repeated failed resolution. | **Low** on prevalence; multiple anecdotes suggest a class of failure worth preventing, not proof that all orders/apps behave this way. |
 | Consumers can escalate food-delivery issues | FSSAI's Food Safety Connect FAQ explicitly lists online aggregator/food-delivery platforms among the types of complaints consumers can lodge. | **High** for the existence of an official complaint route; this does not mean every ordering issue belongs with FSSAI. |
@@ -40,6 +41,7 @@ The four moments we want to improve:
 - W3C WAI, Focus Visible: https://www.w3.org/WAI/WCAG22/Understanding/focus-visible
 - W3C WAI, Target Size Minimum: https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum
 - Wired, Olo launches a food-ordering app built around menu-price transparency (Oct 2026): https://www.wired.com/story/olo-new-food-delivery-app-could-be-the-antidote-to-menu-markups
+- Baymard Institute, *Food Delivery & Takeout UX Benchmark* (Aug 13, 2026): https://baymard.com/research-articles/food-delivery-and-takeout-ux-benchmark-2026
 
 ## Code audit: verified issues in current source
 
@@ -64,7 +66,7 @@ This is a repository-source audit, not a visual browser audit: I could inspect c
 - Skeletons must match the card's actual shape, use a subtle shimmer or static pulse, and respect reduced-motion preference.
 - Loading skeletons should be announced as loading once per region, not once per card. Hide decorative skeleton shapes from assistive technology.
 - Errors should say what failed and provide a real retry action; never render a fake "no orders" empty state when a request failed.
-- Acceptance: home/menu show three aligned skeleton cards while the catalog is loading; no default/hard-coded catalog is shown as current stock/price after an API failure; Retry recovers to content when the API comes back; empty search results have a separate empty state.
+- Acceptance: home/menu show aligned skeleton cards while the catalog is loading; builder, dashboard metrics/order history, and admin inventory/review/order panels each have matching skeleton geometry; no default/hard-coded catalog is shown as current stock/price after an API failure; retry recovers to content when the API comes back; empty results remain distinct from failed requests; reduced-motion users do not receive shimmer animations.
 
 **P0.2 Truthful catalog state and authoritative price**
 - Treat catalog status as a real state machine: loading → ready, or error → retry; do not silently fall back to static prices/availability as if they were live.
@@ -91,6 +93,12 @@ This is a repository-source audit, not a visual browser audit: I could inspect c
 - If an ingredient becomes unavailable before the kitchen starts, present options and price delta, and obtain explicit consent before changing the recipe. If no response is received, use a documented safe policy (hold/cancel/refund workflow), not an unapproved swap.
 - This can build on the current inventory and custom-pizza model; only implement the workflow after the UI state foundation is stable.
 
+**P1.3 One-tap repeat order, with a price-change safety check**
+- Place a clear “Order again” action on a prior order; prefill its saved recipe/items and quantities so repeat customers do not rebuild the same order from scratch.
+- Before checkout, compare the saved recipe with the live catalog. Mark unavailable ingredients, display current item prices plus the full delivery total, highlight every difference and require one explicit reconfirmation if anything changed. Never silently charge the old total or substitute a recipe.
+- Acceptance: an unchanged available order can be restored to the bag; an unavailable item blocks submission until the customer edits it; changed prices are itemized and require confirmation; retries never create duplicate orders.
+- Evidence: Baymard's 2026 benchmark found repeat-order access under-supported in its sample and order history too sparse to identify prior orders. This makes one-tap repeat plus current-price confirmation a defensible hypothesis, not a proven preference among our own users.
+
 **P1.3 All-in budget guard**
 - Let a customer set a total-budget limit and browse only recipes that fit the *final payable total*, including fees and taxes if any are introduced.
 - Keep the actual order total visible as the user changes quantity/ingredients. Never add default-on paid add-ons or hide a fee until the payment screen.
@@ -98,7 +106,10 @@ This is a repository-source audit, not a visual browser audit: I could inspect c
 ### P2 — high value but dependent on real operational data
 
 **P2.1 Ingredient confidence / allergen clarity**
-- List only verified recipe/ingredient data. Distinguish "ingredient not listed" from "contains none"; never label a pizza allergen-free without validated recipe and cross-contact controls. Keep a visible kitchen cross-contact caveat where relevant.
+
+**P2.1 Ingredient confidence / allergen clarity**
+- Provide a dietary/customization decision path at the menu/filter and item-detail level using verified ingredients, not just a badge on a card. Distinguish "ingredient not listed" from "contains none"; never label a pizza allergen-free without validated recipe and cross-contact controls. Keep a visible kitchen cross-contact caveat where relevant.
+- Evidence: Baymard's 2026 benchmark found dietary/customization needs lacked a supported path across its evaluated decision points; investigate with local users before settling labels and filter taxonomy.
 - Requires a reliable catalog data source and kitchen process, so do not build from guesses.
 
 **P2.2 Need-by planning / delivery confidence**
