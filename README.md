@@ -69,6 +69,8 @@ Remove-Item Env:RUN_MONGODB_INTEGRATION
 ```
 The first run downloads the temporary MongoDB binary. The test does not connect to your configured database or require Razorpay/SMTP credentials.
 
+The issue-report dialog keyboard flow was also checked in Chrome at 320px: initial focus, Tab/Shift+Tab containment, Escape close, focus restoration, and error-response containment passed without horizontal overflow. This is not a substitute for the broader contrast, screen reader, and 200% zoom audit.
+
 Reproducible installs: the root, `server/`, and `client/` `package-lock.json` files are tracked together. `npm run install:all` uses `npm ci` for all three manifests, and CI caches all three lockfiles. The root, server and client clean installs passed on Node 22.22.2/npm 10.9.7; the full 142-test suite (including the disposable MongoDB integration test), production build, and all three npm audits passed. MongoDB, live Razorpay, and real SMTP/browser checkout still require configuration-backed end-to-end verification.
 
 ## Key API routes
