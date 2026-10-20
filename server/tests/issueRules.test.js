@@ -90,12 +90,12 @@ test('forbids reopening resolved cases and unknown transitions', () => {
   assert.equal(validateIssueUpdate({ status: 'unknown' }, { status: 'resolved' }).allowed, false);
 });
 
-test('normalizes internal notes and rejects invalid note payloads', () => {
-  assert.deepEqual(validateIssueUpdate({ status: 'open' }, { adminNote: '  Call   customer back. ' }).updates, {
-    adminNote: 'Call customer back.',
+test('normalizes customer messages and rejects invalid note payloads', () => {
+  assert.deepEqual(validateIssueUpdate({ status: 'open' }, { customerUpdate: '  Call   customer back. ' }).updates, {
+    customerUpdate: 'Call customer back.',
   });
-  assert.equal(validateIssueUpdate({ status: 'open' }, { adminNote: 'x'.repeat(601) }).allowed, false);
-  assert.equal(validateIssueUpdate({ status: 'open' }, { status: 'resolved', adminNote: 42 }).allowed, false);
+  assert.equal(validateIssueUpdate({ status: 'open' }, { customerUpdate: 'x'.repeat(601) }).allowed, false);
+  assert.equal(validateIssueUpdate({ status: 'open' }, { status: 'resolved', customerUpdate: 42 }).allowed, false);
 });
 
 test('rejects extra fields in admin updates', () => {
