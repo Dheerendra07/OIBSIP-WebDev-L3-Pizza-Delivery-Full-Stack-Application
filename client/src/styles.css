@@ -89,12 +89,33 @@
 .filter-chip{min-height:40px;padding:9px 14px;font-size:11px}
 .cart-line-info p{font-size:12px;line-height:1.5}
 .cart-line-price button{min-height:36px;padding:6px 4px;font-size:12px}
-.icon-button{width:40px;height:40px}
+.icon-button{width:44px;height:44px}
 .order-card p{font-size:12px;line-height:1.5}
 .status-pill{padding:8px 10px;font-size:10px;line-height:1.35}
 .timeline-step small{font-size:11px;line-height:1.35}
 .pending-message{font-size:12px;line-height:1.5}
 .catalog-checkout-notice{display:flex;align-items:center;gap:11px;margin:20px 0;padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius-card);background:var(--surface);color:var(--text-secondary);font-size:13px;line-height:1.5}
 .catalog-checkout-notice svg{flex:0 0 auto;color:var(--brand)}
-@media(max-width:800px){.pizza-card-body p{font-size:12px;min-height:40px}.status-pill{font-size:9px}.timeline-step small{font-size:10px}.icon-button{width:40px;height:40px}}
+@media(max-width:800px){.pizza-card-body p{font-size:12px;min-height:40px}.status-pill{font-size:9px}.timeline-step small{font-size:10px}.icon-button{width:44px;height:44px}}
 @media(max-width:520px){.filter-chip{font-size:10px;padding:8px 10px}.pizza-card-body p{font-size:12px}.customize-link{font-size:11px}.order-card p{font-size:12px}.pending-message{font-size:11px}}
+
+/* Skeleton variants for customer history and operational dashboards. */
+.dashboard-metrics-loading{align-items:stretch}
+.dashboard-metric-placeholder{min-width:0;min-height:120px;padding:18px;border:1px solid var(--border);border-radius:var(--radius-card);background:var(--surface);display:flex;flex-direction:column;justify-content:center;gap:13px}
+.skeleton-meta{width:48%;height:10px}
+.skeleton-metric-number{width:40%;height:29px;border-radius:6px}
+.skeleton-meta.short{width:34%}
+.order-card-skeleton{display:grid;gap:12px;min-height:130px}
+.skeleton-order-title{height:18px;width:62%}
+.skeleton-order-bottom{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:6px}
+.skeleton-status{height:28px;width:95px;border-radius:999px}
+.admin-panels-loading{display:grid;gap:20px}
+.admin-panels-loading>.admin-panel{display:grid;gap:17px}
+.skeleton-panel-title{height:23px;width:36%;margin-bottom:4px}
+.admin-row-skeletons{display:grid;gap:12px}
+.inventory-row-skeleton{display:grid;grid-template-columns:minmax(0,1.3fr) 90px 90px minmax(90px,.8fr);gap:14px;align-items:center;padding:13px 0;border-bottom:1px solid var(--border)}
+.inventory-row-skeleton .skeleton-line{height:13px}
+.inline-data-warning{display:flex;justify-content:space-between;align-items:center;gap:14px;margin:14px 0;padding:12px 15px;border:1px solid #e1c9a8;border-radius:7px;background:#fff7e9;color:#694d2b;font-size:12px;line-height:1.5}
+.inline-data-warning button{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 10px;border:1px solid #d8b98a;border-radius:5px;background:#fffdf8;color:#694d2b;font-size:12px;font-weight:700}
+@media(max-width:800px){.dashboard-metric-placeholder{min-height:105px;padding:14px}.inventory-row-skeleton{grid-template-columns:minmax(0,1fr) 52px 52px;gap:9px}.inventory-row-skeleton .skeleton-line:last-child{display:none}.skeleton-panel-title{width:58%}}
+@media(max-width:520px){.order-card-skeleton{padding:16px 14px}.dashboard-metric-placeholder{padding:11px}.skeleton-metric-number{height:23px;width:55%}.inline-data-warning{align-items:flex-start;flex-direction:column}.inline-data-warning button{width:100%;justify-content:center}.skeleton-panel-title{width:72%}}
