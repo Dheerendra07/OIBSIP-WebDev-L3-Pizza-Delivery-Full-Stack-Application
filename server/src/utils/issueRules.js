@@ -36,7 +36,7 @@ export function normalizeIssueReport(body) {
   const category = typeof body.category === 'string' ? body.category.trim() : '';
   if (!ISSUE_CATEGORIES.includes(category)) throw inputError('Choose a valid issue category.');
 
-  if (typeof body.description !== 'string') throw inputError('Describe what went wrong.');
+  if (typeof body.description !== 'string') throw inputError('The description must be text.');
   const description = body.description.trim().replace(/[ \t]+/g, ' ');
   if (description.length < 10) throw inputError('Add at least 10 characters so the team can understand the issue.');
   if (description.length > 600) throw inputError('The description must be 600 characters or fewer.');
