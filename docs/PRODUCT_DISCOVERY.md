@@ -47,10 +47,10 @@ The four moments we want to improve:
 
 Source reviewed on 2026-10-20: `client/src/App.jsx`, `client/src/styles.css`, `client/src/api.js`, `client/src/checkout.js`, `client/src/delivery.js`, `client/src/pendingPayment.js`, `server/src/models/Order.js`, `server/src/utils/orderRules.js`, `server/src/controllers/orderController.js`, and `server/src/services/refunds.js`.
 
-1. **Card skeleton/loading component is absent.** The `loading` state in `App.jsx` is set at startup but is not rendered. Menu and dashboard therefore have no consistent card-level loading representation.
-2. **Catalog failure can look like valid live data.** The client starts with hard-coded default menu items and catches catalog errors by logging only. If the API cannot provide current stock/prices, those defaults may still appear selectable. Server-side order pricing protects the payment amount, but the UI can present stale values or availability before checkout.
-3. **Card and status typography is too small in places.** The current CSS uses 7–10px text for some order-card/status/meta content and a 28×28px quantity stepper. Important order information and controls need a deliberate mobile-first type/tap-size standard.
-4. **Motion/accessibility baseline is incomplete.** No `prefers-reduced-motion` rule was found during this source scan. Some focus styles exist, and the toast has a status role, but all interactive states still need a keyboard/mobile/screen-reader pass.
+1. **Card skeleton/loading states — implemented in PR #20.** The initial audit found that the `loading` state was not rendered; the merged implementation now provides shared card-shaped loading states for menu, builder, dashboard and admin data panels. The visual timing/announcement behavior still needs browser QA.
+2. **Catalog and payment quote trust — implementation landed in PRs #20 and #21.** Catalog errors now have a visible retry path instead of presenting hard-coded defaults as confirmed stock/prices. Before payment, checkout compares the cart against the server-priced order and requires explicit review when an item, recipe, subtotal, delivery fee or total differs. Browser-level outage/recovery scenarios remain to be exercised.
+3. **Card and status typography — P0.3 baseline in PR #22.** The initial audit found 7–10px operational text and 28×28px quantity controls. PR #22 raises the sizes of important operational text, increases control targets, and makes mobile inventory fields visibly labelled. Actual rendered layouts and contrast still require browser verification.
+4. **Motion/accessibility baseline — partially addressed, manual verification pending.** Visible focus and `prefers-reduced-motion` rules are present, and PR #22 increases key touch targets. Keyboard-only, 200% zoom, screen-reader announcements, contrast and 320px width are not yet verified in a real browser.
 5. **The existing palette has a coherent starting point, but roles are inconsistent.** Existing core colors are warm paper `#FBF8F2`, ink `#282522`, muted `#79736C`, border `#EAE4DB`, clay `#C94C2C` and olive `#59694A`. Several components also hard-code one-off colors, making consistent redesign and contrast checks harder.
 6. **The order UI shows stage labels but not an event history.** It can show a current stage, but a later version should distinguish recorded updates and their timestamps from predicted timing. Do not invent a live ETA until actual delivery data supports it.
 7. **The app already has strong payment safety work.** Delivery validation, server-priced orders, payment review/refund paths and same-session payment verification recovery are present in source. New UX work must not weaken these server-side checks or pretend external integration is fully tested.
@@ -61,19 +61,19 @@ This is a repository-source audit, not a visual browser audit: I could inspect c
 
 ### P0 — fix first: reliable UI states and trust
 
-**P0.1 Shared card-state system (current first implementation target)**
+**P0.1 Shared card-state system (implemented in PR #20; browser QA pending)**
 - Provide consistent `loading`, `content`, `empty`, `error/retry`, `disabled` and `offline/stale` patterns for menu cards, order cards and admin data panels.
 - Skeletons must match the card's actual shape, use a subtle shimmer or static pulse, and respect reduced-motion preference.
 - Loading skeletons should be announced as loading once per region, not once per card. Hide decorative skeleton shapes from assistive technology.
 - Errors should say what failed and provide a real retry action; never render a fake "no orders" empty state when a request failed.
 - Acceptance: home/menu show aligned skeleton cards while the catalog is loading; builder, dashboard metrics/order history, and admin inventory/review/order panels each have matching skeleton geometry; no default/hard-coded catalog is shown as current stock/price after an API failure; retry recovers to content when the API comes back; empty results remain distinct from failed requests; reduced-motion users do not receive shimmer animations.
 
-**P0.2 Truthful catalog state and authoritative price**
+**P0.2 Truthful catalog state and authoritative price (implemented in PR #21; live-flow QA pending)**
 - Treat catalog status as a real state machine: loading → ready, or error → retry; do not silently fall back to static prices/availability as if they were live.
 - Before opening Razorpay, compare what the user saw with the server-priced order returned by the API. If server totals/items differ, stop before creating the payment order, show the updated authoritative breakdown, and require the user to confirm again.
 - Acceptance: API outage shows a visible retry state; no purchasable stale menu appears; a server price change never silently proceeds to payment.
 
-**P0.3 Consistent visual and accessibility foundation**
+**P0.3 Consistent visual and accessibility foundation (source changes in PR #22; rendered QA pending)**
 - Keep the existing warm pizza-house identity rather than apply a random new theme: paper/cream background, deep ink, clay-orange primary action and olive secondary accent. Centralize semantic color roles in CSS tokens.
 - Define card, badge, price row, status chip, field, primary/secondary/destructive action, skeleton and empty/error state patterns.
 - Minimum product standards: normal body text generally 14–16px, secondary/meta text generally at least 12px, 1.45+ line-height for readable copy, visible focus on every keyboard action, no color-only statuses, and at least 44×44px for important touch controls wherever practical. Validate contrast rather than guessing from color names.
