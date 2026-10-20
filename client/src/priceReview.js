@@ -7,6 +7,35 @@ function normalizedIngredients(ingredients = {}) {
   };
 }
 
+function cartIngredients(item = {}) {
+  if (item.type === 'featured') return item.ingredients || {};
+  if (item.type === 'custom') return {
+    base: item.base ?? null,
+    sauce: item.sauce ?? null,
+    cheese: item.cheese ?? null,
+    vegetables: item.vegetables ?? [],
+  };
+  return {};
+}
+
+export function cartMatchesServerSnapshot(cart, order) {
+  if (!Array.isArray(cart) || !order || !Array.isArray(order.items) || cart.length !== order.items.length) {
+    return false;
+  }
+  return cart.every((item, index) => {
+    const line = order.items[index];
+    if (!line ||
+        Number(line.quantity) !== Number(item.quantity) ||
+        Number(line.unitPrice) !== Number(item.unitPrice) ||
+        Number(line.lineTotal) !== Number(item.unitPrice) * Number(item.quantity)) {
+      return false;
+    }
+    if (item.type === 'featured' && line.name !== item.name) return false;
+    return JSON.stringify(normalizedIngredients(line.ingredients)) ===
+      JSON.stringify(normalizedIngredients(cartIngredients(item)));
+  });
+}
+
 export function snapshotCart(cart) {
   if (!Array.isArray(cart)) return null;
   return cart.map((item) => ({
@@ -20,6 +49,7 @@ export function snapshotCart(cart) {
     sauce: item.sauce ?? null,
     cheese: item.cheese ?? null,
     vegetables: [...(Array.isArray(item.vegetables) ? item.vegetables : [])].sort(),
+    ingredients: normalizedIngredients(cartIngredients(item)),
   }));
 }
 
@@ -37,22 +67,9 @@ export function requiresPriceConfirmation({
   order,
   displayedSubtotal,
   displayedDeliveryFee,
-  cartMatchesServerOrder,
 }) {
-  if (!Array.isArray(cart) || !order || !Array.isArray(order.items)) return true;
-  if (cart.length !== order.items.length) return true;
-
-  const lineChanged = cart.some((item, index) => {
-    const line = order.items[index];
-    if (!line) return true;
-    return Number(line.quantity) !== Number(item.quantity) ||
-      Number(line.unitPrice) !== Number(item.unitPrice) ||
-      Number(line.lineTotal) !== Number(item.unitPrice) * Number(item.quantity);
-  });
-
-  return !cartMatchesServerOrder ||
-    lineChanged ||
-    Number(order.subtotal) !== Number(displayedSubtotal) ||
+  if (!cartMatchesServerSnapshot(cart, order)) return true;
+  return Number(order.subtotal) !== Number(displayedSubtotal) ||
     Number(order.deliveryFee) !== Number(displayedDeliveryFee) ||
     Number(order.total) !== Number(displayedSubtotal) + Number(displayedDeliveryFee);
 }
