@@ -18,21 +18,26 @@ function cartIngredients(item = {}) {
   return {};
 }
 
-export function cartMatchesServerSnapshot(cart, order) {
+export function cartMatchesServerRecipe(cart, order) {
   if (!Array.isArray(cart) || !order || !Array.isArray(order.items) || cart.length !== order.items.length) {
     return false;
   }
   return cart.every((item, index) => {
     const line = order.items[index];
-    if (!line ||
-        Number(line.quantity) !== Number(item.quantity) ||
-        Number(line.unitPrice) !== Number(item.unitPrice) ||
-        Number(line.lineTotal) !== Number(item.unitPrice) * Number(item.quantity)) {
-      return false;
-    }
+    if (!line || Number(line.quantity) !== Number(item.quantity)) return false;
     if (item.type === 'featured' && line.name !== item.name) return false;
+    if (item.type !== 'featured' && item.type !== 'custom') return false;
     return JSON.stringify(normalizedIngredients(line.ingredients)) ===
       JSON.stringify(normalizedIngredients(cartIngredients(item)));
+  });
+}
+
+export function cartMatchesServerSnapshot(cart, order) {
+  if (!cartMatchesServerRecipe(cart, order)) return false;
+  return cart.every((item, index) => {
+    const line = order.items[index];
+    return Number(line.unitPrice) === Number(item.unitPrice) &&
+      Number(line.lineTotal) === Number(item.unitPrice) * Number(item.quantity);
   });
 }
 
@@ -68,8 +73,14 @@ export function requiresPriceConfirmation({
   displayedSubtotal,
   displayedDeliveryFee,
 }) {
-  if (!cartMatchesServerSnapshot(cart, order)) return true;
-  return Number(order.subtotal) !== Number(displayedSubtotal) ||
+  if (!cartMatchesServerRecipe(cart, order)) return true;
+  const lineChanged = cart.some((item, index) => {
+    const line = order.items[index];
+    return Number(line.unitPrice) !== Number(item.unitPrice) ||
+      Number(line.lineTotal) !== Number(item.unitPrice) * Number(item.quantity);
+  });
+  return lineChanged ||
+    Number(order.subtotal) !== Number(displayedSubtotal) ||
     Number(order.deliveryFee) !== Number(displayedDeliveryFee) ||
     Number(order.total) !== Number(displayedSubtotal) + Number(displayedDeliveryFee);
 }
