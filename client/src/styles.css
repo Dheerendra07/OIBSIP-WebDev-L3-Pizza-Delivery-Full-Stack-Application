@@ -255,3 +255,23 @@
   .inventory-state{grid-column:1/-1}
   .customize-link{font-size:12px}
 }
+
+
+/* Safe repeat-order action: readable helper copy and comfortable touch target. */
+.order-repeat-actions{border-top:1px solid var(--border);margin-top:16px;padding-top:14px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.order-repeat-actions p{margin:0;max-width:52ch;color:var(--text-secondary);font-size:12px;line-height:1.55}
+.order-repeat-actions .button{min-height:44px;padding-inline:14px;font-size:12px;white-space:nowrap}
+.order-repeat-actions .button svg{flex:none}
+@media(max-width:520px){.order-repeat-actions{align-items:stretch;flex-direction:column;gap:10px}.order-repeat-actions p{font-size:13px}.order-repeat-actions .button{width:100%;min-height:46px}}
+
+.order-repeat-skeleton{pointer-events:none}.order-repeat-skeleton .skeleton-repeat-copy{width:57%;height:12px}.order-repeat-skeleton .skeleton-repeat-action{width:112px;height:44px;border-radius:6px}
+@media(max-width:520px){.order-repeat-skeleton .skeleton-repeat-copy{width:85%}.order-repeat-skeleton .skeleton-repeat-action{width:100%;height:46px}}
+
+/* Order-card readability: operational metadata must remain legible on mobile. */
+.order-card .eyebrow{font-size:12px;letter-spacing:.12em;line-height:1.4}
+.order-card p{font-size:12px;line-height:1.5}
+.order-card .status-pill{font-size:12px;line-height:1.35;padding:6px 10px}
+.order-card .timeline-step small{font-size:12px;line-height:1.35}
+.order-card .pending-message{font-size:12px;line-height:1.55}
+.order-card .order-delivery-details small{font-size:12px;line-height:1.55}
+.order-card .payment-review-warning small{font-size:12px;line-height:1.5}
