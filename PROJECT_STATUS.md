@@ -4,13 +4,13 @@ Last updated: 2026-10-20
 
 ## Current Git state
 
-- Product-discovery plan: [docs/PRODUCT_DISCOVERY.md](docs/PRODUCT_DISCOVERY.md). Phase 1 is the shared card-state system and truthful catalog loading/error behavior; visual and accessibility cleanup follows before larger features.
+- Product-discovery plan: [docs/PRODUCT_DISCOVERY.md](docs/PRODUCT_DISCOVERY.md). Shared card states/catalog gating landed in PR #20; server-quote confirmation landed in PR #21. PR #22 completes the source-level readability/touch-target pass; rendered-browser accessibility QA remains pending.
 
 - Repository: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application
 - Default branch: `main`.
-- Latest merged application hardening commit: `3f6778f33136cd5beb42159d1aceaee3227321f3` — custom-pizza validation and provider-verified refund capture history (PR #18).
+- Latest merged application hardening commit: `d3607cab72488e6c81783c0abde74e83f56b8bb9` — server-priced checkout quote review and explicit price/recipe reconfirmation (PR #21).
 - Delivery details collection and persistence merged in PR #16.
-- Payment-safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, #15 guarded admin full-refund recovery, #16 delivery destination fields, #17 checkout/recovery hardening, and #18 custom-pizza validation/provider capture-history checks.
+- Trust/safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, #15 guarded admin full-refund recovery, #16 delivery destination fields, #17 checkout/recovery hardening, #18 custom-pizza validation/provider capture-history checks, #20 shared card loading/error states and live catalog gating, and #21 explicit server-quote confirmation before payment.
 - PR #14 was a stale status-document snapshot and is closed as superseded.
 - Historical Socket.IO live order tracking merge: `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
 - Historical Socket.IO session-expiry hardening merge: `71d18fec59dd4106a43d6efd34327639035a7a25`.
@@ -31,12 +31,15 @@ Last updated: 2026-10-20
 - Expired unpaid orders become cancelled after safe reservation reconciliation. The provider-order reference is retained so a late capture can still be linked and reviewed.
 - Admin payment-review queue and guarded full-refund recovery for eligible review holds. Refund requests use deterministic provider idempotency; extra captures, failed refunds and uncertain states remain on manual review.
 - Inventory is released only after a confirmed full refund or a safely reconciled expired unpaid checkout; ambiguous provider state preserves the hold.
+- Before Razorpay is opened, checkout compares the visible cart against the server-priced order; changed prices, totals, or recipe details require explicit review. Accepting only updates the cart; a second explicit checkout action is required to open payment.
 - Authenticated Socket.IO updates with role-derived rooms, session-expiry checks and REST refresh on reconnect.
 - Admin inventory controls, low-stock notification job and fulfillment status transition validation.
 - CI installs root/server/client dependencies, runs the configured server/client test suite and builds the production client. A passing CI run is not the same as live end-to-end verification.
 
 ## Latest verified automated checks
 
+- PR #22 source commit: `652c2bd7489372e24671cfd9f9dbefe78d4f52be` — GitHub Actions run `39448534587` passed dependency installation, the configured client/server test suite, and the production client build for the P0.3 readability, touch-target, and responsive inventory-field changes. Follow-up commits in PR #22 synchronize the status and roadmap documentation.
+- PR #21 price-confirmation head: `657607ce4d462cbedf95f504cdc24266dad5d6fc` — GitHub Actions run `39447782348` passed dependency installation, the configured test suite, and production build.
 - PR #18 code head: `e29bf1f78c9206c9d222d87dabb2c5bf5fb70aea`.
 - Pull-request check: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319853575 — passed.
 - Push check: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319845265 — passed.
@@ -53,6 +56,7 @@ Last updated: 2026-10-20
 6. Verify SMTP email verification/reset/low-stock notification and provider outage behaviour.
 7. Test customer/admin Socket.IO updates, reconnect, logout/session expiry, and make sure private order events stay scoped to the right sessions.
 8. Validate production HTTPS, exact CORS origins, secure cookie policy, environment variables, health endpoint and server logs.
+9. Complete rendered-browser accessibility checks: contrast, keyboard-only order journey, focus visibility, screen-reader loading announcements, text zoom, and layout at 320px/200% zoom.
 
 ## Local assessment runbook
 
