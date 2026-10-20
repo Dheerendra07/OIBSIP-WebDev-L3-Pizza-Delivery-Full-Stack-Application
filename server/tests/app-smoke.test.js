@@ -14,6 +14,37 @@ async function startAppServer() {
   return { server, origin: `http://127.0.0.1:${address.port}` };
 }
 
+test('customer issue and admin issue queue endpoints require authentication', async (t) => {
+  const { server, origin } = await startAppServer();
+  t.after(async () => {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  });
+
+  const requests = [
+    fetch(`${origin}/api/issues/my`),
+    fetch(`${origin}/api/issues`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderId: '64b000000000000000000001',
+        category: 'missing_item',
+        description: 'A required item was missing from this order.',
+      }),
+    }),
+    fetch(`${origin}/api/admin/issues`),
+    fetch(`${origin}/api/admin/issues/64b000000000000000000001`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'resolved' }),
+    }),
+  ];
+
+  const responses = await Promise.all(requests);
+  assert.deepEqual(responses.map((response) => response.status), [401, 401, 401, 401]);
+  const payloads = await Promise.all(responses.map((response) => response.json()));
+  assert.ok(payloads.every((payload) => payload.error === 'Sign in to continue'));
+});
+
 test('HTTP app exposes health and structured not-found responses with security headers', async (t) => {
   const { server, origin } = await startAppServer();
   t.after(async () => {
