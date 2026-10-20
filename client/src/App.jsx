@@ -568,7 +568,35 @@ function BuilderSkeleton() { return <div className="builder-layout builder-loadi
 function BuilderGroup({ step, title, subtitle, options, value, onChange }) { return <div className="builder-group"><div className="builder-step"><span>{step}</span><div><h3>{title}</h3><p>{subtitle}</p></div></div><div className="option-list">{options.map(option => <button key={option.id} disabled={option.available === false} aria-pressed={value === option.id} className={`builder-option ${value === option.id ? 'chosen' : ''}`} onClick={() => onChange(option.id)}><span className="radio-dot"/><span>{option.name}</span><small>{option.price === 0 ? 'Included' : `+${currency(option.price)}`}</small></button>)}</div></div>; }
 function Ingredient({ label, value }) { return <div className="ingredient-row"><span>{label}</span><b>{value || 'Not selected'}</b></div>; }
 function OrderCard({ order, admin = false, onStatus }) { const current = ORDER_STEPS.findIndex(s => s.id === order.status); const paid = order.paymentStatus === 'paid'; const refunded = order.paymentStatus === 'refunded'; const cancelled = order.status === 'cancelled'; const reviewNeeded = Boolean(order.paymentReviewRequired) || order.status === 'payment_review'; const next = order.status === 'order_received' ? 'in_kitchen' : order.status === 'in_kitchen' ? 'sent_to_delivery' : order.status === 'sent_to_delivery' ? 'delivered' : null; return <article className="order-card"><div className="order-card-top"><div><span className="eyebrow">ORDER {order.orderNumber}</span><h3>{order.items?.map(i => `${i.quantity}× ${i.name}`).join(', ') || 'Pizza order'}</h3><p>{admin && order.user ? `${order.user.name} · ${order.user.email}` : new Date(order.createdAt).toLocaleString()} · {currency(order.total)}</p>{order.deliveryDetails && <div className="order-delivery-details"><small><strong>Deliver to:</strong> {order.deliveryDetails.recipientName} · {order.deliveryDetails.addressLine}, {order.deliveryDetails.city}, {order.deliveryDetails.state} {order.deliveryDetails.postalCode}</small><small><strong>Mobile:</strong> {order.deliveryDetails.phone}</small>{order.deliveryDetails.landmark && <small><strong>Landmark:</strong> {order.deliveryDetails.landmark}</small>}{order.deliveryDetails.instructions && <small><strong>Note:</strong> {order.deliveryDetails.instructions}</small>}</div>}</div><span className={`status-pill ${reviewNeeded ? 'review' : refunded ? 'refunded' : cancelled ? 'cancelled' : paid ? 'paid' : 'waiting'}`}>{reviewNeeded ? '⚠ Review required' : refunded ? '↺ Refunded' : cancelled ? '× Cancelled' : paid ? '● Paid' : '○ Payment pending'}</span></div>{reviewNeeded ? <div className="payment-review-warning" role="alert"><strong>Payment captured — order on hold.</strong><p>This order needs a manual payment and inventory review before kitchen preparation or delivery.</p>{admin && order.paymentReviewReason && <small>Reason: {order.paymentReviewReason.replaceAll('_', ' ')}</small>}</div> : refunded ? <div className="pending-message"><ShieldCheck size={15}/> Full refund confirmed; order cancelled.</div> : cancelled ? <div className="pending-message"><X size={15}/> This unpaid order expired and was cancelled. Start a new checkout to order again.</div> : paid ? <div className="order-timeline">{ORDER_STEPS.map((step, i) => <div key={step.id} className={`timeline-step ${i <= current ? 'complete' : ''} ${i === current ? 'current' : ''}`}><span className="timeline-icon"><step.icon size={16}/></span><small>{step.label}</small></div>)}</div> : <div className="pending-message"><Clock3 size={15}/> Waiting for a verified payment before kitchen preparation.</div>}{admin && next && paid && !reviewNeeded && <div className="order-admin-actions"><span>Update status</span><button className="button button-light small-button" onClick={() => onStatus(order, next)}>Move to {next.replaceAll('_', ' ')} <ArrowRight size={15}/></button></div>}</article>; }
-function InventoryRow({ item, onSave }) { const [stock, setStock] = useState(String(item.stock)); const [threshold, setThreshold] = useState(String(item.lowStockThreshold)); useEffect(() => { setStock(String(item.stock)); setThreshold(String(item.lowStockThreshold)); }, [item.stock, item.lowStockThreshold]); const changed = Number(stock) !== item.stock || Number(threshold) !== item.lowStockThreshold; return <div className="inventory-row"><div><b>{item.name}</b><small>{item.category}</small></div><input aria-label={`${item.name} stock`} type="number" min="0" value={stock} onChange={e => setStock(e.target.value)}/><input aria-label={`${item.name} low stock threshold`} type="number" min="0" value={threshold} onChange={e => setThreshold(e.target.value)}/><div className="inventory-state"><span className={`stock-dot ${item.stock <= item.lowStockThreshold ? 'low' : ''}`}/><span>{item.stock <= item.lowStockThreshold ? 'Low stock' : 'Healthy'}</span>{changed && <button onClick={() => onSave(item, { stock, lowStockThreshold: threshold })}>Save</button>}</div></div>; }
+
+function InventoryRow({ item, onSave }) {
+    const [stock, setStock] = useState(String(item.stock));
+    const [threshold, setThreshold] = useState(String(item.lowStockThreshold));
+    useEffect(() => {
+        setStock(String(item.stock));
+        setThreshold(String(item.lowStockThreshold));
+    }, [item.stock, item.lowStockThreshold]);
+    const changed = Number(stock) !== item.stock || Number(threshold) !== item.lowStockThreshold;
+
+    return <div className="inventory-row">
+        <div className="inventory-item-name"><b>{item.name}</b><small>{item.category}</small></div>
+        <label className="inventory-number-field">
+            <span className="inventory-number-label">In stock</span>
+            <input aria-label={item.name + ' stock'} type="number" min="0" step="1" inputMode="numeric"
+                value={stock} onChange={e => setStock(e.target.value)}/>
+        </label>
+        <label className="inventory-number-field">
+            <span className="inventory-number-label">Alert at</span>
+            <input aria-label={item.name + ' low stock threshold'} type="number" min="0" step="1" inputMode="numeric"
+                value={threshold} onChange={e => setThreshold(e.target.value)}/>
+        </label>
+        <div className="inventory-state">
+            <span className={`stock-dot ${item.stock <= item.lowStockThreshold ? 'low' : ''}`}/>
+            <span>{item.stock <= item.lowStockThreshold ? 'Low stock' : 'Healthy'}</span>
+            {changed && <button type="button" onClick={() => onSave(item, { stock, lowStockThreshold: threshold })}>Save</button>}
+        </div>
+    </div>;
+}
 async function loadRazorpay() { if (window.Razorpay)
     return; await new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = 'https://checkout.razorpay.com/v1/checkout.js'; script.onload = resolve; script.onerror = () => reject(new Error('Could not load Razorpay Checkout. Check your connection and try again.')); document.body.appendChild(script); }); }
 
