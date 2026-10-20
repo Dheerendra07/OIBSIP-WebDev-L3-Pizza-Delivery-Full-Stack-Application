@@ -14,6 +14,7 @@ Last updated: 2026-10-20
 - PR #14 was a stale status-document snapshot and is closed as superseded.
 - Historical Socket.IO live order tracking merge: `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
 - Historical Socket.IO session-expiry hardening merge: `71d18fec59dd4106a43d6efd34327639035a7a25`.
+- Order-list skeletons on the feature branch reserve space for the new repeat-order footer to reduce layout shift; the footer shape is hidden from assistive technology as decorative loading UI.
 - Current focused feature branch: `feat/safe-repeat-order`. It adds a customer order-history action that rebuilds delivered/cancelled orders using the current catalog, refuses partial restores or substitutions when recipes/options are missing or unavailable, and keeps payment checkout as a separate explicit action. This branch has not been merged.
 - GitHub Actions is not being used as the sole verification signal for this task. Focused reorder utility checks were run with Node.js 22.16.0 in an isolated local harness (10/10 passed); the full repo test/build and browser journey remain unverified because the local environment could not resolve GitHub/npm registry DNS.
 - Real environment credentials and database exports must not be committed.
