@@ -18,6 +18,7 @@ Last updated: 2026-10-20
 - Safe repeat-order is the customer order-history feature in PR #23: it rebuilds delivered/cancelled orders using the current catalog, refuses partial restores or substitutions when recipes/options are missing or unavailable, and keeps payment checkout as a separate explicit action.
 - Verification outside GitHub Actions: isolated utility tests passed 10/10; full `npm test` passed 124/124 and Vite production build passed in a remote workspace using Node 26.8.2/npm 12.2.0. Chrome rendered the home page, order history, and repeat-order cart with deterministic mocked API responses at desktop and 390px mobile; no page errors were recorded, and mobile document width matched scroll width (390px). These are UI/component checks, not live API/payment proof.
 - Nodemailer is now declared as `^10.1.7` after PR #24. The isolated upgrade verification passed 124/124 tests, production build, and `npm audit --prefix server` with zero reported vulnerabilities; real SMTP provider delivery still needs a configuration-backed test.
+- Reproducible dependency install candidate is on branch `build/reproducible-npm-lockfiles`: root/server/client lockfiles use lockfileVersion 3; `npm run install:all` now uses `npm ci` three times. Clean install, full tests (124/124), build, and root/server/client audits (0 vulnerabilities each) passed on Node 22.22.2/npm 10.9.7 outside GitHub Actions. PR review/merge remains pending.
 - Real environment credentials and database exports must not be committed.
 
 ## Implemented
@@ -42,6 +43,7 @@ Last updated: 2026-10-20
 
 ## Latest verified automated checks
 
+- Reproducible-install candidate (`build/reproducible-npm-lockfiles`): root, server and client `package-lock.json` generated with npm 10.9.4 (lockfileVersion 3); `npm run install:all` executed clean `npm ci` installs on Node 22.22.2/npm 10.9.7. `npm test`: 124/124 passed; Vite production build passed; `npm audit` at root/server/client reported zero vulnerabilities each. This verification ran in an isolated workspace, not via GitHub Actions.
 - Latest non-GitHub-Actions verification for the merged PR #23 + #24 source: full `npm test` passed 124/124; `npm run build` succeeded; `npm audit --prefix server` reported 0 vulnerabilities for Nodemailer `^10.1.7`. Chrome rendered home, desktop/mobile order history, and repeat-order cart with mocked API responses; no page errors, and 390px viewport width matched document scroll width. External MongoDB, SMTP delivery, Razorpay, and production deployment were not tested.
 - PR #22 source commit: `652c2bd7489372e24671cfd9f9dbefe78d4f52be` — GitHub Actions run `39448534587` passed dependency installation, the configured client/server test suite, and the production client build for the P0.3 readability, touch-target, and responsive inventory-field changes. Follow-up commits in PR #22 synchronize the status and roadmap documentation.
 - PR #21 price-confirmation head: `657607ce4d462cbedf95f504cdc24266dad5d6fc` — GitHub Actions run `39447782348` passed dependency installation, the configured test suite, and production build.
@@ -55,7 +57,7 @@ Last updated: 2026-10-20
 
 ## Final setup and end-to-end verification — still pending
 
-1. Commit reviewed root, server and client npm lockfiles (currently generated only in an isolated workspace) and switch clean installs to `npm ci`; rerun all checks. The current repository does not pin transitive dependency versions in committed lockfiles.
+1. Complete configuration-backed verification with MongoDB replica-set transactions, Razorpay Test Mode capture/webhook/refund paths, SMTP sends and the full browser journey. The reproducible-install change is proposed separately in `build/reproducible-npm-lockfiles`; it has passed isolated Node 22 clean-install, test, build and npm audit checks but is not merged yet.
 2. Configure a transaction-capable MongoDB replica set/Atlas environment and seed inventory; test concurrent stock contention, sold-out items and expired reservations.
 3. Configure Razorpay Test Mode keys and the separate webhook secret; test checkout capture, invalid signature, duplicate and out-of-order webhook delivery, ambiguous verification, multiple captured payments, refunds and retry/reconciliation.
 4. Run the browser journey: register → email verification → login → choose/build pizza → enter address → create order → payment → customer order history → admin fulfillment.
