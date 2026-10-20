@@ -266,3 +266,12 @@
 
 .order-repeat-skeleton{pointer-events:none}.order-repeat-skeleton .skeleton-repeat-copy{width:57%;height:12px}.order-repeat-skeleton .skeleton-repeat-action{width:112px;height:44px;border-radius:6px}
 @media(max-width:520px){.order-repeat-skeleton .skeleton-repeat-copy{width:85%}.order-repeat-skeleton .skeleton-repeat-action{width:100%;height:46px}}
+
+/* Order-card readability: operational metadata must remain legible on mobile. */
+.order-card .eyebrow{font-size:12px;letter-spacing:.12em;line-height:1.4}
+.order-card p{font-size:12px;line-height:1.5}
+.order-card .status-pill{font-size:12px;line-height:1.35;padding:6px 10px}
+.order-card .timeline-step small{font-size:12px;line-height:1.35}
+.order-card .pending-message{font-size:12px;line-height:1.55}
+.order-card .order-delivery-details small{font-size:12px;line-height:1.55}
+.order-card .payment-review-warning small{font-size:12px;line-height:1.5}
