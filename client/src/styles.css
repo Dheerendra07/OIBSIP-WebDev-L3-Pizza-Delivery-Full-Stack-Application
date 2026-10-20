@@ -241,3 +241,17 @@
   .footer-bottom{font-size:11px}
   .terms-note{font-size:11px}
 }
+
+/* Inventory fields keep their visible labels on narrow screens. */
+.customize-link{font-size:12px;line-height:1.4}
+.inventory-number-field{display:grid;gap:4px;min-width:0}
+.inventory-number-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:520px){
+  .inventory-row.inventory-header{display:none}
+  .inventory-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;padding:14px 2px}
+  .inventory-item-name{grid-column:1/-1}
+  .inventory-number-label{position:static;width:auto;height:auto;padding:0;margin:0;overflow:visible;clip:auto;white-space:normal;border:0;font-size:11px;line-height:1.4;font-weight:700;color:var(--text-secondary)}
+  .inventory-number-field input{width:100%}
+  .inventory-state{grid-column:1/-1}
+  .customize-link{font-size:12px}
+}
