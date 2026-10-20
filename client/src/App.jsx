@@ -878,6 +878,12 @@ function IssueReportDialog({ order, form, setForm, pending, returnFocusRef, onSu
         };
     }, []);
 
+    useEffect(() => {
+        if (pending && !dialogRef.current?.contains(document.activeElement)) {
+            dialogRef.current?.querySelector('select:not(:disabled), textarea:not(:disabled)')?.focus();
+        }
+    }, [pending]);
+
     const handleKeyDown = (event) => {
         if (event.key === 'Escape') {
             if (!pending) {
