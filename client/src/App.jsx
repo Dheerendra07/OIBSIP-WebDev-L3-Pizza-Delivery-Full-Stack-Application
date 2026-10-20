@@ -739,7 +739,7 @@ function OrderCard({ order, admin = false, onStatus, onReorder, issue, onReportI
                     : paid
                         ? <div className="order-timeline">{ORDER_STEPS.map((step, i) => <div key={step.id} className={`timeline-step ${i <= current ? 'complete' : ''} ${i === current ? 'current' : ''}`}><span className="timeline-icon"><step.icon size={16}/></span><small>{step.label}</small></div>)}</div>
                         : <div className="pending-message"><Clock3 size={15}/> Waiting for a verified payment before kitchen preparation.</div>}
-        {!admin && issue && <div className={`issue-status-card issue-status-${issue.status}`}>
+        {!admin && issue && <div className={`issue-status-card issue-status-${issue.status}`} tabIndex={-1}>
             <div className="issue-status-copy">
                 <span className="eyebrow">CASE {issue.reference}</span>
                 <strong>{issue.status === 'resolved' ? 'Marked resolved' : issue.status === 'under_review' ? 'Team is reviewing this case' : 'Report received'}</strong>
