@@ -60,6 +60,16 @@ test('rebuilds a custom recipe and derives its price from the current catalog', 
   assert.deepEqual(result.items[0].vegetables, ['onion', 'corn']);
 });
 
+test('keeps custom identity when its recipe happens to match a featured pizza', () => {
+  const result = buildReorderCart(order([featuredLine({
+    name: 'Build Your Own',
+    ingredients: { base: 'classic', sauce: 'tomato', cheese: 'mozzarella', vegetables: ['tomato'] },
+  })]), catalog, featuredPizzas);
+  assert.equal(result.ok, true);
+  assert.equal(result.items[0].type, 'custom');
+  assert.equal(result.items[0].unitPrice, 199 + 0 + 0 + 35 + 15);
+});
+
 test('refuses an unavailable ingredient without returning a partial cart', () => {
   const unavailableCatalog = {
     ...catalog,
