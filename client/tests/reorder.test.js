@@ -70,6 +70,14 @@ test('keeps custom identity when its recipe happens to match a featured pizza', 
   assert.equal(result.items[0].unitPrice, 199 + 0 + 0 + 35 + 15);
 });
 
+test('recognizes a renamed featured item from its saved recipe', () => {
+  const renamed = featuredPizzas.map((pizza) => ({ ...pizza, name: 'New Classic Name' }));
+  const result = buildReorderCart(order([featuredLine({ name: 'Classic Pizza' })]), catalog, renamed);
+  assert.equal(result.ok, true);
+  assert.equal(result.items[0].type, 'featured');
+  assert.equal(result.items[0].name, 'New Classic Name');
+});
+
 test('refuses an unavailable ingredient without returning a partial cart', () => {
   const unavailableCatalog = {
     ...catalog,
