@@ -55,6 +55,8 @@ Source reviewed on 2026-10-20: `client/src/App.jsx`, `client/src/styles.css`, `c
 6. **The order UI shows stage labels but not an event history.** It can show a current stage, but a later version should distinguish recorded updates and their timestamps from predicted timing. Do not invent a live ETA until actual delivery data supports it.
 7. **The app already has strong payment safety work.** Delivery validation, server-priced orders, payment review/refund paths and same-session payment verification recovery are present in source. New UX work must not weaken these server-side checks or pretend external integration is fully tested.
 
+8. **Safe repeat-order flow — implemented on branch `feat/safe-repeat-order`, not merged yet.** Customer order cards show “Order again” only for delivered/cancelled records outside payment-review holds. `client/src/reorder.js` rebuilds the recipe from the current catalog; it uses today's feature price or current ingredient price formula, refuses missing/retired/unavailable ingredients and invalid quantities, and returns no partial cart. The handler blocks while a payment verification or checkout is unresolved, asks before replacing an existing bag, and never starts payment automatically. The server-priced checkout/quote review remains the final authority. Eight focused utility scenarios pass in a local isolated Node.js 22.16.0 harness. Full app build and visual browser QA are not yet verified.
+
 This is a repository-source audit, not a visual browser audit: I could inspect component/CSS source, but this environment cannot resolve GitHub from a local shell, so I did not run a local browser or claim a visual pixel-level review.
 
 ## Prioritized opportunity backlog
@@ -126,6 +128,14 @@ This is a repository-source audit, not a visual browser audit: I could inspect c
 - **Skeleton cards:** same geometry as real cards; stable width/height to prevent layout shift; shimmer disabled with reduced motion; aria-hidden decorative shapes plus one polite status message for the region.
 - **Order cards:** current state, last confirmed update time once available, item/recipe summary, final amount, delivery summary only where needed, and a clear action for next step or issue report.
 - **No false precision:** no fake star counts, social proof, "live" rider maps, guaranteed ETAs or unsupported ingredient promises.
+
+## Current implementation checkpoint — safe repeat order
+
+- **Research basis:** Baymard's 2026 food-delivery benchmark reports weak access to repeat orders and sparse order-history cues in the eight evaluated sites/apps. This is a strong product hypothesis, not proof that Pizza House customers prefer it; validate with task-based user sessions.
+- **User contract:** rebuild the previous recipe, not the previous price. Use current item/ingredient prices; block stale or unavailable recipes without silently substituting; don't replace a non-empty bag without consent; don't interrupt pending payment verification; never automatically reopen checkout.
+- **Card contract:** action appears only on delivered/cancelled orders, never on a payment-review record; copy explains that current prices apply; button has a 44px minimum height and stacks cleanly on narrow mobile screens.
+- **Verification:** focused logic cases cover current featured price, current custom price calculation, unavailable options, sold-out featured recipe, invalid quantity, missing recipe, retired ingredient, and empty/over-limit orders. Still required: full repository test/build and mobile/tablet/desktop browser pass.
+- **Next user-centric feature after this checkpoint:** an order-problem case flow for missing/wrong/damaged/delayed items with a reference ID, visible status, and a customer/admin shared record. It should not promise refunds or external escalation unless supported by actual integration.
 
 ## Delivery plan
 
