@@ -46,6 +46,8 @@ export default function App() {
     const [issuesStatus, setIssuesStatus] = useState('idle');
     const [issuesError, setIssuesError] = useState('');
     const [issueReportOrder, setIssueReportOrder] = useState(null);
+    const issueReportTriggerRef = useRef(null);
+    const pendingIssueFocusOrderId = useRef(null);
     const [issueForm, setIssueForm] = useState(NEW_ISSUE_FORM);
     const [pendingIssue, setPendingIssue] = useState(false);
     const [pendingAdminIssueId, setPendingAdminIssueId] = useState(null);
@@ -73,6 +75,10 @@ export default function App() {
         }
     });
     const notify = useCallback((message, kind = 'success') => setToast({ message, kind }), []);
+    const openIssueReport = useCallback((order, trigger) => {
+        issueReportTriggerRef.current = trigger;
+        setIssueReportOrder(order);
+    }, []);
     const refreshCatalog = useCallback(async () => {
         setCatalogStatus('loading');
         setCatalogError('');
@@ -196,6 +202,15 @@ export default function App() {
     useEffect(() => {
         if (user?.name) setDeliveryDetails(current => current.recipientName ? current : { ...current, recipientName: user.name });
     }, [user?.name]);
+    useEffect(() => {
+        const orderId = pendingIssueFocusOrderId.current;
+        if (!orderId || !['ready', 'error'].includes(issuesStatus)) return;
+        const card = Array.from(document.querySelectorAll('[data-order-id]'))
+            .find(element => element.dataset.orderId === orderId);
+        const target = card?.querySelector('.issue-status-card') || issueReportTriggerRef.current;
+        target?.focus();
+        pendingIssueFocusOrderId.current = null;
+    }, [issues, issuesStatus]);
     useEffect(() => {
         if (user?.role === 'admin' && page === 'admin') refreshAdmin();
     }, [user, page, refreshAdmin]);
@@ -557,12 +572,14 @@ export default function App() {
             notify('Describe what went wrong in 10–600 characters.', 'error');
             return;
         }
+        event.currentTarget.querySelector('textarea')?.focus();
         setPendingIssue(true);
         try {
             const response = await api('/issues', {
                 method: 'POST',
                 body: { orderId: issueReportOrder.id, category: issueForm.category, description },
             });
+            pendingIssueFocusOrderId.current = issueReportOrder.id;
             setIssueReportOrder(null);
             setIssueForm(NEW_ISSUE_FORM);
             await refreshIssues();
@@ -643,14 +660,14 @@ export default function App() {
       <label className="delivery-instructions"><span>Delivery instructions (optional)</span><textarea rows={2} maxLength={200} placeholder="Gate, floor, or call-on-arrival notes" value={deliveryDetails.instructions} onChange={e => setDeliveryDetails(p => ({ ...p, instructions: e.target.value }))}/></label>
     </section></div><aside className="order-summary"><h2>Little details.</h2><div className="price-row"><span>Subtotal</span><b>{currency(subtotal)}</b></div><div className="price-row"><span>Delivery</span><b>{deliveryFee === 0 ? 'On us!' : currency(deliveryFee)}</b></div><div className="free-delivery-hint">{subtotal >= 499 ? 'Lovely — delivery is on us!' : `Add ${currency(499 - subtotal)} for free delivery.`}</div><div className="summary-divider"/><div className="price-row final"><span>Total</span><b>{currency(subtotal + deliveryFee)}</b></div><button disabled={pending || Boolean(pendingVerification) || !canCheckoutWithCatalog(catalogStatus)} className="button button-dark full-button" onClick={startCheckout}>{pending ? <LoaderCircle className="spin" size={17}/> : catalogStatus === 'ready' ? <CreditCard size={17}/> : <RefreshCw size={17}/>} {pending ? 'Getting checkout ready' : pendingVerification ? 'Confirm previous payment first' : catalogStatus === 'loading' ? 'Confirming live prices…' : catalogStatus === 'error' ? 'Refresh menu before checkout' : 'Checkout securely'}</button><small className="summary-footnote"><ShieldCheck size={14}/> Payments secured by Razorpay</small><p className="terms-note">Test mode only. You won’t be charged real money while test credentials are active.</p></aside></div>}</section>}
 
-    {page === 'dashboard' && <section className="section-wrap page-section"><div className="dashboard-top"><div><div className="eyebrow">YOUR PIZZA DIARY</div><h1>Good to see you, <em>{user?.name?.split(' ')[0] || 'friend'}.</em></h1><p>Every great day deserves a great slice.</p></div><button className="button button-light" onClick={() => navigate('menu')}>Order something lovely <ArrowRight size={16}/></button></div>{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <DashboardMetricSkeleton/> : <div className="dashboard-metrics"><div><span>ORDERS MADE</span><strong>{ordersStatus === 'ready' ? orders.length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'And counting' : 'Not available'}</small></div><div><span>ON THE WAY</span><strong>{ordersStatus === 'ready' ? orders.filter(o => ['order_received', 'in_kitchen', 'sent_to_delivery'].includes(o.status)).length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'Good things incoming' : 'Not available'}</small></div><div><span>YOUR LAST ORDER</span><strong>{ordersStatus === 'ready' && orders[0] ? currency(orders[0].total) : '—'}</strong><small>{ordersStatus === 'ready' ? orders[0]?.orderNumber || 'Your first slice awaits' : 'Not available'}</small></div></div>}<div className="section-heading dashboard-heading"><div><h2>Order <em>updates.</em></h2><p>We’ll keep you in the loop. This list refreshes automatically.</p></div><button className="text-link" onClick={refreshOrders}><RefreshCw size={15}/> Refresh</button></div>{ordersError && ordersStatus === 'ready' && <InlineDataWarning message={ordersError} onRetry={refreshOrders} />}{issuesError && <InlineDataWarning message={issuesError} onRetry={refreshIssues} />}{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <OrderListSkeleton count={2}/> : ordersStatus === 'error' ? <DataUnavailable title="Your orders haven’t loaded" message="We couldn’t confirm your order history. Please retry instead of assuming there are no orders." onRetry={refreshOrders}/> : orders.length ? <div className="orders-list">{orders.map(order => <OrderCard key={order.id} order={order} onReorder={repeatOrder} issue={issues.find(item => item.orderId === order.id)} onReportIssue={setIssueReportOrder} onRefreshIssues={refreshIssues}/>)}</div> : <div className="empty-state compact-empty"><div className="empty-art">🥡</div><h2>The first one’s always special.</h2><p>Place an order and watch the magic happen here.</p><button className="button button-dark" onClick={() => navigate('menu')}>Explore the menu <ArrowRight size={17}/></button></div>}</section>}
+    {page === 'dashboard' && <section className="section-wrap page-section"><div className="dashboard-top"><div><div className="eyebrow">YOUR PIZZA DIARY</div><h1>Good to see you, <em>{user?.name?.split(' ')[0] || 'friend'}.</em></h1><p>Every great day deserves a great slice.</p></div><button className="button button-light" onClick={() => navigate('menu')}>Order something lovely <ArrowRight size={16}/></button></div>{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <DashboardMetricSkeleton/> : <div className="dashboard-metrics"><div><span>ORDERS MADE</span><strong>{ordersStatus === 'ready' ? orders.length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'And counting' : 'Not available'}</small></div><div><span>ON THE WAY</span><strong>{ordersStatus === 'ready' ? orders.filter(o => ['order_received', 'in_kitchen', 'sent_to_delivery'].includes(o.status)).length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'Good things incoming' : 'Not available'}</small></div><div><span>YOUR LAST ORDER</span><strong>{ordersStatus === 'ready' && orders[0] ? currency(orders[0].total) : '—'}</strong><small>{ordersStatus === 'ready' ? orders[0]?.orderNumber || 'Your first slice awaits' : 'Not available'}</small></div></div>}<div className="section-heading dashboard-heading"><div><h2>Order <em>updates.</em></h2><p>We’ll keep you in the loop. This list refreshes automatically.</p></div><button className="text-link" onClick={refreshOrders}><RefreshCw size={15}/> Refresh</button></div>{ordersError && ordersStatus === 'ready' && <InlineDataWarning message={ordersError} onRetry={refreshOrders} />}{issuesError && <InlineDataWarning message={issuesError} onRetry={refreshIssues} />}{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <OrderListSkeleton count={2}/> : ordersStatus === 'error' ? <DataUnavailable title="Your orders haven’t loaded" message="We couldn’t confirm your order history. Please retry instead of assuming there are no orders." onRetry={refreshOrders}/> : orders.length ? <div className="orders-list">{orders.map(order => <OrderCard key={order.id} order={order} onReorder={repeatOrder} issue={issues.find(item => item.orderId === order.id)} onReportIssue={openIssueReport} onRefreshIssues={refreshIssues}/>)}</div> : <div className="empty-state compact-empty"><div className="empty-art">🥡</div><h2>The first one’s always special.</h2><p>Place an order and watch the magic happen here.</p><button className="button button-dark" onClick={() => navigate('menu')}>Explore the menu <ArrowRight size={17}/></button></div>}</section>}
 
     {page === 'admin' && <section className="section-wrap page-section admin-page"><div className="admin-heading"><div><div className="eyebrow">BEHIND THE COUNTER</div><h1>Good food takes <em>good care.</em></h1><p>Live order events refresh the queue. Use Refresh data to recheck inventory and payment status.</p></div><button className="button button-light" onClick={refreshAdmin}><RefreshCw size={16}/> Refresh data</button></div>{!user || user.role !== 'admin' ? <div className="empty-state"><div className="empty-art">🔐</div><h2>Admin access only.</h2><p>Sign in through the separate admin sign-in flow.</p><button className="button button-dark" onClick={() => openAuth('admin')}>Admin sign in <ArrowRight size={16}/></button></div> : (adminStatus === 'loading' || adminStatus === 'idle') ? <AdminPanelsSkeleton/> : adminStatus === 'error' ? <DataUnavailable title="Operations data isn’t available" message="Inventory, order and payment-review data could not be confirmed. Retry to load the live dashboard." onRetry={refreshAdmin}/> : <>{adminError && <InlineDataWarning message={adminError} onRetry={refreshAdmin}/>}<div className="admin-metrics">{[{ label: 'Total orders', value: adminData.summary?.ordersTotal ?? '—', icon: ShoppingBag }, { label: 'Paid orders', value: adminData.summary?.paidOrders ?? '—', icon: BadgeCheck }, { label: 'Revenue', value: currency(adminData.summary?.revenue), icon: ArrowUpRight }, { label: 'Low-stock items', value: adminData.summary?.lowStock ?? '—', icon: Boxes }].map(item => <div className="admin-metric" key={item.label}><span><item.icon size={17}/>{item.label}</span><strong>{item.value}</strong></div>)}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Inventory room</h2><p>Update stock counts and per-item alert thresholds.</p></div><Boxes size={20}/></div><div className="inventory-table"><div className="inventory-row inventory-header"><span>Item</span><span>In stock</span><span>Alert at</span><span>State</span></div>{adminData.inventory.length ? adminData.inventory.map(item => <InventoryRow key={item.key} item={item} onSave={updateInventory}/>) : <div className="empty-small">No inventory items were returned by the API.</div>}</div></div><div className="admin-panel"><div className="panel-heading"><div><h2>Payment review queue</h2><p>Signed webhook events needing manual reconciliation.</p></div><ShieldCheck size={20}/></div>{adminData.paymentReviews.length ? <div className="payment-review-list">{adminData.paymentReviews.map(event => <article className="payment-review-event" key={event.eventId}><div><strong>{event.eventType}</strong><small>{event.order?.orderNumber || 'Unmatched provider order'} · {new Date(event.receivedAt).toLocaleString()}</small></div><p>{event.reason?.replaceAll('_', ' ') || 'Manual review required'}</p><small>Provider order: {event.providerOrderId || 'not supplied'} · Payment: {event.paymentId || 'not supplied'}</small><small>Event ID: {event.eventId}</small>{event.order?.refundStatus === 'pending' && <p className="refund-status-note">Refund pending with Razorpay. Do not submit another refund.</p>}{event.order?.refundStatus === 'failed' && <p className="refund-status-note">Refund failed or was rejected. Manual provider review is required.</p>}{event.order?.id && event.order.status === 'payment_review' && event.order.paymentReviewRequired && event.order.paymentStatus === 'paid' && event.paymentId === event.order.razorpayPaymentId && event.reason !== 'multiple_captured_payments_for_order' && !adminData.paymentReviews.some(item => item.order?.id === event.order.id && item.paymentId && item.paymentId !== item.order?.razorpayPaymentId) && !['pending', 'processed', 'failed'].includes(event.order.refundStatus || 'none') && <div className="payment-review-actions"><small>{event.order.refundStatus === 'requested' ? 'A retry reuses the same provider idempotency key.' : 'Use only after reviewing the captured-payment exception.'}</small><button type="button" className="button button-light small-button" disabled={pendingRefundOrderId === event.order.id} onClick={() => requestReviewRefund(event)}>{pendingRefundOrderId === event.order.id ? 'Submitting…' : event.order.refundStatus === 'requested' ? 'Retry safely' : 'Issue full refund'}</button></div>}</article>)}</div> : <div className="empty-small">No payment webhook reviews are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Customer issue cases</h2><p>Track missing items, wrong items, quality concerns and delivery delays. Customer messages are visible to the customer.</p></div><MessageCircle size={20}/></div>{adminData.issues.length ? <div className="issue-case-list">{adminData.issues.map(issue => <AdminIssueCard key={issue.id} issue={issue} pending={pendingAdminIssueId === issue.id} onUpdate={updateIssue}/>)}</div> : <div className="empty-small">No customer issue reports are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Incoming orders</h2><p>Move paid orders through the kitchen and delivery.</p></div><ShoppingBag size={20}/></div>{adminData.orders.length ? <div className="orders-list">{adminData.orders.map(order => <OrderCard key={order.id} order={order} admin onStatus={updateStatus}/>)}</div> : <div className="empty-small">No orders have come in yet.</div>}</div></>}</section>}
     </main>
     <footer className="site-footer"><div className="footer-main"><a className="brand footer-brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>GOOD FOOD. GOOD MOOD.</small></span></a><p>Made for the good days.<br />And the days that need a little help.</p><button className="back-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Back to the top <ArrowUpRight size={16}/></button></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Pizza House. Made with a little extra cheese.</span><div><span>Fresh food, honest ingredients</span><span className="footer-dot">·</span><span>Secure payments</span></div></div></footer>
     <Toast toast={toast} onClose={() => setToast(null)}/>
     {priceReview && <PriceReviewDialog review={priceReview} catalog={catalog} pending={pending} onAccept={acceptPriceReview} onCancel={declinePriceReview}/>}
-    {issueReportOrder && <IssueReportDialog order={issueReportOrder} form={issueForm} setForm={setIssueForm} pending={pendingIssue} onSubmit={submitIssueReport} onCancel={() => { if (!pendingIssue) { setIssueReportOrder(null); setIssueForm(NEW_ISSUE_FORM); } }}/>}
+    {issueReportOrder && <IssueReportDialog order={issueReportOrder} form={issueForm} setForm={setIssueForm} pending={pendingIssue} returnFocusRef={issueReportTriggerRef} onSubmit={submitIssueReport} onCancel={() => { if (!pendingIssue) { setIssueReportOrder(null); setIssueForm(NEW_ISSUE_FORM); } }}/>}
     {authMode && <div className="modal-backdrop" role="presentation" onMouseDown={e => e.target === e.currentTarget && setAuthMode(null)}><div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title"><IconButton className="modal-close" label="Close dialog" onClick={() => setAuthMode(null)}><X size={19}/></IconButton><div className="auth-brand-mark">P<span>.</span></div><div className="eyebrow">{authMode === 'admin' ? 'TEAM ACCESS' : 'COME ON IN'}</div><h2 id="auth-title">{authMode === 'register' ? 'Make yourself at home.' : authMode === 'forgot' ? 'A fresh start.' : authMode === 'reset' ? 'New password, new slice.' : authMode === 'admin' ? 'Welcome back, team.' : 'Your table is waiting.'}</h2><p>{authMode === 'register' ? 'Create an account to follow every lovely order.' : authMode === 'forgot' ? 'We’ll send a secure reset link if your account exists.' : authMode === 'reset' ? 'Choose a strong new password to get back in.' : authMode === 'admin' ? 'Sign in with your separately provisioned admin account.' : 'Sign in for order updates and a little more pizza joy.'}</p><form onSubmit={submitAuth}>{authMode === 'register' && <Field label="Your name" icon={UserRound} placeholder="How should we call you?" autoComplete="name" required minLength={2} maxLength={80} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/>}{authMode === 'forgot' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={emailOnly} onChange={e => setEmailOnly(e.target.value)}/>}{!['forgot'].includes(authMode) && authMode !== 'reset' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/>}{(authMode === 'login' || authMode === 'register' || authMode === 'admin' || authMode === 'reset') && <Field label={authMode === 'reset' ? 'New password' : 'Password'} icon={LockKeyhole} type="password" placeholder={authMode === 'reset' ? '10+ characters, mixed case and a number' : 'At least 10 characters'} required minLength={10} autoComplete={authMode === 'login' || authMode === 'admin' ? 'current-password' : 'new-password'} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}/>}{authMode === 'login' && <button type="button" className="forgot-link" onClick={() => setAuthMode('forgot')}>Forgot password?</button>}<button disabled={pending} className="button button-dark full-button auth-submit">{pending ? <LoaderCircle size={17} className="spin"/> : authMode === 'reset' ? <LockKeyhole size={17}/> : authMode === 'forgot' ? <Mail size={17}/> : authMode === 'admin' ? <ShieldCheck size={17}/> : authMode === 'register' ? <UserRound size={17}/> : <LogIn size={17}/>} {pending ? 'Please wait…' : authMode === 'register' ? 'Create my account' : authMode === 'forgot' ? 'Send reset link' : authMode === 'reset' ? 'Update password' : authMode === 'admin' ? 'Sign in as admin' : 'Sign in'}</button></form>{authMode === 'login' ? <div className="auth-switch">New around here? <button onClick={() => setAuthMode('register')}>Create an account</button><button className="admin-link" onClick={() => setAuthMode('admin')}>Team sign in</button></div> : authMode === 'register' ? <div className="auth-switch">Already part of the house? <button onClick={() => setAuthMode('login')}>Sign in</button></div> : authMode === 'admin' ? <div className="auth-switch">Customer account? <button onClick={() => setAuthMode('login')}>Customer sign in</button></div> : <div className="auth-switch"><button onClick={() => setAuthMode('login')}>Back to sign in</button></div>}<small className="auth-privacy"><ShieldCheck size={13}/> Your details stay protected. We never store card numbers.</small></div></div>}
   </div>;
 }
@@ -697,7 +714,7 @@ function OrderCard({ order, admin = false, onStatus, onReorder, issue, onReportI
     const canReportIssue = !admin && paid && !reviewNeeded && !refunded &&
         ['order_received', 'in_kitchen', 'sent_to_delivery', 'delivered'].includes(order.status);
 
-    return <article className="order-card">
+    return <article className="order-card" data-order-id={order.id} tabIndex={-1}>
         <div className="order-card-top">
             <div>
                 <span className="eyebrow">ORDER {order.orderNumber}</span>
@@ -723,7 +740,7 @@ function OrderCard({ order, admin = false, onStatus, onReorder, issue, onReportI
                     : paid
                         ? <div className="order-timeline">{ORDER_STEPS.map((step, i) => <div key={step.id} className={`timeline-step ${i <= current ? 'complete' : ''} ${i === current ? 'current' : ''}`}><span className="timeline-icon"><step.icon size={16}/></span><small>{step.label}</small></div>)}</div>
                         : <div className="pending-message"><Clock3 size={15}/> Waiting for a verified payment before kitchen preparation.</div>}
-        {!admin && issue && <div className={`issue-status-card issue-status-${issue.status}`}>
+        {!admin && issue && <div className={`issue-status-card issue-status-${issue.status}`} tabIndex={-1}>
             <div className="issue-status-copy">
                 <span className="eyebrow">CASE {issue.reference}</span>
                 <strong>{issue.status === 'resolved' ? 'Marked resolved' : issue.status === 'under_review' ? 'Team is reviewing this case' : 'Report received'}</strong>
@@ -734,7 +751,7 @@ function OrderCard({ order, admin = false, onStatus, onReorder, issue, onReportI
         </div>}
         {canReportIssue && (!issue || issue.status === 'resolved') && <div className="order-issue-actions">
             <p>{issue?.status === 'resolved' ? 'A new issue with this order? Open another case.' : 'Something missing, incorrect or not right? Tell us what happened.'}</p>
-            <button type="button" className="button button-light small-button" onClick={() => onReportIssue?.(order)}><MessageCircle size={16}/>{issue?.status === 'resolved' ? 'Report another problem' : 'Report a problem'}</button>
+            <button type="button" className="button button-light small-button" onClick={event => onReportIssue?.(order, event.currentTarget)}><MessageCircle size={16}/>{issue?.status === 'resolved' ? 'Report another problem' : 'Report a problem'}</button>
         </div>}
         {admin && next && paid && !reviewNeeded && <div className="order-admin-actions"><span>Update status</span><button className="button button-light small-button" onClick={() => onStatus(order, next)}>Move to {next.replaceAll('_', ' ')} <ArrowRight size={15}/></button></div>}
         {canRepeat && <div className="order-repeat-actions"><p>Want this one again? We’ll use the current menu and prices, not the old total.</p><button type="button" className="button button-light small-button" onClick={() => onReorder?.(order)}><RefreshCw size={16}/> Order again</button></div>}
@@ -845,9 +862,65 @@ function PriceReviewDialog({ review, catalog, pending, onAccept, onCancel }) {
     </div>;
 }
 
-function IssueReportDialog({ order, form, setForm, pending, onSubmit, onCancel }) {
+function IssueReportDialog({ order, form, setForm, pending, returnFocusRef, onSubmit, onCancel }) {
+    const dialogRef = useRef(null);
+    useEffect(() => {
+        dialogRef.current?.querySelector('select')?.focus();
+        return () => {
+            const trigger = returnFocusRef?.current;
+            if (trigger?.isConnected) {
+                trigger.focus();
+                return;
+            }
+            const card = Array.from(document.querySelectorAll('[data-order-id]'))
+                .find(element => element.dataset.orderId === order.id);
+            const fallback = card?.querySelector('.issue-status-card') || card;
+            fallback?.focus();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (pending && !dialogRef.current?.contains(document.activeElement)) {
+            dialogRef.current?.querySelector('select:not(:disabled), textarea:not(:disabled)')?.focus();
+        }
+    }, [pending]);
+
+    const handleKeyDown = (event) => {
+        if (event.key === 'Escape') {
+            if (!pending) {
+                event.preventDefault();
+                event.stopPropagation();
+                onCancel();
+            }
+            return;
+        }
+        if (event.key !== 'Tab') return;
+
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        const focusable = Array.from(dialog.querySelectorAll(
+            'button:not(:disabled), select:not(:disabled), textarea:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+        )).filter(element => element.getClientRects().length > 0);
+        if (!focusable.length) {
+            event.preventDefault();
+            dialog.focus();
+            return;
+        }
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+            event.preventDefault();
+            first.focus();
+        }
+    };
+
     return <div className="modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && !pending && onCancel()}>
-        <section className="auth-modal issue-report-modal" role="dialog" aria-modal="true" aria-labelledby="issue-report-title" aria-describedby="issue-report-description">
+        <section className="auth-modal issue-report-modal" role="dialog" aria-modal="true" aria-labelledby="issue-report-title" aria-describedby="issue-report-description"
+            tabIndex={-1} ref={dialogRef} onKeyDown={handleKeyDown}>
             <IconButton className="modal-close" label="Close dialog" disabled={pending} onClick={onCancel}><X size={19}/></IconButton>
             <div className="auth-brand-mark"><MessageCircle size={21}/></div>
             <div className="eyebrow">ORDER SUPPORT</div>
