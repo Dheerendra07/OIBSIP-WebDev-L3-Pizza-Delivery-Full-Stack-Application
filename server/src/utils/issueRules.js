@@ -58,21 +58,21 @@ export function validateIssueUpdate(issue, body) {
     return { allowed: false, statusCode: 400, message: 'Provide a valid case update.' };
   }
 
-  const allowedKeys = new Set(['status', 'adminNote']);
+  const allowedKeys = new Set(['status', 'customerUpdate']);
   if (!Object.keys(body).length || Object.keys(body).some((key) => !allowedKeys.has(key))) {
-    return { allowed: false, statusCode: 400, message: 'Provide a case status and/or internal note only.' };
+    return { allowed: false, statusCode: 400, message: 'Provide a case status and/or customer message only.' };
   }
 
   const updates = {};
-  if (Object.hasOwn(body, 'adminNote')) {
-    if (typeof body.adminNote !== 'string') {
-      return { allowed: false, statusCode: 400, message: 'The internal note must be text.' };
+  if (Object.hasOwn(body, 'customerUpdate')) {
+    if (typeof body.customerUpdate !== 'string') {
+      return { allowed: false, statusCode: 400, message: 'The customer message must be text.' };
     }
-    const adminNote = body.adminNote.trim().replace(/[ \t]+/g, ' ');
-    if (adminNote.length > 600) {
-      return { allowed: false, statusCode: 400, message: 'The internal note must be 600 characters or fewer.' };
+    const customerUpdate = body.customerUpdate.trim().replace(/[ \t]+/g, ' ');
+    if (customerUpdate.length > 600) {
+      return { allowed: false, statusCode: 400, message: 'The customer message must be 600 characters or fewer.' };
     }
-    updates.adminNote = adminNote;
+    updates.customerUpdate = customerUpdate;
   }
 
   if (Object.hasOwn(body, 'status')) {
