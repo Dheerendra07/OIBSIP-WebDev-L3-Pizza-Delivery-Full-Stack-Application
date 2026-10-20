@@ -573,12 +573,12 @@ export default function App() {
             return;
         }
         setPendingIssue(true);
-        pendingIssueFocusOrderId.current = issueReportOrder.id;
         try {
             const response = await api('/issues', {
                 method: 'POST',
                 body: { orderId: issueReportOrder.id, category: issueForm.category, description },
             });
+            pendingIssueFocusOrderId.current = issueReportOrder.id;
             setIssueReportOrder(null);
             setIssueForm(NEW_ISSUE_FORM);
             await refreshIssues();
