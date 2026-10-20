@@ -15,8 +15,9 @@ Last updated: 2026-10-20
 - Historical Socket.IO live order tracking merge: `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
 - Historical Socket.IO session-expiry hardening merge: `71d18fec59dd4106a43d6efd34327639035a7a25`.
 - Order-list skeletons on the feature branch reserve space for the new repeat-order footer to reduce layout shift; the footer shape is hidden from assistive technology as decorative loading UI.
-- Current focused feature branch: `feat/safe-repeat-order`. It adds a customer order-history action that rebuilds delivered/cancelled orders using the current catalog, refuses partial restores or substitutions when recipes/options are missing or unavailable, and keeps payment checkout as a separate explicit action. This branch has not been merged.
-- GitHub Actions is not being used as the sole verification signal for this task. Focused reorder utility checks were run with Node.js 22.16.0 in an isolated local harness (10/10 passed); the full repo test/build and browser journey remain unverified because the local environment could not resolve GitHub/npm registry DNS.
+- Feature branch `feat/safe-repeat-order` adds an order-history action that rebuilds delivered/cancelled orders using the current catalog, refuses partial restores or substitutions when recipes/options are missing or unavailable, and keeps payment checkout as a separate explicit action. PR #23 is open pending merge review.
+- Verification outside GitHub Actions: isolated utility tests passed 10/10; full `npm test` passed 124/124 and Vite production build passed in a remote workspace using Node 26.8.2/npm 12.2.0. Chrome rendered the home page, order history, and repeat-order cart with deterministic mocked API responses at desktop and 390px mobile; no page errors were recorded, and mobile document width matched scroll width (390px). These are UI/component checks, not live API/payment proof.
+- `npm audit --prefix server` reported one high-severity direct Nodemailer finding for the declared `^7.0.9` range. A separate candidate upgrade to `^10.1.7` passed 124/124 tests, production build, and server audit with zero vulnerabilities in the isolated workspace; PR #24 is open. SMTP provider delivery still needs a real configuration-backed test.
 - Real environment credentials and database exports must not be committed.
 
 ## Implemented
@@ -52,6 +53,10 @@ Last updated: 2026-10-20
 - Verify rendered order-history repeat flow on mobile/desktop, including bag replacement confirmation, sold-out ingredient refusal, current-price display, and the existing server quote-confirmation path. Capture genuine browser screenshots once the app can be run locally or from a verified deployment.
 
 ## Final setup and end-to-end verification — still pending
+
+- Dependency repeatability also remains pending: generated root/server/client lockfiles were used only in an isolated workspace and are not committed. Commit reviewed lockfiles and move the clean-install path to `npm ci` in a separate focused change.
+
+
 
 1. Generate and commit root, server and client npm lockfiles with registry access, then switch CI's clean install path to `npm ci` and rerun all checks. The current repository does not pin transitive dependency versions in committed lockfiles.
 2. Configure a transaction-capable MongoDB replica set/Atlas environment and seed inventory; test concurrent stock contention, sold-out items and expired reservations.
