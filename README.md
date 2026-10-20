@@ -10,6 +10,7 @@ Pizza House is a MERN full-stack internship project for custom pizza ordering, s
 - Enter and validate recipient, mobile number and delivery address before creating a payable order; update destination details while payment is pending.
 - Start Razorpay Test Mode checkout and retry server verification for the same payment when confirmation is uncertain, including after a page reload in the same browser tab/session.
 - See saved delivery details in order history and authenticated Socket.IO order updates.
+- Repeat delivered/cancelled orders from history using the current menu prices; unavailable ingredients are not silently substituted, and payment starts only after a new explicit checkout.
 
 ### Admin experience
 - Separate admin login; public registration cannot create admin accounts.
