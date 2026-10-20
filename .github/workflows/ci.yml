@@ -2,7 +2,7 @@ name: Pizza House CI
 
 on:
   push:
-    branches: [main, 'feat/**', 'fix/**']
+    branches: [main, 'feat/**', 'fix/**', 'build/**', 'docs/**']
   pull_request:
     branches: [main]
 
@@ -24,7 +24,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install root, API, and web dependencies
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+      - name: Install locked root, API, and web dependencies
         run: npm run install:all
       - name: Run API and client unit tests
         run: npm test
