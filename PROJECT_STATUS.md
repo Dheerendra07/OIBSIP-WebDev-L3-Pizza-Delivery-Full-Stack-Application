@@ -8,12 +8,14 @@ Last updated: 2026-10-20
 
 - Repository: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application
 - Default branch: `main`.
-- Latest merged application hardening commit: `d3607cab72488e6c81783c0abde74e83f56b8bb9` — server-priced checkout quote review and explicit price/recipe reconfirmation (PR #21).
+- Latest merged application hardening commit: `d6f90bcb4b06ba0e4524ba6fad68c5d80b070582` — readability/touch-target baseline and responsive admin inventory fields (PR #22).
 - Delivery details collection and persistence merged in PR #16.
 - Trust/safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, #15 guarded admin full-refund recovery, #16 delivery destination fields, #17 checkout/recovery hardening, #18 custom-pizza validation/provider capture-history checks, #20 shared card loading/error states and live catalog gating, and #21 explicit server-quote confirmation before payment.
 - PR #14 was a stale status-document snapshot and is closed as superseded.
 - Historical Socket.IO live order tracking merge: `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
 - Historical Socket.IO session-expiry hardening merge: `71d18fec59dd4106a43d6efd34327639035a7a25`.
+- Current focused feature branch: `feat/safe-repeat-order`. It adds a customer order-history action that rebuilds delivered/cancelled orders using the current catalog, refuses partial restores or substitutions when recipes/options are missing or unavailable, and keeps payment checkout as a separate explicit action. This branch has not been merged.
+- GitHub Actions is not being used as the sole verification signal for this task. Focused reorder utility checks were run with Node.js 22.16.0 in an isolated local harness (8/8 passed); the full repo test/build and browser journey remain unverified because the local environment could not resolve GitHub/npm registry DNS.
 - Real environment credentials and database exports must not be committed.
 
 ## Implemented
@@ -45,6 +47,8 @@ Last updated: 2026-10-20
 - Push check: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319845265 — passed.
 - Both checks completed dependency installation, configured tests/smoke checks and the production client build successfully.
 - They do not verify external MongoDB, Razorpay, SMTP or deployed-browser behaviour.
+
+- Verify rendered order-history repeat flow on mobile/desktop, including bag replacement confirmation, sold-out ingredient refusal, current-price display, and the existing server quote-confirmation path. Capture genuine browser screenshots once the app can be run locally or from a verified deployment.
 
 ## Final setup and end-to-end verification — still pending
 
