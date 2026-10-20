@@ -8,16 +8,16 @@ Last updated: 2026-10-20
 
 - Repository: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application
 - Default branch: `main`.
-- Latest merged application hardening commit: `d6f90bcb4b06ba0e4524ba6fad68c5d80b070582` — readability/touch-target baseline and responsive admin inventory fields (PR #22).
+- Latest merged code commit: `7fd0e8920f848142a141882a848a2ecbbb2c3f16` — Nodemailer security-range fix (PR #24). Safe repeat-order from PR #23 merged as `b7706036a7e7674497837fef8906b489233170a3`.
 - Delivery details collection and persistence merged in PR #16.
-- Trust/safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, #15 guarded admin full-refund recovery, #16 delivery destination fields, #17 checkout/recovery hardening, #18 custom-pizza validation/provider capture-history checks, #20 shared card loading/error states and live catalog gating, and #21 explicit server-quote confirmation before payment.
+- Trust/safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, #15 guarded admin full-refund recovery, #16 delivery destination fields, #17 checkout/recovery hardening, #18 custom-pizza validation/provider capture-history checks, #20 shared card loading/error states and live catalog gating, and #21 explicit server-quote confirmation before payment, #23 live-catalog-based repeat order, and #24 Nodemailer security-range upgrade.
 - PR #14 was a stale status-document snapshot and is closed as superseded.
 - Historical Socket.IO live order tracking merge: `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
 - Historical Socket.IO session-expiry hardening merge: `71d18fec59dd4106a43d6efd34327639035a7a25`.
-- Order-list skeletons on the feature branch reserve space for the new repeat-order footer to reduce layout shift; the footer shape is hidden from assistive technology as decorative loading UI.
+- Order-list skeletons reserve space for the repeat-order footer to reduce layout shift; the footer shape is hidden from assistive technology as decorative loading UI.
 - Safe repeat-order is the customer order-history feature in PR #23: it rebuilds delivered/cancelled orders using the current catalog, refuses partial restores or substitutions when recipes/options are missing or unavailable, and keeps payment checkout as a separate explicit action.
 - Verification outside GitHub Actions: isolated utility tests passed 10/10; full `npm test` passed 124/124 and Vite production build passed in a remote workspace using Node 26.8.2/npm 12.2.0. Chrome rendered the home page, order history, and repeat-order cart with deterministic mocked API responses at desktop and 390px mobile; no page errors were recorded, and mobile document width matched scroll width (390px). These are UI/component checks, not live API/payment proof.
-- `npm audit --prefix server` reported one high-severity direct Nodemailer finding for the declared `^7.0.9` range. A separate candidate upgrade to `^10.1.7` passed 124/124 tests, production build, and server audit with zero vulnerabilities in the isolated workspace; PR #24 is open. SMTP provider delivery still needs a real configuration-backed test.
+- Nodemailer is now declared as `^10.1.7` after PR #24. The isolated upgrade verification passed 124/124 tests, production build, and `npm audit --prefix server` with zero reported vulnerabilities; real SMTP provider delivery still needs a configuration-backed test.
 - Real environment credentials and database exports must not be committed.
 
 ## Implemented
@@ -42,6 +42,7 @@ Last updated: 2026-10-20
 
 ## Latest verified automated checks
 
+- Latest non-GitHub-Actions verification for the merged PR #23 + #24 source: full `npm test` passed 124/124; `npm run build` succeeded; `npm audit --prefix server` reported 0 vulnerabilities for Nodemailer `^10.1.7`. Chrome rendered home, desktop/mobile order history, and repeat-order cart with mocked API responses; no page errors, and 390px viewport width matched document scroll width. External MongoDB, SMTP delivery, Razorpay, and production deployment were not tested.
 - PR #22 source commit: `652c2bd7489372e24671cfd9f9dbefe78d4f52be` — GitHub Actions run `39448534587` passed dependency installation, the configured client/server test suite, and the production client build for the P0.3 readability, touch-target, and responsive inventory-field changes. Follow-up commits in PR #22 synchronize the status and roadmap documentation.
 - PR #21 price-confirmation head: `657607ce4d462cbedf95f504cdc24266dad5d6fc` — GitHub Actions run `39447782348` passed dependency installation, the configured test suite, and production build.
 - PR #18 code head: `e29bf1f78c9206c9d222d87dabb2c5bf5fb70aea`.
@@ -50,7 +51,7 @@ Last updated: 2026-10-20
 - Both checks completed dependency installation, configured tests/smoke checks and the production client build successfully.
 - They do not verify external MongoDB, Razorpay, SMTP or deployed-browser behaviour.
 
-- Verify rendered order-history repeat flow on mobile/desktop, including bag replacement confirmation, sold-out ingredient refusal, current-price display, and the existing server quote-confirmation path. Capture genuine browser screenshots once the app can be run locally or from a verified deployment.
+- Complete accessibility QA beyond the visual preview: keyboard-only journey, focus visibility, contrast, screen-reader announcements, 320px viewport, and 200% text zoom. The repeat-order flow was visually exercised with mock API responses, but checkout with real services remains pending.
 
 ## Final setup and end-to-end verification — still pending
 
