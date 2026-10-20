@@ -133,7 +133,7 @@ This audit began as source-only. A later Chrome preview exercised the actual fro
 
 - `npm audit --prefix server` found one high-severity Nodemailer advisory with the prior `^7.0.9` range.
 - Nodemailer `^10.1.7` is now merged via PR #24. The isolated install reports zero server audit findings and passed all 124 tests plus the production client build; real SMTP sends remain to be verified.
-- The reproducible-install change adds root/server/client lockfiles and switches `install:all`/CI to `npm ci`, with lockfile-aware npm cache configuration. Clean installs passed on Node 22.22.2/npm 10.9.7, along with 124/124 tests, production build, and zero root/server/client audit findings. Real SMTP sending remains unverified.
+- PR #26 adds root/server/client lockfiles and switches `install:all`/CI to `npm ci`, with lockfile-aware npm cache configuration. Clean installs passed on Node 22.22.2/npm 10.9.7, along with 124/124 tests, production build, and zero root/server/client audit findings. Real SMTP sending remains unverified.
 
 ## Current implementation checkpoint — safe repeat order
 
@@ -142,7 +142,7 @@ This audit began as source-only. A later Chrome preview exercised the actual fro
 - **Card contract:** action appears only on delivered/cancelled orders, never on a payment-review record; copy explains that current prices apply; button has a 44px minimum height and stacks cleanly on narrow mobile screens.
 - **Loading contract:** customer order-list skeleton cards reserve the footer shape before data arrives, preventing the new CTA from abruptly changing card height; admin skeleton cards do not show that customer-only action.
 - **Verification:** 10 focused repeat-order utility cases passed; the full 141-test repository suite and Vite production build passed on Node 22.22.2/npm 10.9.7 in an isolated workspace. Root/server/client audits reported zero vulnerabilities. Chrome rendered home, order history, repeat-order cart, issue-report dialog, admin case queue, and 390px mobile order history using mocked API responses; no page errors or horizontal overflow were recorded. These checks do not verify live DB/Razorpay/SMTP integrations.
-- **Order issue reporting — implemented on branch `feat/order-issue-reporting`, pending merge review.** Customers can report a missing item, wrong item, quality concern, delay, or other problem against their own paid order in an eligible fulfilment state. An active case per order/customer is enforced by a partial unique index; invalid input and extra fields fail validation. Admins can see cases, move `open → under_review → resolved`, and post a message that is explicitly visible to the customer. This does not issue refunds or claim that the issue is resolved by an external provider.
+- **Order issue reporting — merged in PR #27.** Customers can report a missing item, wrong item, quality concern, delay, or other problem against their own paid order in an eligible fulfilment state. An active case per order/customer is enforced by a partial unique index; invalid input and extra fields fail validation. Admins can see cases, move `open → under_review → resolved`, and post a message that is explicitly visible to the customer. This does not issue refunds or claim that the issue is resolved by an external provider.
 
 ## Delivery plan
 
@@ -150,7 +150,7 @@ This audit began as source-only. A later Chrome preview exercised the actual fro
 2. **Phase 1 — skeleton + truthful catalog state:** one isolated branch, no broad re-theme. Implement shared card skeleton and error/retry components, remove misleading fallback presentation, add tests for the state logic and retry path.
 3. **Phase 2 — visual foundation:** consolidate semantic tokens, fix small type/tap targets, reduced motion, focus and empty/error states; run a mobile/tablet/desktop manual checklist.
 4. **Phase 3 — price-consent guard:** ensure any server/client price difference is shown and reconfirmed before payment starts.
-5. **Phase 4 — issue-resolution flow:** first implementation is on `feat/order-issue-reporting` pending merge review. Customer form/reference, admin queue/status/customer-visible message, validation and auth smoke tests are in place; no automatic compensation claim. Finish regression review and merge only after the documented tests remain green.
+5. **Phase 4 — issue-resolution flow:** first implementation merged in PR #27. Customer form/reference, admin queue, `open → under_review → resolved`, customer-visible message, allowlist validation, partial unique active-case index and auth smoke tests are in place. No automatic compensation claim. Live database index creation and configured user journeys remain pending.
 6. **Phase 5 — consent-based substitution and verified ingredient disclosures.**
 7. **Phase 6 — final environment setup and full external end-to-end test**, after code-side work as requested.
 
@@ -167,4 +167,4 @@ A change is done only when:
 
 ## Source and research limitations
 
-This was a public-web scan plus a source-level repository review, not a statistically representative user study or live browser usability test. Reddit posts are self-selected anecdotes. Before the P1 issue-resolution flow is finalized, conduct 5–8 short task-based sessions with people who order food on mobile and ask them to: find the final total, change a recipe, understand an order status, and report a missing item. Record where each person hesitates or fails instead of asking only whether they "like" the design.
+This was a public-web scan plus a source-level repository review, not a statistically representative user study or live browser usability test. Reddit posts are self-selected anecdotes. Next, conduct 5–8 short task-based sessions with people who order food on mobile and ask them to: find the final total, change a recipe, understand an order status, and report a missing item. Record where each person hesitates or fails instead of asking only whether they "like" the design.
