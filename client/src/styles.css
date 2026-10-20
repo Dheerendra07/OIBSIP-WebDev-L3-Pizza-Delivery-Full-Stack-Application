@@ -263,3 +263,6 @@
 .order-repeat-actions .button{min-height:44px;padding-inline:14px;font-size:12px;white-space:nowrap}
 .order-repeat-actions .button svg{flex:none}
 @media(max-width:520px){.order-repeat-actions{align-items:stretch;flex-direction:column;gap:10px}.order-repeat-actions p{font-size:13px}.order-repeat-actions .button{width:100%;min-height:46px}}
+
+.order-repeat-skeleton{pointer-events:none}.order-repeat-skeleton .skeleton-repeat-copy{width:57%;height:12px}.order-repeat-skeleton .skeleton-repeat-action{width:112px;height:44px;border-radius:6px}
+@media(max-width:520px){.order-repeat-skeleton .skeleton-repeat-copy{width:85%}.order-repeat-skeleton .skeleton-repeat-action{width:100%;height:46px}}
