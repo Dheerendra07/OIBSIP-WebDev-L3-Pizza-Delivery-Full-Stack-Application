@@ -5,6 +5,7 @@ import { api, API_ORIGIN } from './api.js';
 import { orderMatchesCart, classifyExistingCheckout } from './checkout.js';
 import { normalizeDeliveryDetails } from './delivery.js';
 import { normalizeCatalogResponse, canCheckoutWithCatalog } from './catalog.js';
+import { matchesCartSnapshot, requiresPriceConfirmation, sameServerQuote, snapshotCart, syncCartToServerQuote } from './priceReview.js';
 import { PENDING_PAYMENT_STORAGE_KEY, parsePendingVerification, serializePendingVerification } from './pendingPayment.js';
 const DEFAULT_CATALOG = {
     bases: [{ id: 'classic', name: 'Classic Hand-Tossed', price: 0 }, { id: 'thin', name: 'Thin & Crispy', price: 30 }, { id: 'whole-wheat', name: 'Whole Wheat', price: 40 }, { id: 'pan', name: 'Pan Crust', price: 50 }, { id: 'cheese-burst', name: 'Cheese Burst', price: 70 }],
@@ -52,6 +53,7 @@ export default function App() {
     const [resetToken, setResetToken] = useState(new URLSearchParams(location.search).get('resetToken') || '');
     const [filter, setFilter] = useState('All');
     const [activeOrderId, setActiveOrderId] = useState(null);
+    const [priceReview, setPriceReview] = useState(null);
     const [pendingRefundOrderId, setPendingRefundOrderId] = useState(null);
     const [pendingVerification, setPendingVerification] = useState(() => {
         try {
@@ -180,6 +182,20 @@ export default function App() {
     const builderPrice = useMemo(() => { const find = (group, id) => catalog[group]?.find(x => x.id === id)?.price || 0; return 199 + find('bases', builder.base) + find('sauces', builder.sauce) + find('cheeses', builder.cheese) + builder.vegetables.reduce((sum, id) => sum + find('vegetables', id), 0); }, [catalog, builder]);
     const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
     const deliveryFee = subtotal >= 499 ? 0 : cart.length ? 29 : 0;
+    const buildPriceReview = (order) => ({
+        orderId: String(order.id),
+        previousItems: cart.map(item => ({
+            name: item.name,
+            unitPrice: Number(item.unitPrice),
+            quantity: Number(item.quantity),
+            lineTotal: Number(item.unitPrice) * Number(item.quantity),
+        })),
+        previousSubtotal: subtotal,
+        previousDeliveryFee: deliveryFee,
+        previousTotal: subtotal + deliveryFee,
+        cartSnapshot: snapshotCart(cart),
+        serverOrder: order,
+    });
     const navigate = (next) => { setPage(next); setMobileMenu(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
     const openAuth = (mode) => { setAuthMode(mode); setForm({ name: '', email: '', password: '' }); setEmailOnly(''); };
     const submitAuth = async (e) => { e.preventDefault(); setPending(true); try {
@@ -223,7 +239,7 @@ export default function App() {
         await api('/auth/logout', { method: 'POST' });
     }
     catch { } setUser(null); setOrders([]); ordersLoaded.current = false; setOrdersStatus('idle'); setOrdersError(''); setAdminData({ summary: null, inventory: [], orders: [], paymentReviews: [] }); adminLoaded.current = false; setAdminStatus('idle'); setAdminError(''); setCart([]); setActiveOrderId(null); setPage('home'); notify('You have signed out.'); };
-    const addFeatured = (pizza) => { const existing = cart.find(x => x.cartKey === `featured:${pizza.id}`); setCart(existing ? cart.map(x => x.cartKey === existing.cartKey ? { ...x, quantity: Math.min(10, x.quantity + 1) } : x) : [...cart, { cartKey: `featured:${pizza.id}`, type: 'featured', pizzaId: pizza.id, name: pizza.name, emoji: pizza.emoji, unitPrice: pizza.price, quantity: 1 }]); notify(`${pizza.name} added to your bag`); };
+    const addFeatured = (pizza) => { const existing = cart.find(x => x.cartKey === `featured:${pizza.id}`); setCart(existing ? cart.map(x => x.cartKey === existing.cartKey ? { ...x, quantity: Math.min(10, x.quantity + 1) } : x) : [...cart, { cartKey: `featured:${pizza.id}`, type: 'featured', pizzaId: pizza.id, name: pizza.name, emoji: pizza.emoji, unitPrice: pizza.price, quantity: 1, ingredients: pizza.ingredients }]); notify(`${pizza.name} added to your bag`); };
     const addCustom = () => { const selected = [catalog.bases.find(x => x.id === builder.base), catalog.sauces.find(x => x.id === builder.sauce), catalog.cheeses.find(x => x.id === builder.cheese), ...builder.vegetables.map(id => catalog.vegetables.find(x => x.id === id))]; if (selected.some(x => x?.available === false)) {
         notify('One of those ingredients is out of stock. Update your recipe and try again.', 'error');
         return;
