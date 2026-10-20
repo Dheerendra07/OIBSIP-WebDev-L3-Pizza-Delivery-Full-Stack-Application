@@ -29,7 +29,7 @@ const order = (overrides = {}) => ({
     quantity: 2,
     unitPrice: 249,
     lineTotal: 498,
-    ingredients: { base: 'classic', vegetables: [] },
+    ingredients: { base: 'classic', sauce: 'tomato', cheese: 'mozzarella', vegetables: [] },
   }],
   ...overrides,
 });
@@ -62,9 +62,12 @@ test('price, delivery-fee, subtotal and total differences require reconfirmation
 });
 
 test('recipe/identity differences require reconfirmation even when total is unchanged', () => {
+  const changedRecipe = order({
+    items: [{ ...order().items[0], ingredients: { base: 'thin', sauce: 'tomato', cheese: 'mozzarella', vegetables: [] } }],
+  });
   assert.equal(requiresPriceConfirmation({
     cart: cart(),
-    order: order(),
+    order: changedRecipe,
     displayedSubtotal: 498,
     displayedDeliveryFee: 29,
   }), true);
