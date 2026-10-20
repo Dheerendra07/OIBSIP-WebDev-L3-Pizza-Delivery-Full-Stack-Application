@@ -133,7 +133,7 @@ This audit began as source-only. A later Chrome preview exercised the actual fro
 
 - `npm audit --prefix server` found one high-severity Nodemailer advisory with the prior `^7.0.9` range.
 - Nodemailer `^10.1.7` is now merged via PR #24. The isolated install reports zero server audit findings and passed all 124 tests plus the production client build; real SMTP sends remain to be verified.
-- Root/server/client lockfiles generated for this run are not committed yet, so dependency installs are not deterministic from `main`.
+- The `build/reproducible-npm-lockfiles` candidate adds root/server/client lockfiles and switches `install:all`/CI to `npm ci`, with lockfile-aware npm cache configuration. Clean installs passed on Node 22.22.2/npm 10.9.7, along with 124/124 tests, production build, and zero root/server/client audit findings. This candidate still needs review/merge, and real SMTP sending remains unverified.
 
 ## Current implementation checkpoint — safe repeat order
 
