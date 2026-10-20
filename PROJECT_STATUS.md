@@ -18,7 +18,7 @@ Last updated: 2026-10-20
 - Safe repeat-order is the customer order-history feature in PR #23: it rebuilds delivered/cancelled orders using the current catalog, refuses partial restores or substitutions when recipes/options are missing or unavailable, and keeps payment checkout as a separate explicit action.
 - Verification outside GitHub Actions: isolated utility tests passed 10/10; full `npm test` passed 124/124 and Vite production build passed in a remote workspace using Node 26.8.2/npm 12.2.0. Chrome rendered the home page, order history, and repeat-order cart with deterministic mocked API responses at desktop and 390px mobile; no page errors were recorded, and mobile document width matched scroll width (390px). These are UI/component checks, not live API/payment proof.
 - Nodemailer is now declared as `^10.1.7` after PR #24. The isolated upgrade verification passed 124/124 tests, production build, and `npm audit --prefix server` with zero reported vulnerabilities; real SMTP provider delivery still needs a configuration-backed test.
-- Reproducible dependency install candidate is on branch `build/reproducible-npm-lockfiles`: root/server/client lockfiles use lockfileVersion 3; `npm run install:all` now uses `npm ci` three times. Clean install, full tests (124/124), build, and root/server/client audits (0 vulnerabilities each) passed on Node 22.22.2/npm 10.9.7 outside GitHub Actions. PR review/merge remains pending.
+- Reproducible dependency installation now uses root/server/client lockfileVersion 3 manifests and `npm run install:all` runs `npm ci` in all three packages. Clean install, full tests (124/124), production build and root/server/client audits (0 vulnerabilities each) passed on Node 22.22.2/npm 10.9.7 outside GitHub Actions.
 - Real environment credentials and database exports must not be committed.
 
 ## Implemented
@@ -57,7 +57,7 @@ Last updated: 2026-10-20
 
 ## Final setup and end-to-end verification — still pending
 
-1. Complete configuration-backed verification with MongoDB replica-set transactions, Razorpay Test Mode capture/webhook/refund paths, SMTP sends and the full browser journey. The reproducible-install change is proposed separately in `build/reproducible-npm-lockfiles`; it has passed isolated Node 22 clean-install, test, build and npm audit checks but is not merged yet.
+1. Complete configuration-backed verification with MongoDB replica-set transactions, Razorpay Test Mode capture/webhook/refund paths, SMTP sends and the full browser journey. The reproducible-install change was validated separately on Node 22.22.2/npm 10.9.7 with `npm ci`, all tests, build and audits before inclusion here.
 2. Configure a transaction-capable MongoDB replica set/Atlas environment and seed inventory; test concurrent stock contention, sold-out items and expired reservations.
 3. Configure Razorpay Test Mode keys and the separate webhook secret; test checkout capture, invalid signature, duplicate and out-of-order webhook delivery, ambiguous verification, multiple captured payments, refunds and retry/reconciliation.
 4. Run the browser journey: register → email verification → login → choose/build pizza → enter address → create order → payment → customer order history → admin fulfillment.
