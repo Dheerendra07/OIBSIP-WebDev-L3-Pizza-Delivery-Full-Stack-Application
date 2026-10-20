@@ -41,7 +41,7 @@ function serializeIssue(issue, { includeUser = false } = {}) {
     description: raw.description,
     status: raw.status,
     active: raw.active,
-    adminNote: raw.adminNote || '',
+    customerUpdate: raw.customerUpdate || '',
     statusChangedAt: raw.statusChangedAt,
     resolvedAt: raw.resolvedAt,
     createdAt: raw.createdAt,
@@ -136,7 +136,7 @@ export const updateIssue = asyncHandler(async (req, res) => {
 
   const previousStatus = issue.status;
   if (result.updates.status !== undefined) issue.status = result.updates.status;
-  if (result.updates.adminNote !== undefined) issue.adminNote = result.updates.adminNote;
+  if (result.updates.customerUpdate !== undefined) issue.customerUpdate = result.updates.customerUpdate;
   if (previousStatus !== issue.status) {
     issue.statusChangedAt = new Date();
     if (issue.status === 'resolved') {
