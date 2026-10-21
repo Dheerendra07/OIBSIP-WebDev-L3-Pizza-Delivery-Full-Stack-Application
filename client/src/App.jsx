@@ -65,6 +65,10 @@ export default function App() {
     const [issuesError, setIssuesError] = useState('');
     const [issueReportOrder, setIssueReportOrder] = useState(null);
     const issueReportTriggerRef = useRef(null);
+    const authDialogRef = useRef(null);
+    const authTriggerRef = useRef(null);
+    const authWasOpenRef = useRef(false);
+    const mobileMenuTriggerRef = useRef(null);
     const pendingIssueFocusOrderId = useRef(null);
     const [issueForm, setIssueForm] = useState(NEW_ISSUE_FORM);
     const [pendingIssue, setPendingIssue] = useState(false);
@@ -265,7 +269,71 @@ export default function App() {
         serverOrder: order,
     });
     const navigate = (next) => { setPage(next); setMobileMenu(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    const openAuth = (mode) => { setAuthMode(mode); setForm({ name: '', email: '', password: '' }); setEmailOnly(''); };
+    const openAuth = (mode) => { authTriggerRef.current = document.activeElement; setAuthMode(mode); setForm({ name: '', email: '', password: '' }); setEmailOnly(''); };
+    useEffect(() => {
+        if (!authMode) {
+            if (authWasOpenRef.current) {
+                const trigger = authTriggerRef.current;
+                if (trigger?.isConnected) trigger.focus();
+                else {
+                    const fallback = document.querySelector('.dashboard-top h1, .admin-heading h1, .site-header .brand');
+                    if (fallback) {
+                        if (!fallback.hasAttribute('tabindex')) fallback.tabIndex = -1;
+                        fallback.focus();
+                    }
+                }
+                authTriggerRef.current = null;
+                authWasOpenRef.current = false;
+            }
+            return;
+        }
+
+        authWasOpenRef.current = true;
+        const dialog = authDialogRef.current;
+        if (!dialog) return;
+        const initial = dialog.querySelector('input:not([disabled])') || dialog.querySelector('button:not([disabled])');
+        initial?.focus();
+        const focusableElements = () => Array.from(dialog.querySelectorAll(
+            'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+        )).filter(element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden');
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                setAuthMode(null);
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const elements = focusableElements();
+            if (!elements.length) {
+                event.preventDefault();
+                dialog.focus();
+                return;
+            }
+            const first = elements[0];
+            const last = elements[elements.length - 1];
+            if (!dialog.contains(document.activeElement)) {
+                event.preventDefault();
+                (event.shiftKey ? last : first).focus();
+            } else if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [authMode]);
+    useEffect(() => {
+        if (mobileMenu) {
+            document.querySelector('.main-nav button:not([disabled])')?.focus();
+            return;
+        }
+        const trigger = mobileMenuTriggerRef.current;
+        if (trigger?.isConnected) trigger.focus();
+        mobileMenuTriggerRef.current = null;
+    }, [mobileMenu]);
     const submitAuth = async (e) => { e.preventDefault(); setPending(true); try {
         if (authMode === 'register') {
             await api('/auth/register', { method: 'POST', body: form });
@@ -650,7 +718,7 @@ export default function App() {
     <div className="announcement"><span><Sparkles size={13}/> A little joy, delivered hot.</span><span className="announcement-right">Freshly made · Always worth the wait</span></div>
     <header className="site-header"><a className="brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>GOOD FOOD. GOOD MOOD.</small></span></a>
       <nav className={`main-nav ${mobileMenu ? 'open' : ''}`}><button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button><button className={page === 'menu' ? 'active' : ''} onClick={() => navigate('menu')}>Our menu</button><button className={page === 'builder' ? 'active' : ''} onClick={() => navigate('builder')}>Build your own</button>{user && <button className={page === 'dashboard' ? 'active' : ''} onClick={() => navigate(user.role === 'admin' ? 'admin' : 'dashboard')}>{user.role === 'admin' ? 'Admin panel' : 'My orders'}</button>}</nav>
-      <div className="header-actions"><button className="bag-button" onClick={() => navigate('cart')}><ShoppingBag size={18}/><span>Bag</span><b>{cart.reduce((n, x) => n + x.quantity, 0)}</b></button>{user ? <><button className="account-button" onClick={() => navigate(user.role === 'admin' ? 'admin' : 'dashboard')}><CircleUserRound size={17}/><span>{user.name.split(' ')[0]}</span></button><IconButton className="logout-button" label="Sign out" disabled={pending || Boolean(pendingVerification)} onClick={signOut}><LogOut size={17}/></IconButton></> : <button className="sign-in" onClick={() => openAuth('login')}>Sign in <ArrowUpRight size={16}/></button>}<IconButton className="mobile-toggle" label="Open menu" onClick={() => setMobileMenu(v => !v)}>{mobileMenu ? <X size={20}/> : <Menu size={20}/>}</IconButton></div>
+      <div className="header-actions"><button className="bag-button" onClick={() => navigate('cart')}><ShoppingBag size={18}/><span>Bag</span><b>{cart.reduce((n, x) => n + x.quantity, 0)}</b></button>{user ? <><button className="account-button" onClick={() => navigate(user.role === 'admin' ? 'admin' : 'dashboard')}><CircleUserRound size={17}/><span>{user.name.split(' ')[0]}</span></button><IconButton className="logout-button" label="Sign out" disabled={pending || Boolean(pendingVerification)} onClick={signOut}><LogOut size={17}/></IconButton></> : <button className="sign-in" onClick={() => openAuth('login')}>Sign in <ArrowUpRight size={16}/></button>}<IconButton className="mobile-toggle" label={mobileMenu ? 'Close menu' : 'Open menu'} onClick={event => { if (!mobileMenu) mobileMenuTriggerRef.current = event.currentTarget; setMobileMenu(v => !v); }}>{mobileMenu ? <X size={20}/> : <Menu size={20}/>}</IconButton></div>
     </header>
 
     <main>
@@ -686,7 +754,7 @@ export default function App() {
     <Toast toast={toast} onClose={() => setToast(null)}/>
     {priceReview && <PriceReviewDialog review={priceReview} catalog={catalog} pending={pending} onAccept={acceptPriceReview} onCancel={declinePriceReview}/>}
     {issueReportOrder && <IssueReportDialog order={issueReportOrder} form={issueForm} setForm={setIssueForm} pending={pendingIssue} returnFocusRef={issueReportTriggerRef} onSubmit={submitIssueReport} onCancel={() => { if (!pendingIssue) { setIssueReportOrder(null); setIssueForm(NEW_ISSUE_FORM); } }}/>}
-    {authMode && <div className="modal-backdrop" role="presentation" onMouseDown={e => e.target === e.currentTarget && setAuthMode(null)}><div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title"><IconButton className="modal-close" label="Close dialog" onClick={() => setAuthMode(null)}><X size={19}/></IconButton><div className="auth-brand-mark">P<span>.</span></div><div className="eyebrow">{authMode === 'admin' ? 'TEAM ACCESS' : 'COME ON IN'}</div><h2 id="auth-title">{authMode === 'register' ? 'Make yourself at home.' : authMode === 'forgot' ? 'A fresh start.' : authMode === 'reset' ? 'New password, new slice.' : authMode === 'admin' ? 'Welcome back, team.' : 'Your table is waiting.'}</h2><p>{authMode === 'register' ? 'Create an account to follow every lovely order.' : authMode === 'forgot' ? 'We’ll send a secure reset link if your account exists.' : authMode === 'reset' ? 'Choose a strong new password to get back in.' : authMode === 'admin' ? 'Sign in with your separately provisioned admin account.' : 'Sign in for order updates and a little more pizza joy.'}</p><form onSubmit={submitAuth}>{authMode === 'register' && <Field label="Your name" icon={UserRound} placeholder="How should we call you?" autoComplete="name" required minLength={2} maxLength={80} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/>}{authMode === 'forgot' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={emailOnly} onChange={e => setEmailOnly(e.target.value)}/>}{!['forgot'].includes(authMode) && authMode !== 'reset' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/>}{(authMode === 'login' || authMode === 'register' || authMode === 'admin' || authMode === 'reset') && <Field label={authMode === 'reset' ? 'New password' : 'Password'} icon={LockKeyhole} type="password" placeholder={authMode === 'reset' ? '10+ characters, mixed case and a number' : 'At least 10 characters'} required minLength={10} autoComplete={authMode === 'login' || authMode === 'admin' ? 'current-password' : 'new-password'} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}/>}{authMode === 'login' && <button type="button" className="forgot-link" onClick={() => setAuthMode('forgot')}>Forgot password?</button>}<button disabled={pending} className="button button-dark full-button auth-submit">{pending ? <LoaderCircle size={17} className="spin"/> : authMode === 'reset' ? <LockKeyhole size={17}/> : authMode === 'forgot' ? <Mail size={17}/> : authMode === 'admin' ? <ShieldCheck size={17}/> : authMode === 'register' ? <UserRound size={17}/> : <LogIn size={17}/>} {pending ? 'Please wait…' : authMode === 'register' ? 'Create my account' : authMode === 'forgot' ? 'Send reset link' : authMode === 'reset' ? 'Update password' : authMode === 'admin' ? 'Sign in as admin' : 'Sign in'}</button></form>{authMode === 'login' ? <div className="auth-switch">New around here? <button onClick={() => setAuthMode('register')}>Create an account</button><button className="admin-link" onClick={() => setAuthMode('admin')}>Team sign in</button></div> : authMode === 'register' ? <div className="auth-switch">Already part of the house? <button onClick={() => setAuthMode('login')}>Sign in</button></div> : authMode === 'admin' ? <div className="auth-switch">Customer account? <button onClick={() => setAuthMode('login')}>Customer sign in</button></div> : <div className="auth-switch"><button onClick={() => setAuthMode('login')}>Back to sign in</button></div>}<small className="auth-privacy"><ShieldCheck size={13}/> Your details stay protected. We never store card numbers.</small></div></div>}
+    {authMode && <div className="modal-backdrop" role="presentation" onMouseDown={e => e.target === e.currentTarget && setAuthMode(null)}><div className="auth-modal" ref={authDialogRef} role="dialog" aria-modal="true" aria-labelledby="auth-title" tabIndex={-1}><IconButton className="modal-close" label="Close dialog" onClick={() => setAuthMode(null)}><X size={19}/></IconButton><div className="auth-brand-mark">P<span>.</span></div><div className="eyebrow">{authMode === 'admin' ? 'TEAM ACCESS' : 'COME ON IN'}</div><h2 id="auth-title">{authMode === 'register' ? 'Make yourself at home.' : authMode === 'forgot' ? 'A fresh start.' : authMode === 'reset' ? 'New password, new slice.' : authMode === 'admin' ? 'Welcome back, team.' : 'Your table is waiting.'}</h2><p>{authMode === 'register' ? 'Create an account to follow every lovely order.' : authMode === 'forgot' ? 'We’ll send a secure reset link if your account exists.' : authMode === 'reset' ? 'Choose a strong new password to get back in.' : authMode === 'admin' ? 'Sign in with your separately provisioned admin account.' : 'Sign in for order updates and a little more pizza joy.'}</p><form onSubmit={submitAuth}>{authMode === 'register' && <Field label="Your name" icon={UserRound} placeholder="How should we call you?" autoComplete="name" required minLength={2} maxLength={80} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/>}{authMode === 'forgot' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={emailOnly} onChange={e => setEmailOnly(e.target.value)}/>}{!['forgot'].includes(authMode) && authMode !== 'reset' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/>}{(authMode === 'login' || authMode === 'register' || authMode === 'admin' || authMode === 'reset') && <Field label={authMode === 'reset' ? 'New password' : 'Password'} icon={LockKeyhole} type="password" placeholder={authMode === 'reset' ? '10+ characters, mixed case and a number' : 'At least 10 characters'} required minLength={10} autoComplete={authMode === 'login' || authMode === 'admin' ? 'current-password' : 'new-password'} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}/>}{authMode === 'login' && <button type="button" className="forgot-link" onClick={() => setAuthMode('forgot')}>Forgot password?</button>}<button disabled={pending} className="button button-dark full-button auth-submit">{pending ? <LoaderCircle size={17} className="spin"/> : authMode === 'reset' ? <LockKeyhole size={17}/> : authMode === 'forgot' ? <Mail size={17}/> : authMode === 'admin' ? <ShieldCheck size={17}/> : authMode === 'register' ? <UserRound size={17}/> : <LogIn size={17}/>} {pending ? 'Please wait…' : authMode === 'register' ? 'Create my account' : authMode === 'forgot' ? 'Send reset link' : authMode === 'reset' ? 'Update password' : authMode === 'admin' ? 'Sign in as admin' : 'Sign in'}</button></form>{authMode === 'login' ? <div className="auth-switch">New around here? <button onClick={() => setAuthMode('register')}>Create an account</button><button className="admin-link" onClick={() => setAuthMode('admin')}>Team sign in</button></div> : authMode === 'register' ? <div className="auth-switch">Already part of the house? <button onClick={() => setAuthMode('login')}>Sign in</button></div> : authMode === 'admin' ? <div className="auth-switch">Customer account? <button onClick={() => setAuthMode('login')}>Customer sign in</button></div> : <div className="auth-switch"><button onClick={() => setAuthMode('login')}>Back to sign in</button></div>}<small className="auth-privacy"><ShieldCheck size={13}/> Your details stay protected. We never store card numbers.</small></div></div>}
   </div>;
 }
 function PizzaCard({ pizza, index, onAdd, onCustomize }) { return <article className={`pizza-card ${pizza.tone} card-${index}`}><div className="pizza-card-art"><span className="pizza-label">{pizza.tag}</span><span className="pizza-card-emoji">{pizza.emoji}</span><span className="pizza-card-number">0{index + 1}</span></div><div className="pizza-card-body"><div><h3>{pizza.name}</h3><p>{pizza.description}</p></div><div className="pizza-card-bottom"><strong>{currency(pizza.price)}</strong><button className="add-button" onClick={onAdd} disabled={pizza.available === false} aria-label={pizza.available === false ? `${pizza.name} sold out` : `Add ${pizza.name}`}><Plus size={17}/><span>{pizza.available === false ? 'Sold out' : 'Add'}</span></button></div><button className="customize-link" onClick={onCustomize}>Make something similar <ArrowUpRight size={14}/></button></div></article>; }
