@@ -50,12 +50,25 @@ export async function ensureAdminAccount({ env = process.env, UserModel = User, 
     return { skipped: false, created: false, email };
   }
 
-  await UserModel.create({
+  const adminDocument = {
     name: 'Pizza House Admin',
     email,
     passwordHash: await hashPasswordFn(password),
     role: 'admin',
     emailVerifiedAt: new Date(),
-  });
-  return { skipped: false, created: true, email };
+  };
+  try {
+    await UserModel.create(adminDocument);
+    return { skipped: false, created: true, email };
+  } catch (error) {
+    // Two overlapping startups may race on the unique email index. Accept the winner only
+    // when the saved account is an admin; never convert a customer account.
+    if (error?.code !== 11000) throw error;
+    const raced = await UserModel.findOne({ email });
+    if (raced?.role === 'admin') return { skipped: false, created: false, email };
+    if (raced) {
+      throw new Error('ADMIN_EMAIL already belongs to a non-admin account. Choose a separate admin email; no role was changed.');
+    }
+    throw error;
+  }
 }
