@@ -1,0 +1,59 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { prepareLocalEnv } from '../src/utils/localEnvBootstrap.js';
+
+const strongSecret = 'local-generated-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const template = [
+  '# local test only',
+  'NODE_ENV=development',
+  'PORT=4000',
+  'MONGODB_URI=mongodb://127.0.0.1:27017/pizza_delivery',
+  'JWT_SECRET=replace-with-at-least-32-random-characters',
+  'ADMIN_EMAIL=',
+  'ADMIN_PASSWORD=',
+  'SMTP_HOST=',
+  'SMTP_PASS=',
+  'RAZORPAY_KEY_ID=',
+  'RAZORPAY_KEY_SECRET=',
+  'RAZORPAY_WEBHOOK_SECRET=',
+].join('\n');
+
+test('creates local env with a generated JWT secret and leaves provider values empty', () => {
+  const result = prepareLocalEnv(template, undefined, () => strongSecret);
+  assert.equal(result.created, true);
+  assert.equal(result.generatedJwtSecret, true);
+  assert.match(result.content, new RegExp(`^JWT_SECRET=${strongSecret.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}$`, 'm'));
+  for (const key of ['ADMIN_PASSWORD', 'SMTP_HOST', 'SMTP_PASS', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET']) {
+    assert.match(result.content, new RegExp(`^${key}=$`, 'm'), `${key} should not be fabricated`);
+  }
+});
+
+test('preserves a complete existing local env without rotating the JWT secret', () => {
+  const existing = template.replace('JWT_SECRET=replace-with-at-least-32-random-characters', `JWT_SECRET=${strongSecret}`)
+    .replace('MONGODB_URI=mongodb://127.0.0.1:27017/pizza_delivery', 'MONGODB_URI=mongodb://localhost:27017/custom_local_db');
+  const result = prepareLocalEnv(template, existing, () => { throw new Error('Secret must not be regenerated'); });
+  assert.equal(result.created, false);
+  assert.equal(result.generatedJwtSecret, false);
+  assert.ok(result.content.includes('MONGODB_URI=mongodb://localhost:27017/custom_local_db'));
+  assert.ok(result.content.includes(`JWT_SECRET=${strongSecret}`));
+});
+
+test('repairs only an empty or placeholder JWT secret in an existing local env', () => {
+  const existing = 'NODE_ENV=development\nJWT_SECRET=\nCUSTOM_LOCAL_FLAG=keep-me\nSMTP_PASS=do-not-touch';
+  const result = prepareLocalEnv(template, existing, () => strongSecret);
+  assert.equal(result.generatedJwtSecret, true);
+  assert.ok(result.content.includes(`JWT_SECRET=${strongSecret}`));
+  assert.ok(result.content.includes('CUSTOM_LOCAL_FLAG=keep-me'));
+  assert.ok(result.content.includes('SMTP_PASS=do-not-touch'));
+});
+
+test('refuses to modify a production env', () => {
+  assert.throws(
+    () => prepareLocalEnv(template, 'NODE_ENV=production\nJWT_SECRET=production-secret-value-kept-private'),
+    /Refusing to modify server\\/.env marked NODE_ENV=production/,
+  );
+});
+
+test('does not accept a weak secret from the generator', () => {
+  assert.throws(() => prepareLocalEnv(template, undefined, () => 'short'), /strong secret/);
+});
