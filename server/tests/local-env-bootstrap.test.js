@@ -61,11 +61,11 @@ test('does not accept a weak secret from the generator', () => {
 test('merges explicitly entered settings, correctly quotes special characters and preserves skipped fields', () => {
   const merged = mergeLocalEnvValues(template, {
     ADMIN_EMAIL: 'admin@sample.test',
-    ADMIN_PASSWORD: 'secret #= ADMIN_PASSWORD: 'secret #= value with spaces', value with spaces',
+    ADMIN_PASSWORD: 'secret #= $& value with spaces',
     SMTP_PASS: '',
   });
   assert.equal(readLocalEnvValue(merged, 'ADMIN_EMAIL'), 'admin@sample.test');
-  assert.equal(readLocalEnvValue(merged, 'ADMIN_PASSWORD'), 'secret #= assert.equal(readLocalEnvValue(merged, 'ADMIN_PASSWORD'), 'secret #= value with spaces'); value with spaces');
+  assert.equal(readLocalEnvValue(merged, 'ADMIN_PASSWORD'), 'secret #= $& value with spaces');
   assert.equal(readLocalEnvValue(merged, 'SMTP_PASS'), '');
   assert.ok(merged.includes('SMTP_HOST='));
 });
