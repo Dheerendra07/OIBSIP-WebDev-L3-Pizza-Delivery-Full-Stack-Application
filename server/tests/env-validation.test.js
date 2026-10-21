@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateEnv } from '../src/utils/envValidation.js';
-const productionEnv = () => ({ NODE_ENV: 'production', MONGODB_URI: 'mongodb+srv://example.invalid/app', JWT_SECRET: 'a'.repeat(48), CLIENT_ORIGIN: 'https://pizza.example.com', CLIENT_BASE_URL: 'https://pizza.example.com', APP_BASE_URL: 'https://api.example.com', SMTP_HOST: 'smtp.example.com', SMTP_USER: 'mailer', SMTP_PASS: 'secret', MAIL_FROM: 'Pizza House <orders@example.com>', RAZORPAY_KEY_ID: 'rzp_test_example', RAZORPAY_KEY_SECRET: 'test_secret', RAZORPAY_WEBHOOK_SECRET: 'webhook-secret', ADMIN_ALERT_EMAIL: 'admin@example.com' });
+const productionEnv = () => ({ NODE_ENV: 'production', MONGODB_URI: 'mongodb+srv://example.invalid/app', JWT_SECRET: 'a'.repeat(48), CLIENT_ORIGIN: 'https://pizza.example.com', CLIENT_BASE_URL: 'https://pizza.example.com', APP_BASE_URL: 'https://api.example.com', SMTP_HOST: 'smtp.example.com', SMTP_USER: 'mailer', SMTP_PASS: 'secret', MAIL_FROM: 'Pizza House <orders@example.com>', ADMIN_EMAIL: 'admin@example.com', ADMIN_PASSWORD: 'SecureAdminPass123', RAZORPAY_KEY_ID: 'rzp_test_example', RAZORPAY_KEY_SECRET: 'test_secret', RAZORPAY_WEBHOOK_SECRET: 'webhook-secret', ADMIN_ALERT_EMAIL: 'admin@example.com' });
 test('accepts a complete production config with HTTPS URLs, Razorpay test keys and webhook secret', () => assert.doesNotThrow(() => validateEnv(productionEnv())));
 test('requires the Razorpay webhook secret in production', () => { const env = productionEnv(); env.RAZORPAY_WEBHOOK_SECRET = ''; assert.throws(() => validateEnv(env), /RAZORPAY_WEBHOOK_SECRET/); });
 test('rejects an insecure frontend or API URL in production', () => { const env = productionEnv(); env.APP_BASE_URL = 'http://api.example.com'; assert.throws(() => validateEnv(env), /APP_BASE_URL must be a valid HTTPS origin/); });
@@ -28,4 +28,18 @@ test('rejects application base URLs with a path or query in production', () => {
   assert.throws(() => validateEnv(env), /CLIENT_BASE_URL must be a valid HTTPS origin/);
   env.CLIENT_BASE_URL = 'https://pizza.example.com?redirect=1';
   assert.throws(() => validateEnv(env), /CLIENT_BASE_URL must be a valid HTTPS origin/);
+});
+
+test('requires valid production admin credentials for automatic bootstrap', () => {
+  const missingEmail = productionEnv();
+  missingEmail.ADMIN_EMAIL = '';
+  assert.throws(() => validateEnv(missingEmail), /ADMIN_EMAIL/);
+
+  const invalidEmail = productionEnv();
+  invalidEmail.ADMIN_EMAIL = 'not-an-email';
+  assert.throws(() => validateEnv(invalidEmail), /ADMIN_EMAIL must be a valid email address/);
+
+  const weakPassword = productionEnv();
+  weakPassword.ADMIN_PASSWORD = 'weak';
+  assert.throws(() => validateEnv(weakPassword), /ADMIN_PASSWORD must be 10–72 characters/);
 });

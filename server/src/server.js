@@ -4,6 +4,7 @@ import app from './app.js';
 import { config } from './config/env.js';
 import { startStockAlertJob } from './jobs/stockAlerts.js';
 import { attachRealtimeServer } from './services/realtime.js';
+import { ensureAdminAccount, ensureInventorySeeded } from './utils/databaseBootstrap.js';
 
 let server;
 let realtime;
@@ -11,6 +12,19 @@ let stockJob;
 
 async function start() {
   await mongoose.connect(config.mongoUri, { serverSelectionTimeoutMS: 10000 });
+
+  const inventoryCount = await ensureInventorySeeded();
+  console.info(`Inventory bootstrap ready: ${inventoryCount} catalog ingredients checked; existing stock preserved.`);
+
+  const admin = await ensureAdminAccount();
+  if (admin.skipped) {
+    console.warn('Admin bootstrap skipped. Set ADMIN_EMAIL and ADMIN_PASSWORD to enable admin operations.');
+  } else if (admin.created) {
+    console.info('Initial Pizza House admin account created. Credentials were not printed.');
+  } else {
+    console.info('Pizza House admin account already exists; existing password was preserved.');
+  }
+
   server = createServer(app);
   realtime = attachRealtimeServer(server);
   server.listen(config.port, () => console.info(`Pizza House API listening on port ${config.port}`));
