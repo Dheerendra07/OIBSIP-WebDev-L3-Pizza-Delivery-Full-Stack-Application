@@ -8,6 +8,7 @@ import { normalizeCatalogResponse, canCheckoutWithCatalog } from './catalog.js';
 import { matchesCartSnapshot, requiresPriceConfirmation, sameServerQuote, snapshotCart, syncCartToServerQuote } from './priceReview.js';
 import { buildReorderCart } from './reorder.js';
 import { PENDING_PAYMENT_STORAGE_KEY, parsePendingVerification, serializePendingVerification } from './pendingPayment.js';
+import { evaluateBudget } from './budgetGuard.js';
 const DEFAULT_CATALOG = {
     bases: [{ id: 'classic', name: 'Classic Hand-Tossed', price: 0 }, { id: 'thin', name: 'Thin & Crispy', price: 30 }, { id: 'whole-wheat', name: 'Whole Wheat', price: 40 }, { id: 'pan', name: 'Pan Crust', price: 50 }, { id: 'cheese-burst', name: 'Cheese Burst', price: 70 }],
     sauces: [{ id: 'classic-tomato', name: 'Classic Tomato', price: 0 }, { id: 'spicy-arrabbiata', name: 'Spicy Arrabbiata', price: 15 }, { id: 'pesto', name: 'Basil Pesto', price: 25 }, { id: 'bbq', name: 'Smoky BBQ', price: 20 }, { id: 'white-garlic', name: 'White Garlic', price: 20 }],
@@ -80,6 +81,7 @@ export default function App() {
     const [authMode, setAuthMode] = useState(null);
     const [mobileMenu, setMobileMenu] = useState(false);
     const [cart, setCart] = useState([]);
+    const [budgetLimit, setBudgetLimit] = useState('');
     const [deliveryDetails, setDeliveryDetails] = useState({ recipientName: '', phone: '', addressLine: '', landmark: '', city: '', state: '', postalCode: '', instructions: '' });
     const [builder, setBuilder] = useState({ base: 'classic', sauce: 'classic-tomato', cheese: 'mozzarella', vegetables: ['onion', 'corn'], quantity: 1 });
     const [form, setForm] = useState({ name: '', email: '', password: '' });
@@ -254,6 +256,14 @@ export default function App() {
     const builderPrice = useMemo(() => { const find = (group, id) => catalog[group]?.find(x => x.id === id)?.price || 0; return 199 + find('bases', builder.base) + find('sauces', builder.sauce) + find('cheeses', builder.cheese) + builder.vegetables.reduce((sum, id) => sum + find('vegetables', id), 0); }, [catalog, builder]);
     const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
     const deliveryFee = subtotal >= 499 ? 0 : cart.length ? 29 : 0;
+    const budgetStatus = evaluateBudget(subtotal + deliveryFee, budgetLimit);
+    const budgetFeedback = !budgetStatus.configured
+        ? 'Optional: leave this blank to skip the budget limit.'
+        : !budgetStatus.valid
+            ? 'Enter a whole-rupee amount of at least ₹1, or clear the field.'
+            : budgetStatus.withinBudget
+                ? `${currency(budgetStatus.remaining)} left in your budget.`
+                : `${currency(budgetStatus.overBy)} over your budget. Remove items or adjust your limit to continue.`;
     const buildPriceReview = (order) => ({
         orderId: String(order.id),
         previousItems: cart.map(item => ({
@@ -434,6 +444,12 @@ export default function App() {
 
     const startCheckout = async () => {
         if (!cart.length) return;
+        if (!budgetStatus.withinBudget) {
+            notify(budgetStatus.valid
+                ? `Your bag is ${currency(budgetStatus.overBy)} over the budget you set. Update your bag or budget before checkout.`
+                : 'Enter a valid whole-rupee budget of at least ₹1, or clear the budget field.', 'error');
+            return;
+        }
         if (!canCheckoutWithCatalog(catalogStatus)) {
             notify('Current prices and availability are not confirmed. Refresh the menu before checkout.', 'error');
             setPage('menu');
@@ -744,7 +760,7 @@ export default function App() {
         <Field label="6-digit PIN code" inputMode="numeric" autoComplete="postal-code" maxLength={6} required placeholder="250001" value={deliveryDetails.postalCode} onChange={e => setDeliveryDetails(p => ({ ...p, postalCode: e.target.value }))}/>
       </div>
       <label className="delivery-instructions"><span>Delivery instructions (optional)</span><textarea rows={2} maxLength={200} placeholder="Gate, floor, or call-on-arrival notes" value={deliveryDetails.instructions} onChange={e => setDeliveryDetails(p => ({ ...p, instructions: e.target.value }))}/></label>
-    </section></div><aside className="order-summary"><h2>Little details.</h2><div className="price-row"><span>Subtotal</span><b>{currency(subtotal)}</b></div><div className="price-row"><span>Delivery</span><b>{deliveryFee === 0 ? 'On us!' : currency(deliveryFee)}</b></div><div className="free-delivery-hint">{subtotal >= 499 ? 'Lovely — delivery is on us!' : `Add ${currency(499 - subtotal)} for free delivery.`}</div><div className="summary-divider"/><div className="price-row final"><span>Total</span><b>{currency(subtotal + deliveryFee)}</b></div><button disabled={pending || Boolean(pendingVerification) || !canCheckoutWithCatalog(catalogStatus)} className="button button-dark full-button" onClick={startCheckout}>{pending ? <LoaderCircle className="spin" size={17}/> : catalogStatus === 'ready' ? <CreditCard size={17}/> : <RefreshCw size={17}/>} {pending ? 'Getting checkout ready' : pendingVerification ? 'Confirm previous payment first' : catalogStatus === 'loading' ? 'Confirming live prices…' : catalogStatus === 'error' ? 'Refresh menu before checkout' : 'Checkout securely'}</button><small className="summary-footnote"><ShieldCheck size={14}/> Payments secured by Razorpay</small><p className="terms-note">Test mode only. You won’t be charged real money while test credentials are active.</p></aside></div>}</section>}
+    </section></div><aside className="order-summary"><h2>Little details.</h2><div className="price-row"><span>Subtotal</span><b>{currency(subtotal)}</b></div><div className="price-row"><span>Delivery</span><b>{deliveryFee === 0 ? 'On us!' : currency(deliveryFee)}</b></div><div className="free-delivery-hint">{subtotal >= 499 ? 'Lovely — delivery is on us!' : `Add ${currency(499 - subtotal)} for free delivery.`}</div><div className="budget-guard"><label htmlFor="budget-limit">My maximum total <span>(optional)</span></label><div className="budget-guard-input"><span aria-hidden="true">₹</span><input id="budget-limit" type="number" min="1" step="1" inputMode="numeric" placeholder="e.g. 500" value={budgetLimit} onChange={event => setBudgetLimit(event.target.value)} aria-describedby="budget-guard-feedback" aria-invalid={budgetStatus.configured && !budgetStatus.valid}/></div><p id="budget-guard-feedback" className={`budget-guard-feedback${budgetStatus.valid && !budgetStatus.withinBudget ? ' over-budget' : ''}`} role={budgetStatus.valid && !budgetStatus.withinBudget ? 'alert' : 'status'} aria-live={budgetStatus.valid && !budgetStatus.withinBudget ? 'assertive' : 'polite'}>{budgetFeedback}</p>{budgetLimit !== '' && <button type="button" className="budget-clear" onClick={() => setBudgetLimit('')}>Clear budget limit</button>}</div><div className="summary-divider"/><div className="price-row final"><span>Total</span><b>{currency(subtotal + deliveryFee)}</b></div><button disabled={pending || Boolean(pendingVerification) || !canCheckoutWithCatalog(catalogStatus) || !budgetStatus.withinBudget} className="button button-dark full-button" onClick={startCheckout}>{pending ? <LoaderCircle className="spin" size={17}/> : catalogStatus === 'ready' ? <CreditCard size={17}/> : <RefreshCw size={17}/>} {pending ? 'Getting checkout ready' : pendingVerification ? 'Confirm previous payment first' : catalogStatus === 'loading' ? 'Confirming live prices…' : catalogStatus === 'error' ? 'Refresh menu before checkout' : 'Checkout securely'}</button><small className="summary-footnote"><ShieldCheck size={14}/> Payments secured by Razorpay</small><p className="terms-note">Test mode only. You won’t be charged real money while test credentials are active.</p></aside></div>}</section>}
 
     {page === 'dashboard' && <section className="section-wrap page-section"><div className="dashboard-top"><div><div className="eyebrow">YOUR PIZZA DIARY</div><h1>Good to see you, <em>{user?.name?.split(' ')[0] || 'friend'}.</em></h1><p>Every great day deserves a great slice.</p></div><button className="button button-light" onClick={() => navigate('menu')}>Order something lovely <ArrowRight size={16}/></button></div>{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <DashboardMetricSkeleton/> : <div className="dashboard-metrics"><div><span>ORDERS MADE</span><strong>{ordersStatus === 'ready' ? orders.length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'And counting' : 'Not available'}</small></div><div><span>ON THE WAY</span><strong>{ordersStatus === 'ready' ? orders.filter(o => ['order_received', 'in_kitchen', 'sent_to_delivery'].includes(o.status)).length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'Good things incoming' : 'Not available'}</small></div><div><span>YOUR LAST ORDER</span><strong>{ordersStatus === 'ready' && orders[0] ? currency(orders[0].total) : '—'}</strong><small>{ordersStatus === 'ready' ? orders[0]?.orderNumber || 'Your first slice awaits' : 'Not available'}</small></div></div>}<div className="section-heading dashboard-heading"><div><h2>Order <em>updates.</em></h2><p>We’ll keep you in the loop. This list refreshes automatically.</p></div><button className="text-link" onClick={refreshOrders}><RefreshCw size={15}/> Refresh</button></div>{ordersError && ordersStatus === 'ready' && <InlineDataWarning message={ordersError} onRetry={refreshOrders} />}{issuesError && <InlineDataWarning message={issuesError} onRetry={refreshIssues} />}{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <OrderListSkeleton count={2}/> : ordersStatus === 'error' ? <DataUnavailable title="Your orders haven’t loaded" message="We couldn’t confirm your order history. Please retry instead of assuming there are no orders." onRetry={refreshOrders}/> : orders.length ? <div className="orders-list">{orders.map(order => <OrderCard key={order.id} order={order} onReorder={repeatOrder} issue={issues.find(item => item.orderId === order.id)} onReportIssue={openIssueReport} onRefreshIssues={refreshIssues}/>)}</div> : <div className="empty-state compact-empty"><div className="empty-art">🥡</div><h2>The first one’s always special.</h2><p>Place an order and watch the magic happen here.</p><button className="button button-dark" onClick={() => navigate('menu')}>Explore the menu <ArrowRight size={17}/></button></div>}</section>}
 
