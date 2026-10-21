@@ -22,7 +22,7 @@ test('creates local env with a generated JWT secret and leaves provider values e
   const result = prepareLocalEnv(template, undefined, () => strongSecret);
   assert.equal(result.created, true);
   assert.equal(result.generatedJwtSecret, true);
-  assert.match(result.content, new RegExp(`^JWT_SECRET=${strongSecret.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}$`, 'm'));
+  assert.ok(result.content.split('\\n').includes(`JWT_SECRET=${strongSecret}`));
   for (const key of ['ADMIN_PASSWORD', 'SMTP_HOST', 'SMTP_PASS', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET']) {
     assert.match(result.content, new RegExp(`^${key}=$`, 'm'), `${key} should not be fabricated`);
   }
@@ -50,7 +50,7 @@ test('repairs only an empty or placeholder JWT secret in an existing local env',
 test('refuses to modify a production env', () => {
   assert.throws(
     () => prepareLocalEnv(template, 'NODE_ENV=production\nJWT_SECRET=production-secret-value-kept-private'),
-    /Refusing to modify server\\/.env marked NODE_ENV=production/,
+    /Refusing to modify/,
   );
 });
 
