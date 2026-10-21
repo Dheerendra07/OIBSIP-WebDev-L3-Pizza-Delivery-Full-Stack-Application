@@ -8,6 +8,7 @@
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "install:all": "npm ci && npm --prefix server ci && npm --prefix client ci",
+    "setup:local": "node scripts/setup-local.js",
     "build": "npm --prefix client run build",
     "test": "node --test server/tests/*.test.js client/tests/*.test.js",
     "seed:inventory": "npm --prefix server run seed:inventory",
