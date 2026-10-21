@@ -67,6 +67,88 @@ test('MongoDB issue lifecycle, ownership, active-case uniqueness and concurrent 
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
 
+    // Exercise the real authenticated order API and MongoDB persistence before issue cases.
+    const deliveryDetails = {
+      recipientName: 'Test Customer',
+      phone: '98765 43210',
+      addressLine: '12 Green Park Road',
+      landmark: 'Near central market',
+      city: 'Meerut',
+      state: 'Uttar Pradesh',
+      postalCode: '250001',
+      instructions: 'Call on arrival',
+    };
+    const orderResponse = await request('/api/orders', {
+      method: 'POST',
+      body: {
+        items: [{
+          type: 'featured',
+          pizzaId: 'margherita',
+          quantity: 2,
+          unitPrice: 1,
+          lineTotal: 2,
+          inventoryKeys: ['attacker:controlled'],
+        }],
+        deliveryDetails,
+      },
+    });
+    assert.equal(orderResponse.status, 201, await orderResponse.clone().text());
+    const orderPayload = await orderResponse.json();
+    const placedOrder = orderPayload.order;
+    assert.ok(placedOrder.id);
+    assert.match(placedOrder.orderNumber, /^PH-[A-F0-9]+$/);
+    assert.equal(placedOrder.items[0].unitPrice, 249);
+    assert.equal(placedOrder.items[0].lineTotal, 498);
+    assert.ok(placedOrder.items[0].inventoryKeys.every((key) => !key.startsWith('attacker:')));
+    assert.equal(placedOrder.subtotal, 498);
+    assert.equal(placedOrder.deliveryFee, 29);
+    assert.equal(placedOrder.total, 527);
+    assert.equal(placedOrder.status, 'pending_payment');
+    assert.equal(placedOrder.paymentStatus, 'pending');
+    assert.equal(placedOrder.deliveryDetails.phone, '9876543210');
+
+    const persistedPlacedOrder = await Order.findById(placedOrder.id).lean();
+    assert.equal(persistedPlacedOrder.user.toString(), customer.id);
+    assert.equal(persistedPlacedOrder.total, 527);
+    assert.equal(persistedPlacedOrder.items[0].unitPrice, 249);
+
+    let orderHistoryResponse = await request('/api/orders/my');
+    assert.equal(orderHistoryResponse.status, 200);
+    let orderHistoryPayload = await orderHistoryResponse.json();
+    assert.equal(orderHistoryPayload.orders.length, 1);
+    assert.equal(String(orderHistoryPayload.orders[0].id), placedOrder.id);
+
+    const privateOrderResponse = await request(`/api/orders/${placedOrder.id}`, { user: otherCustomer });
+    assert.equal(privateOrderResponse.status, 404);
+    const unauthenticatedOrderResponse = await fetch(`${origin}/api/orders/my`);
+    assert.equal(unauthenticatedOrderResponse.status, 401);
+
+    const changedDelivery = { ...deliveryDetails, phone: '9876543210', addressLine: '99 New Market Road' };
+    const deliveryUpdateResponse = await request(`/api/orders/${placedOrder.id}/delivery-details`, {
+      method: 'PATCH',
+      body: { deliveryDetails: changedDelivery },
+    });
+    assert.equal(deliveryUpdateResponse.status, 200, await deliveryUpdateResponse.clone().text());
+    const deliveryUpdatePayload = await deliveryUpdateResponse.json();
+    assert.equal(deliveryUpdatePayload.deliveryDetails.addressLine, '99 New Market Road');
+
+    const invalidOrderResponse = await request('/api/orders', {
+      method: 'POST',
+      body: { items: [], deliveryDetails },
+    });
+    assert.equal(invalidOrderResponse.status, 400);
+    assert.equal(await Order.countDocuments({}), 1, 'invalid order input must not persist an order');
+
+    await Order.updateOne(
+      { _id: placedOrder.id },
+      { $set: { status: 'order_received', paymentStatus: 'paid' } },
+    );
+    const postPaymentDeliveryUpdate = await request(`/api/orders/${placedOrder.id}/delivery-details`, {
+      method: 'PATCH',
+      body: { deliveryDetails: changedDelivery },
+    });
+    assert.equal(postPaymentDeliveryUpdate.status, 409, await postPaymentDeliveryUpdate.clone().text());
+
     const firstOrder = await makeOrder(customer, 'PH-DB-0001');
     let response = await request('/api/issues', {
       method: 'POST',
