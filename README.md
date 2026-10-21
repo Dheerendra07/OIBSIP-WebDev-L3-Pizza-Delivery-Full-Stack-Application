@@ -50,13 +50,14 @@ Pizza House is a MERN full-stack internship project for custom pizza ordering, s
 - Razorpay Test Mode credentials and SMTP details for testing actual checkout/email delivery.
 
 ### Setup
-1. Copy the root .env.example to server/.env. Never commit real secrets.
-2. Set MONGODB_URI, a unique JWT_SECRET of at least 32 characters, SMTP settings, exact app/frontend URLs and Razorpay test keys (rzp_test_...). Set a separate RAZORPAY_WEBHOOK_SECRET.
-3. Install dependencies from the repository root: npm run install:all
-4. Seed inventory: npm run seed:inventory
-5. Set ADMIN_EMAIL and a strong ADMIN_PASSWORD in server/.env, then seed the admin: npm run seed:admin
-6. Start the frontend and API: npm run dev
-7. Open http://localhost:5173; API health is at http://localhost:4000/api/health.
+1. From the repository root, run `npm run setup:local`. It creates `server/.env` from the example only when needed and generates a strong local `JWT_SECRET` if the existing one is missing or a placeholder. It will not overwrite other values or modify an env file marked `NODE_ENV=production`. Generated secret values are not printed.
+2. Install dependencies from the repository root: `npm run install:all`.
+3. Configure `MONGODB_URI`, the exact app/frontend URLs, `ADMIN_EMAIL`, and a strong `ADMIN_PASSWORD` in `server/.env`. For actual email tests, add SMTP settings. For payments, use only Razorpay Test Mode keys (`rzp_test_...`) and set a separate `RAZORPAY_WEBHOOK_SECRET`. Do not send passwords or secret values in chat or commit them.
+4. Run `npm --prefix server run qa:preflight` to check configuration shape. This does not test database reachability, SMTP delivery, Razorpay events or browser journeys; blank provider settings will block the full preflight until configured.
+5. Seed inventory: `npm run seed:inventory`.
+6. Seed the admin account after setting `ADMIN_EMAIL` and `ADMIN_PASSWORD`: `npm run seed:admin`.
+7. Start the frontend and API: `npm run dev`.
+8. Open http://localhost:5173; API health is at http://localhost:4000/api/health.
 
 ### Verify
 Run `npm test` and `npm run build` from the repository root. GitHub Actions runs dependency installation, the configured test suite (including the disposable MongoDB integration test), and the production client build on pushes to main, feat/**, fix/**, build/**, and docs/**, and on pull requests targeting main.
