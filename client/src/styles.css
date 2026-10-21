@@ -329,3 +329,8 @@
   .issue-case-head{align-items:flex-start}
   .issue-admin-actions .button{flex:1 1 140px}
 }
+
+
+/* Follow-up accessibility fixes: readable helper text and contained auth-dialog focus. */
+.builder-option small,.veg-option small,.ingredient-row span{color:#62564a}
+.summary-footnote,.terms-note,.admin-metric span{color:#62564a}
