@@ -54,8 +54,8 @@ Pizza House is a MERN full-stack internship project for custom pizza ordering, s
 2. When prompted, log into your provider accounts yourself and enter the values directly into the local terminal. Use a transaction-capable MongoDB replica set/Atlas URI, your own admin email/password, either a Resend API key plus a verified `MAIL_FROM` sender or SMTP app credentials, and only Razorpay Test Mode keys (`rzp_test_...`) plus the webhook secret configured in your dashboard. Never send credentials to ChatGPT or commit them.
 3. Follow the preflight output. It checks configuration shape only; it does not connect to MongoDB, send email, call Razorpay or test the browser journey. You may press Enter to skip credentials and continue later.
 4. Install dependencies from the repository root: `npm run install:all`.
-5. Seed inventory: `npm run seed:inventory`.
-6. Seed the admin account after setting `ADMIN_EMAIL` and `ADMIN_PASSWORD`: `npm run seed:admin`.
+5. The API automatically ensures starter inventory on startup using insert-only upserts; `npm run seed:inventory` remains available as an explicit local step.
+6. When `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set, the API creates the initial admin on startup if it does not exist. `npm run seed:admin` remains available as an explicit local step; existing admin passwords are never reset.
 7. Start the frontend and API: `npm run dev`.
 8. Open http://localhost:5173; API health is at http://localhost:4000/api/health.
 
@@ -101,6 +101,7 @@ Configure the deployed API endpoint POST /api/payments/webhook in the Razorpay D
 ## Security and deployment notes
 - Never commit .env files, provider credentials, real database exports or user data.
 - Use HTTPS in deployment, exact allowed CORS origins, secure cookie settings, a verified email sender and restricted database network access.
+- API startup runs insert-only inventory bootstrap and safely creates the configured first admin if absent. It preserves existing inventory stock and admin credentials; production requires both `ADMIN_EMAIL` and `ADMIN_PASSWORD`.
 - Use Razorpay Test Mode during assessment. Do not use production payment credentials until provider/webhook/refund procedures and the full end-to-end journey have been validated.
 - A passing CI run proves the automated tests and client build passed; it does not prove external services are configured or the live checkout flow has been exercised.
 
