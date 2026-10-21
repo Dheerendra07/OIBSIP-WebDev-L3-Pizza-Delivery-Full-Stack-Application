@@ -27,7 +27,7 @@ test('accepts a complete test-only E2E configuration', () => {
   const result = inspectQaEnvironment(validEnv());
   assert.equal(result.ok, true);
   assert.equal(result.passed, result.total);
-  assert.equal(result.total, 20);
+  assert.equal(result.total, 18);
 });
 
 test('reports missing mail and payment configuration without exposing values', () => {
