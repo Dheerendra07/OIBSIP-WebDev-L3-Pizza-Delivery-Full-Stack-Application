@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { prepareLocalEnv } from '../src/utils/localEnvBootstrap.js';
+import { mergeLocalEnvValues, prepareLocalEnv, readLocalEnvValue } from '../src/utils/localEnvBootstrap.js';
 
 const strongSecret = 'local-generated-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const template = [
@@ -38,7 +38,7 @@ test('preserves a complete existing local env without rotating the JWT secret', 
   assert.ok(result.content.includes(`JWT_SECRET=${strongSecret}`));
 });
 
-test('repairs only an empty or placeholder JWT secret in an existing local env', () => {
+test('repairs only a placeholder JWT secret in an existing local env', () => {
   const existing = 'NODE_ENV=development\nJWT_SECRET=\nCUSTOM_LOCAL_FLAG=keep-me\nSMTP_PASS=do-not-touch';
   const result = prepareLocalEnv(template, existing, () => strongSecret);
   assert.equal(result.generatedJwtSecret, true);
@@ -56,4 +56,22 @@ test('refuses to modify a production env', () => {
 
 test('does not accept a weak secret from the generator', () => {
   assert.throws(() => prepareLocalEnv(template, undefined, () => 'short'), /strong secret/);
+});
+
+test('merges explicitly entered settings, correctly quotes special characters and preserves skipped fields', () => {
+  const merged = mergeLocalEnvValues(template, {
+    ADMIN_EMAIL: 'admin@sample.test',
+    ADMIN_PASSWORD: 'secret #= $& value with spaces',
+    SMTP_PASS: '',
+  });
+  assert.equal(readLocalEnvValue(merged, 'ADMIN_EMAIL'), 'admin@sample.test');
+  assert.equal(readLocalEnvValue(merged, 'ADMIN_PASSWORD'), 'secret #= $& value with spaces');
+  assert.equal(readLocalEnvValue(merged, 'SMTP_PASS'), '');
+  assert.ok(merged.includes('SMTP_HOST='));
+});
+
+test('reads quoted values without exposing or altering their contents', () => {
+  const content = 'SMTP_PASS="contains # hash, equals =, and spaces"\nRAZORPAY_KEY_SECRET=plain-secret';
+  assert.equal(readLocalEnvValue(content, 'SMTP_PASS'), 'contains # hash, equals =, and spaces');
+  assert.equal(readLocalEnvValue(content, 'RAZORPAY_KEY_SECRET'), 'plain-secret');
 });
