@@ -16,5 +16,5 @@ if (!result.ok) {
   console.error('QA preflight failed. Update server/.env and re-run: npm --prefix server run qa:preflight');
   process.exitCode = 1;
 } else {
-  console.log('Configuration preflight passed. Database reachability, SMTP delivery, Razorpay events and browser journeys are NOT tested by this command.');
+  console.log('Configuration preflight passed. Database reachability, real email delivery, Razorpay events and browser journeys are NOT tested by this command.');
 }

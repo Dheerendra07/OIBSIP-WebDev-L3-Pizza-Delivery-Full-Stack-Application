@@ -47,11 +47,11 @@ Pizza House is a MERN full-stack internship project for custom pizza ordering, s
 ### Requirements
 - Node.js 22 recommended (the server requires Node.js 20.19+).
 - MongoDB running as a replica set or a transaction-capable MongoDB Atlas cluster. Multi-document inventory updates require transaction support.
-- Razorpay Test Mode credentials and SMTP details for testing actual checkout/email delivery.
+- Razorpay Test Mode credentials and an email provider for actual checkout/email testing. SMTP works locally, but Render Free blocks outbound SMTP ports `25`, `465` and `587`; use the Resend HTTPS API on Render Free. Email sending also requires a sender address verified by the provider.
 
 ### Setup
 1. From the repository root, run `npm run setup:local` in PowerShell. It creates `server/.env` when needed and generates a strong local `JWT_SECRET` without printing it. On an interactive terminal it guides you through missing settings; sensitive inputs are masked, Enter skips a provider, and existing values are preserved. It refuses to edit an env marked `NODE_ENV=production`.
-2. When prompted, log into your provider accounts yourself and enter the values directly into the local terminal. Use a transaction-capable MongoDB replica set/Atlas URI, your own admin email/password, SMTP app credentials if testing email, and only Razorpay Test Mode keys (`rzp_test_...`) plus the webhook secret configured in your dashboard. Never send credentials to ChatGPT or commit them.
+2. When prompted, log into your provider accounts yourself and enter the values directly into the local terminal. Use a transaction-capable MongoDB replica set/Atlas URI, your own admin email/password, either a Resend API key plus a verified `MAIL_FROM` sender or SMTP app credentials, and only Razorpay Test Mode keys (`rzp_test_...`) plus the webhook secret configured in your dashboard. Never send credentials to ChatGPT or commit them.
 3. Follow the preflight output. It checks configuration shape only; it does not connect to MongoDB, send email, call Razorpay or test the browser journey. You may press Enter to skip credentials and continue later.
 4. Install dependencies from the repository root: `npm run install:all`.
 5. Seed inventory: `npm run seed:inventory`.
@@ -68,11 +68,11 @@ $env:RUN_MONGODB_INTEGRATION = "1"
 npm test
 Remove-Item Env:RUN_MONGODB_INTEGRATION
 ```
-The first run downloads the temporary MongoDB binary. The test does not connect to your configured database or require Razorpay/SMTP credentials.
+The first run downloads the temporary MongoDB binary. The test does not connect to your configured database or require Razorpay/email-provider credentials.
 
 The issue-report dialog keyboard flow was checked in Chrome at 320px: initial focus, Tab/Shift+Tab containment, Escape close, focus restoration, and error-response containment passed. PR #33 verified success/error live-region semantics and selected form-control contrast (14.99:1 text, 3.41:1 field border). PR #35 fixed baseline axe-detected contrast on the pizza-card number, dashboard labels, caption and footer wordmark. PR #37 further fixed builder option prices, ingredient labels, checkout notes and admin metric labels; it also added authentication-dialog focus entry/trapping/Escape/restoration and mobile-navigation focus entry/return. A temporary Playwright + axe-core 4.10.3 harness reported zero WCAG 2.1 A/AA violations over 31 scans of home, menu, builder, populated cart, auth dialog, customer dashboard and admin dashboard after the fixes. Home/menu/builder/populated-cart had no horizontal overflow at 320, 360, 390, 640, 768, 1024 or 1440 CSS-pixel viewport widths. The 640px run was only a viewport size, not literal browser zoom. Some axe checks remain incomplete; actual screen-reader sessions, manual review, remaining 320px states and 200% browser zoom are still unverified.
 
-Reproducible installs: the root, `server/`, and `client/` `package-lock.json` files are tracked together. `npm run install:all` uses `npm ci` for all three manifests, and CI caches all three lockfiles. The root, server and client clean installs passed on Node 22.22.2/npm 10.9.7; the full 142-test suite (including the disposable MongoDB integration test), production build, and all three npm audits passed. MongoDB, live Razorpay, and real SMTP/browser checkout still require configuration-backed end-to-end verification.
+Reproducible installs: the root, `server/`, and `client/` `package-lock.json` files are tracked together. `npm run install:all` uses `npm ci` for all three manifests, and CI caches all three lockfiles. The root, server and client clean installs passed on Node 22.22.2/npm 10.9.7; the full 142-test suite (including the disposable MongoDB integration test), production build, and all three npm audits passed. MongoDB, real email delivery, live Razorpay, and browser checkout still require configuration-backed end-to-end verification.
 
 ## Key API routes
 
@@ -96,7 +96,7 @@ Reproducible installs: the root, `server/`, and `client/` `package-lock.json` fi
 
 ## Razorpay webhook setup for integration testing
 
-Configure the deployed API endpoint POST /api/payments/webhook in the Razorpay Dashboard, with payment.captured, payment.failed, refund.created, refund.processed and refund.failed enabled. Use the same separate webhook secret in the Dashboard and server/.env. Webhook delivery, real MongoDB transactions, real SMTP delivery and a complete browser-to-provider checkout journey still need configuration-backed end-to-end testing.
+Configure the deployed API endpoint POST /api/payments/webhook in the Razorpay Dashboard, with payment.captured, payment.failed, refund.created, refund.processed and refund.failed enabled. Use the same separate webhook secret in the Dashboard and server/.env. Webhook delivery, real MongoDB transactions, email-provider delivery and a complete browser-to-provider checkout journey still need configuration-backed end-to-end testing.
 
 ## Security and deployment notes
 - Never commit .env files, provider credentials, real database exports or user data.
@@ -108,6 +108,6 @@ Configure the deployed API endpoint POST /api/payments/webhook in the Razorpay D
 
 - Latest merged application hardening commit: `3f6778f33136cd5beb42159d1aceaee3227321f3` (PR #18).
 - PR #18 CI, tested against code SHA `e29bf1f78c9206c9d222d87dabb2c5bf5fb70aea`: [pull-request check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319853575) and [push check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319845265) both passed unit/smoke tests and production client build.
-- These checks do not prove live MongoDB transaction behaviour, Razorpay payment/webhook/refund delivery, SMTP delivery or browser end-to-end success. Those remain in the final setup/integration phase.
+- These checks do not prove live MongoDB transaction behaviour, Razorpay payment/webhook/refund delivery, email delivery or browser end-to-end success. Those remain in the final setup/integration phase.
 - [Product discovery and differentiation roadmap](docs/PRODUCT_DISCOVERY.md) captures the research sources, code-audit findings, UI contract, prioritized feature backlog and test discipline.
 - See PROJECT_STATUS.md for current verification evidence and remaining integration work.

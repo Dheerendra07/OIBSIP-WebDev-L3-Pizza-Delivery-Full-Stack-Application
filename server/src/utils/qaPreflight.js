@@ -70,19 +70,22 @@ export function inspectQaEnvironment(env = process.env) {
   add(1, 'ADMIN_PASSWORD', hasStrongPassword(env.ADMIN_PASSWORD),
     'Use 10–72 characters with uppercase, lowercase and a number.');
 
-  add(2, 'SMTP_HOST', isSafeConfiguredValue(env.SMTP_HOST),
-    'Set the SMTP host for verification/reset/notification emails.');
-  const port = Number(env.SMTP_PORT);
-  add(2, 'SMTP_PORT', isConfigured(env.SMTP_PORT) && Number.isInteger(port) && port >= 1 && port <= 65535,
-    'Set SMTP_PORT to an integer from 1 to 65535.');
-  add(2, 'SMTP_SECURE', ['true', 'false'].includes(String(env.SMTP_SECURE ?? '').trim().toLowerCase()),
-    'Set SMTP_SECURE to true or false.');
-  add(2, 'SMTP_USER', isSafeConfiguredValue(env.SMTP_USER),
-    'Set the SMTP username without printing it in logs.');
-  add(2, 'SMTP_PASS', isSafeConfiguredValue(env.SMTP_PASS),
-    'Set the SMTP password/app password without printing it in logs.');
+  const hasResend = isSafeConfiguredValue(env.RESEND_API_KEY) && isConfigured(env.MAIL_FROM);
+  const hasSmtp = isSafeConfiguredValue(env.SMTP_HOST)
+    && isSafeConfiguredValue(env.SMTP_USER)
+    && isSafeConfiguredValue(env.SMTP_PASS);
+  add(2, 'Email provider credentials', hasResend || hasSmtp,
+    'Configure Resend RESEND_API_KEY + MAIL_FROM, or complete SMTP_HOST + SMTP_USER + SMTP_PASS. Resend HTTP API is preferred on Render Free.');
+  add(2, 'RESEND_API_KEY (when used)', !isConfigured(env.RESEND_API_KEY) || isSafeConfiguredValue(env.RESEND_API_KEY),
+    'Leave empty when using SMTP, or set the Resend API key without printing it in logs.');
+  const anySmtpCredentials = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].some(key => isConfigured(env[key]));
+  const smtpPort = Number(env.SMTP_PORT);
+  const smtpExtrasValid = (!isConfigured(env.SMTP_PORT) || (Number.isInteger(smtpPort) && smtpPort >= 1 && smtpPort <= 65535))
+    && (!isConfigured(env.SMTP_SECURE) || ['true', 'false'].includes(String(env.SMTP_SECURE).trim().toLowerCase()));
+  add(2, 'Optional SMTP settings', !anySmtpCredentials || (hasSmtp && smtpExtrasValid),
+    'If using SMTP, configure all credentials and a valid optional port/security value; leave them empty to use Resend.');
   add(2, 'MAIL_FROM', isConfigured(env.MAIL_FROM) && senderPattern.test(env.MAIL_FROM),
-    'Set a sender name/address containing a valid email address.');
+    'Set a sender name/address containing a valid email address. The sender must be verified with the provider.');
   add(2, 'ADMIN_ALERT_EMAIL', isConfigured(env.ADMIN_ALERT_EMAIL) && emailPattern.test(env.ADMIN_ALERT_EMAIL.trim()),
     'Set a valid destination for low-stock alerts.');
 

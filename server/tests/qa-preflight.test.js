@@ -27,7 +27,19 @@ test('accepts a complete test-only E2E configuration', () => {
   const result = inspectQaEnvironment(validEnv());
   assert.equal(result.ok, true);
   assert.equal(result.passed, result.total);
-  assert.equal(result.total, 18);
+  assert.equal(result.total, 16);
+});
+
+test('accepts a complete test-only configuration using Resend without SMTP', () => {
+  const env = validEnv();
+  delete env.SMTP_HOST;
+  delete env.SMTP_USER;
+  delete env.SMTP_PASS;
+  env.RESEND_API_KEY = 're_test_api_key';
+  const result = inspectQaEnvironment(env);
+  assert.equal(result.ok, true);
+  assert.equal(result.passed, result.total);
+  assert.equal(result.total, 16);
 });
 
 test('reports missing mail and payment configuration without exposing values', () => {
@@ -37,7 +49,7 @@ test('reports missing mail and payment configuration without exposing values', (
   const result = inspectQaEnvironment(env);
   assert.equal(result.ok, false);
   const failures = result.sections.flatMap(section => section.checks).filter(check => !check.ok);
-  assert.deepEqual(failures.map(check => check.label), ['SMTP_PASS', 'RAZORPAY_KEY_SECRET']);
+  assert.deepEqual(failures.map(check => check.label), ['Email provider credentials', 'Optional SMTP settings', 'RAZORPAY_KEY_SECRET']);
   assert.equal(JSON.stringify(result).includes('razorpay-test-secret'), false);
   assert.equal(JSON.stringify(result).includes('qa-mail-password'), false);
 });

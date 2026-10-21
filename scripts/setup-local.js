@@ -75,10 +75,11 @@ async function run() {
     { key: 'MONGODB_URI', label: 'MongoDB URI (local replica set or transaction-capable Atlas URI; Enter keeps current value)', hidden: true, needed: (v) => isPlaceholder(v) || /^mongodb:\/\/(127\.0\.0\.1|localhost)(:|\/)/i.test(v || '') },
     { key: 'ADMIN_EMAIL', label: 'Admin test email (Enter skips)', hidden: false, needed: (v) => !isConfigured(v) },
     { key: 'ADMIN_PASSWORD', label: 'Admin password, 10–72 chars with uppercase/lowercase/number (masked; Enter skips)', hidden: true, needed: (v) => !hasStrongPassword(v) },
-    { key: 'SMTP_HOST', label: 'SMTP host (Enter skips email setup)', hidden: false, needed: (v) => isPlaceholder(v) },
-    { key: 'SMTP_USER', label: 'SMTP username (masked; Enter skips)', hidden: true, needed: (v) => isPlaceholder(v) },
-    { key: 'SMTP_PASS', label: 'SMTP password/app password (masked; Enter skips)', hidden: true, needed: (v) => isPlaceholder(v) },
-    { key: 'MAIL_FROM', label: 'Sender address, e.g. Pizza House <orders@example.com> (Enter skips)', hidden: false, needed: (v) => isPlaceholder(v) },
+    { key: 'RESEND_API_KEY', label: 'Resend API key for HTTPS email (preferred on Render Free; sender domain must be verified; Enter skips)', hidden: true, needed: (v) => isPlaceholder(v) },
+    { key: 'SMTP_HOST', label: 'SMTP host (optional fallback; Enter skips)', hidden: false, needed: (v) => isPlaceholder(v) },
+    { key: 'SMTP_USER', label: 'SMTP username (masked; optional fallback; Enter skips)', hidden: true, needed: (v) => isPlaceholder(v) },
+    { key: 'SMTP_PASS', label: 'SMTP password/app password (masked; optional fallback; Enter skips)', hidden: true, needed: (v) => isPlaceholder(v) },
+    { key: 'MAIL_FROM', label: 'Verified sender address, e.g. Pizza House <orders@your-domain.example> (Enter skips)', hidden: false, needed: (v) => isPlaceholder(v) },
     { key: 'ADMIN_ALERT_EMAIL', label: 'Admin low-stock alert email (Enter skips)', hidden: false, needed: (v) => isPlaceholder(v) },
     { key: 'RAZORPAY_KEY_ID', label: 'Razorpay TEST MODE key ID starting rzp_test_ (masked; Enter skips)', hidden: true, needed: (v) => !/^rzp_test_[^\s]+$/.test(v || '') },
     { key: 'RAZORPAY_KEY_SECRET', label: 'Razorpay TEST MODE key secret (masked; Enter skips)', hidden: true, needed: (v) => isPlaceholder(v) },
@@ -89,8 +90,12 @@ async function run() {
   if (missing.length && process.stdin.isTTY && typeof process.stdin.setRawMode === 'function') {
     console.log('\nFill what you already have. Press Enter to skip a provider and configure it later.');
     console.log('Do not paste credentials into ChatGPT. Sensitive terminal entries are masked.');
+    console.log('For Render Free, use the Resend HTTPS API rather than SMTP; email sending also requires a verified sender domain.');
     const updates = {};
     for (const item of missing) {
+      const hasResendKey = isConfigured(updates.RESEND_API_KEY)
+        || !isPlaceholder(readLocalEnvValue(content, 'RESEND_API_KEY'));
+      if (hasResendKey && ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].includes(item.key)) continue;
       const value = await promptValue(item.label, { hidden: item.hidden });
       if (value) updates[item.key] = value;
     }

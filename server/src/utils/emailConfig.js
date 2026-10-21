@@ -1,1 +1,11 @@
-export function isMailConfigured(env = process.env) { return Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS); }
+export function isResendMailConfigured(env = process.env) {
+  return Boolean(env.RESEND_API_KEY && env.MAIL_FROM);
+}
+
+export function isSmtpMailConfigured(env = process.env) {
+  return Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
+}
+
+export function isMailConfigured(env = process.env) {
+  return isResendMailConfigured(env) || isSmtpMailConfigured(env);
+}
