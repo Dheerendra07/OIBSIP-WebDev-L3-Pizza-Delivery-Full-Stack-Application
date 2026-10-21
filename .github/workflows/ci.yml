@@ -31,6 +31,11 @@ jobs:
             client/package-lock.json
       - name: Install locked root, API, and web dependencies
         run: npm run install:all
+      - name: Audit root, API, and web dependencies for high/critical vulnerabilities
+        run: |
+          npm audit --audit-level=high
+          npm --prefix server audit --audit-level=high
+          npm --prefix client audit --audit-level=high
       - name: Run API and client unit tests
         run: npm test
       - name: Build production web bundle
