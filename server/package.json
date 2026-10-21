@@ -7,6 +7,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "test": "node --test",
+    "qa:preflight": "node scripts/qa-preflight.js",
     "seed:inventory": "node src/utils/seedInventory.js",
     "seed:admin": "node src/utils/seedAdmin.js"
   },
