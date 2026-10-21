@@ -25,9 +25,27 @@ const ISSUE_CATEGORY_LABELS = { missing_item: 'Missing item', wrong_item: 'Wrong
 const NEW_ISSUE_FORM = { category: 'missing_item', description: '' };
 const currency = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 function IconButton({ children, onClick, label, className = '', disabled = false }) { return <button type="button" aria-label={label} title={label} className={`icon-button ${className}`} onClick={onClick} disabled={disabled}>{children}</button>; }
-function Toast({ toast, onClose }) { useEffect(() => { if (!toast)
-    return; const id = setTimeout(onClose, 3600); return () => clearTimeout(id); }, [toast, onClose]); if (!toast)
-    return null; return <div className={`toast ${toast.kind || ''}`} role="status">{toast.kind === 'error' ? <X size={17}/> : <CheckCircle2 size={17}/>}<span>{toast.message}</span><button onClick={onClose} aria-label="Dismiss message"><X size={16}/></button></div>; }
+function Toast({ toast, onClose }) {
+    useEffect(() => {
+        if (!toast) return;
+        const id = setTimeout(onClose, 3600);
+        return () => clearTimeout(id);
+    }, [toast, onClose]);
+
+    if (!toast) return null;
+    const isError = toast.kind === 'error';
+    return <div
+        className={`toast ${toast.kind || ''}`}
+        role={isError ? 'alert' : 'status'}
+        aria-live={isError ? 'assertive' : 'polite'}
+        aria-atomic="true"
+    >
+        {isError ? <X size={17} aria-hidden="true"/> : <CheckCircle2 size={17} aria-hidden="true"/>}
+        <span>{toast.message}</span>
+        <button type="button" onClick={onClose} aria-label="Dismiss message"><X size={16} aria-hidden="true"/></button>
+    </div>;
+}
+
 function Field({ label, icon: Icon, ...props }) { return <label className="field"><span>{label}</span><div className="field-input">{Icon && <Icon size={17}/>}<input {...props}/></div></label>; }
 export default function App() {
     const [page, setPage] = useState('home');
@@ -673,7 +691,12 @@ export default function App() {
 }
 function PizzaCard({ pizza, index, onAdd, onCustomize }) { return <article className={`pizza-card ${pizza.tone} card-${index}`}><div className="pizza-card-art"><span className="pizza-label">{pizza.tag}</span><span className="pizza-card-emoji">{pizza.emoji}</span><span className="pizza-card-number">0{index + 1}</span></div><div className="pizza-card-body"><div><h3>{pizza.name}</h3><p>{pizza.description}</p></div><div className="pizza-card-bottom"><strong>{currency(pizza.price)}</strong><button className="add-button" onClick={onAdd} disabled={pizza.available === false} aria-label={pizza.available === false ? `${pizza.name} sold out` : `Add ${pizza.name}`}><Plus size={17}/><span>{pizza.available === false ? 'Sold out' : 'Add'}</span></button></div><button className="customize-link" onClick={onCustomize}>Make something similar <ArrowUpRight size={14}/></button></div></article>; }
 function DataUnavailable({ title, message, onRetry }) { return <div className="catalog-state-card data-unavailable" role="alert"><span className="catalog-state-icon"><RefreshCw size={20}/></span><div className="catalog-state-copy"><h3>{title}</h3><p>{message}</p></div><button className="button button-dark" type="button" onClick={onRetry}>Try again <RefreshCw size={15}/></button></div>; }
-function InlineDataWarning({ message, onRetry }) { return <div className="inline-data-warning" role="status"><span>{message}</span><button type="button" onClick={onRetry}>Retry <RefreshCw size={14}/></button></div>; }
+function InlineDataWarning({ message, onRetry }) {
+    return <div className="inline-data-warning" role="alert" aria-live="assertive" aria-atomic="true">
+        <span>{message}</span>
+        <button type="button" onClick={onRetry}>Retry <RefreshCw size={14} aria-hidden="true"/></button>
+    </div>;
+}
 function DashboardMetricSkeleton() { return <div className="dashboard-metrics dashboard-metrics-loading" role="status" aria-live="polite" aria-busy="true"><span className="sr-only">Loading order summary…</span>{Array.from({ length: 3 }, (_, i) => <div className="dashboard-metric-placeholder" key={i}><span className="skeleton-line skeleton-meta"/><span className="skeleton-line skeleton-metric-number"/><span className="skeleton-line skeleton-meta short"/></div>)}</div>; }
 function OrderCardSkeleton({ showAction = false }) { return <article className="order-card order-card-skeleton" aria-hidden="true"><span className="skeleton-line skeleton-meta"/><span className="skeleton-line skeleton-order-title"/><span className="skeleton-line skeleton-description"/><div className="skeleton-order-bottom"><span className="skeleton-line skeleton-price"/><span className="skeleton-line skeleton-status"/></div>{showAction && <div className="order-repeat-actions order-repeat-skeleton"><span className="skeleton-line skeleton-repeat-copy"/><span className="skeleton-line skeleton-repeat-action"/></div>}</article>; }
 function OrderListSkeleton({ count = 2 }) { return <div className="orders-list" role="status" aria-live="polite" aria-busy="true"><span className="sr-only">Loading orders…</span>{Array.from({ length: count }, (_, i) => <OrderCardSkeleton key={i} showAction/>)}</div>; }
