@@ -16,7 +16,7 @@ function readValue(content, key) {
 
 function setRawValue(content, key, value) {
   const expression = new RegExp(`^\\s*${key}\\s*=.*$`, 'm');
-  if (expression.test(content)) return content.replace(expression, `${key}=${value}`);
+  if (expression.test(content)) return content.replace(expression, () => `${key}=${value}`);
   return `${content.trimEnd()}\n${key}=${value}\n`;
 }
 
