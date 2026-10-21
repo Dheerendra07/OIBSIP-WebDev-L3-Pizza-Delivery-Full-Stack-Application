@@ -22,7 +22,7 @@ test('creates local env with a generated JWT secret and leaves provider values e
   const result = prepareLocalEnv(template, undefined, () => strongSecret);
   assert.equal(result.created, true);
   assert.equal(result.generatedJwtSecret, true);
-  assert.ok(result.content.split('\\n').includes(`JWT_SECRET=${strongSecret}`));
+  assert.ok(result.content.includes(`JWT_SECRET=${strongSecret}`));
   for (const key of ['ADMIN_PASSWORD', 'SMTP_HOST', 'SMTP_PASS', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET']) {
     assert.match(result.content, new RegExp(`^${key}=$`, 'm'), `${key} should not be fabricated`);
   }
