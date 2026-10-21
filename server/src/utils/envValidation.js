@@ -1,6 +1,7 @@
 import { isMailConfigured } from './emailConfig.js';
+import { isStrongEnough } from './password.js';
 
-const requiredForProduction = ['MONGODB_URI', 'JWT_SECRET', 'CLIENT_ORIGIN', 'CLIENT_BASE_URL', 'APP_BASE_URL', 'MAIL_FROM', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET', 'ADMIN_ALERT_EMAIL'];
+const requiredForProduction = ['MONGODB_URI', 'JWT_SECRET', 'CLIENT_ORIGIN', 'CLIENT_BASE_URL', 'APP_BASE_URL', 'MAIL_FROM', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET', 'ADMIN_ALERT_EMAIL'];
 const validSameSiteValues = new Set(['strict', 'lax', 'none']);
 
 function isExactHttpsOrigin(value) {
@@ -28,6 +29,8 @@ export function validateEnv(env = process.env) {
     if (!isMailConfigured(env)) {
       throw new Error('Production email requires RESEND_API_KEY with MAIL_FROM, or SMTP_HOST, SMTP_USER and SMTP_PASS with MAIL_FROM.');
     }
+    if (!/^\\S+@\\S+\\.\\S+$/.test(String(env.ADMIN_EMAIL || '').trim())) throw new Error('ADMIN_EMAIL must be a valid email address');
+    if (!isStrongEnough(env.ADMIN_PASSWORD)) throw new Error('ADMIN_PASSWORD must be 10–72 characters containing uppercase, lowercase and a number');
     if ((env.JWT_SECRET || '').length < 32 || /replace-with|change-this|example/i.test(env.JWT_SECRET || '')) throw new Error('JWT_SECRET must be a strong, unique value of at least 32 characters');
     const allowedOrigins = String(env.CLIENT_ORIGIN || '').split(',').map((origin) => origin.trim());
     if (allowedOrigins.some((origin) => !isExactHttpsOrigin(origin))) {
