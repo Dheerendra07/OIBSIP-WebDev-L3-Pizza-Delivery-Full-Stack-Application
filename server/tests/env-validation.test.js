@@ -29,3 +29,17 @@ test('rejects application base URLs with a path or query in production', () => {
   env.CLIENT_BASE_URL = 'https://pizza.example.com?redirect=1';
   assert.throws(() => validateEnv(env), /CLIENT_BASE_URL must be a valid HTTPS origin/);
 });
+
+test('requires valid production admin credentials for automatic bootstrap', () => {
+  const missingEmail = productionEnv();
+  missingEmail.ADMIN_EMAIL = '';
+  assert.throws(() => validateEnv(missingEmail), /ADMIN_EMAIL/);
+
+  const invalidEmail = productionEnv();
+  invalidEmail.ADMIN_EMAIL = 'not-an-email';
+  assert.throws(() => validateEnv(invalidEmail), /ADMIN_EMAIL must be a valid email address/);
+
+  const weakPassword = productionEnv();
+  weakPassword.ADMIN_PASSWORD = 'weak';
+  assert.throws(() => validateEnv(weakPassword), /ADMIN_PASSWORD must be 10–72 characters/);
+});
