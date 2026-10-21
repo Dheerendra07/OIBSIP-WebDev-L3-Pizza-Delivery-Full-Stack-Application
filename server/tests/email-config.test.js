@@ -12,6 +12,8 @@ const productionEnv = {
   CLIENT_BASE_URL: 'https://pizza-house-web-n75h.onrender.com',
   APP_BASE_URL: 'https://pizza-house-api.onrender.com',
   MAIL_FROM: 'Pizza House <orders@example.test>',
+  ADMIN_EMAIL: 'admin@example.test',
+  ADMIN_PASSWORD: 'StrongPassword123',
   RAZORPAY_KEY_ID: 'rzp_test_example',
   RAZORPAY_KEY_SECRET: 'test-secret-value',
   RAZORPAY_WEBHOOK_SECRET: 'test-webhook-value',
