@@ -35,7 +35,7 @@ function Toast({ toast, onClose }) {
     if (!toast) return null;
     const isError = toast.kind === 'error';
     return <div
-        className={\`toast \${toast.kind || ''}\`}
+        className={`toast ${toast.kind || ''}`}
         role={isError ? 'alert' : 'status'}
         aria-live={isError ? 'assertive' : 'polite'}
         aria-atomic="true"
