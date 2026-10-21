@@ -17,7 +17,7 @@ try {
   const prepared = prepareLocalEnv(template, existing);
 
   mkdirSync(dirname(targetPath), { recursive: true });
-  if (prepared.created || prepared.generatedJwtSecret || !existsSync(targetPath)) {
+  if (prepared.created || prepared.generatedJwtSecret || !existsSync(targetPath) || prepared.content !== existing) {
     writeFileSync(targetPath, prepared.content, { encoding: 'utf8', mode: 0o600 });
   }
 
