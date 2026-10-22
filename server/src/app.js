@@ -17,6 +17,8 @@ const app = express();
 app.disable('x-powered-by');
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: config.clientOrigin.split(',').map((s) => s.trim()), credentials: true, methods: ['GET', 'POST', 'PATCH', 'OPTIONS'], allowedHeaders: ['Content-Type', 'X-Razorpay-Signature', 'X-Razorpay-Event-Id'] }));
+// A browser GET is not a webhook delivery; explain the expected method rather than returning a generic 404.
+app.get('/api/payments/webhook', (_req, res) => res.status(405).json({ error: 'Razorpay webhook endpoint accepts POST requests only', service: 'pizza-house-api' }));
 // Razorpay signs the exact raw request body, so mount this endpoint before express.json().
 app.post('/api/payments/webhook', rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }), express.raw({ type: 'application/json', limit: '64kb' }), handleRazorpayWebhook);
 app.use(express.json({ limit: '32kb', strict: true }));
