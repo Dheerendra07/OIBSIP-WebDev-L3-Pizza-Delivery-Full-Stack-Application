@@ -43,9 +43,15 @@ const orderSchema = new mongoose.Schema({
   stockReservedAt: { type: Date, default: null },
   stockReservationExpiresAt: { type: Date, default: null, index: true },
   razorpayOrderId: { type: String, default: null, index: true },
+  checkoutRequestId: { type: String, default: null },
+  checkoutRequestFingerprint: { type: String, default: null },
   razorpayPaymentId: { type: String, default: null, index: true },
   paidAt: { type: Date, default: null },
 }, { timestamps: true, strict: 'throw' });
 
 orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index(
+  { user: 1, checkoutRequestId: 1 },
+  { unique: true, partialFilterExpression: { checkoutRequestId: { $type: 'string' } } },
+);
 export default mongoose.model('Order', orderSchema);
