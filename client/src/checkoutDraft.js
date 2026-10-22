@@ -1,6 +1,16 @@
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 const CATALOG_ID = /^[a-z0-9][a-z0-9-]{0,79}$/i;
 export const CHECKOUT_DRAFT_STORAGE_KEY = 'pizza-house.checkout-draft';
+const CHECKOUT_REQUEST_ID = /^[A-Za-z0-9._:-]{16,128}$/;
+
+export function createCheckoutRequestId() {
+  try {
+    if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
+  } catch {
+    // Some older browser contexts may not expose randomUUID.
+  }
+  return `checkout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -96,9 +106,22 @@ export function parseCheckoutDraft(raw) {
     if (typeof value.activeOrderId !== 'string' || !OBJECT_ID.test(value.activeOrderId)) return null;
     activeOrderId = value.activeOrderId;
   }
-  if (cart.length === 0) activeOrderId = null;
+  let checkoutRequestId = null;
+  if (value.checkoutRequestId !== null && value.checkoutRequestId !== undefined) {
+    if (typeof value.checkoutRequestId !== 'string' || !CHECKOUT_REQUEST_ID.test(value.checkoutRequestId)) return null;
+    checkoutRequestId = value.checkoutRequestId;
+  }
+  if (cart.length === 0) {
+    activeOrderId = null;
+    checkoutRequestId = null;
+  }
 
-  return { version: 1, cart, activeOrderId };
+  return {
+    version: 1,
+    cart,
+    activeOrderId,
+    ...(checkoutRequestId ? { checkoutRequestId } : {}),
+  };
 }
 
 export function serializeCheckoutDraft(draft) {
@@ -107,6 +130,7 @@ export function serializeCheckoutDraft(draft) {
     version: 1,
     cart: draft.cart,
     activeOrderId: draft.activeOrderId ?? null,
+    checkoutRequestId: draft.checkoutRequestId ?? null,
   }));
   return normalized ? JSON.stringify(normalized) : null;
 }
