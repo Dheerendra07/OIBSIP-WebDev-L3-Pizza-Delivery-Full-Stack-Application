@@ -98,7 +98,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   // Real HTTP order creation against isolated MongoDB: authoritative price and persistence.
   const createOrder = await fetch(`${base}/api/orders`, {
     method: 'POST',
-    headers,
+    headers: { ...headers, Cookie: cookie },
     body: JSON.stringify({
       items: [{ type: 'featured', pizzaId: 'margherita', quantity: 2, unitPrice: 1, lineTotal: 1 }],
       deliveryDetails: {
