@@ -36,6 +36,9 @@ app.get('/api/health', (_req, res) => {
     status: readiness.status,
     service: 'pizza-house-api',
     timestamp: new Date().toISOString(),
+    // Render provides this commit SHA at runtime; it lets smoke checks prove
+    // that the expected revision—not an older still-live deploy—is serving traffic.
+    version: process.env.RENDER_GIT_COMMIT || null,
     dependencies: readiness.dependencies,
   });
 });
