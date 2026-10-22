@@ -409,10 +409,16 @@ export default function App() {
             document.querySelector('.main-nav button:not([disabled])')?.focus();
             return;
         }
+        // While the auth modal is open, its focus manager owns focus. Do not
+        // restore focus to the mobile toggle underneath the modal backdrop.
+        if (authMode) {
+            mobileMenuTriggerRef.current = null;
+            return;
+        }
         const trigger = mobileMenuTriggerRef.current;
         if (trigger?.isConnected) trigger.focus();
         mobileMenuTriggerRef.current = null;
-    }, [mobileMenu]);
+    }, [mobileMenu, authMode]);
     const submitAuth = async (e) => { e.preventDefault(); setPending(true); try {
         if (authMode === 'register') {
             const result = await api('/auth/register', { method: 'POST', body: form });
