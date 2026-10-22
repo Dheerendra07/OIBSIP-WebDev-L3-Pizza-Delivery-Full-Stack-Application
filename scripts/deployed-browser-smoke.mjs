@@ -25,15 +25,16 @@ try {
   for (let attempt = 1; attempt <= 12; attempt += 1) {
     await page.goto(webUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 30_000 });
-    if (await page.locator('.mobile-auth-link').count() === 1) {
+    if ((await page.locator('.mobile-auth-link').count() === 1) &&
+        (await page.locator('[data-mobile-auth-focus="dialog-first"]').count() === 1)) {
       mobileSignInReady = true;
       break;
     }
-    console.log(`[WAIT] hosted frontend has not published the mobile sign-in fix yet (${attempt}/12)`);
+    console.log(`[WAIT] hosted frontend has not published the mobile auth focus fix yet (${attempt}/12)`);
     await page.waitForTimeout(5_000);
   }
   if (!mobileSignInReady) {
-    throw new Error('Hosted frontend did not publish the mobile sign-in fix after 12 checks.');
+    throw new Error('Hosted frontend did not publish the mobile auth focus fix after 12 checks.');
   }
   await page.getByRole('button', { name: 'Explore the menu' }).click();
   await page.locator('.pizza-card').first().waitFor({ state: 'visible', timeout: 30_000 });
