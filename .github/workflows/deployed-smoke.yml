@@ -36,8 +36,10 @@ jobs:
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
 
-          const apiRaw = process.env.API_BASE_URL;\n          const apiBase = apiRaw.endsWith('/') ? apiRaw.slice(0, -1) : apiRaw;
-          const webRaw = process.env.CLIENT_WEB_URL;\n          const webBase = webRaw.endsWith('/') ? webRaw.slice(0, -1) : webRaw;
+          const apiRaw = process.env.API_BASE_URL;
+          const apiBase = apiRaw.endsWith('/') ? apiRaw.slice(0, -1) : apiRaw;
+          const webRaw = process.env.CLIENT_WEB_URL;
+          const webBase = webRaw.endsWith('/') ? webRaw.slice(0, -1) : webRaw;
 
           async function getJson(path) {
             const response = await fetch(`${apiBase}${path}`, {
@@ -91,8 +93,7 @@ jobs:
             assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
             results.push('credentialed CORS');
 
-            // Intentionally invalid test signature: proves the webhook route is mounted and rejects
-            // forged requests before they can touch orders or webhook receipts.
+            // Intentionally invalid test signature: this must not create a receipt or alter an order.
             const webhook = await fetch(`${apiBase}/api/payments/webhook`, {
               method: 'POST',
               signal: AbortSignal.timeout(8000),
