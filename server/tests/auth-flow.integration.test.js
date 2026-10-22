@@ -95,6 +95,44 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(orders.status, 200, 'authenticated customer should load order history');
   assert.deepEqual((await orders.json()).orders, []);
 
+  // Real HTTP order creation against isolated MongoDB: authoritative price and persistence.
+  const createOrder = await fetch(`${base}/api/orders`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      items: [{ type: 'featured', pizzaId: 'margherita', quantity: 2, unitPrice: 1, lineTotal: 1 }],
+      deliveryDetails: {
+        recipientName: 'Test Customer',
+        phone: '9000000000',
+        addressLine: '12 Example Test Lane',
+        landmark: 'Test Landmark',
+        city: 'Test City',
+        state: 'Test State',
+        postalCode: '999999',
+        instructions: 'Test instructions',
+      },
+    }),
+  });
+  assert.equal(createOrder.status, 201, 'authenticated customer should create an order');
+  const createdOrder = (await createOrder.json()).order;
+  assert.ok(createdOrder?.id);
+  assert.equal(createdOrder.items[0].unitPrice, 249, 'server catalog price must override client price');
+  assert.equal(createdOrder.subtotal, 498);
+  assert.equal(createdOrder.deliveryFee, 29);
+  assert.equal(createdOrder.total, 527);
+  assert.equal(createdOrder.status, 'pending_payment');
+  assert.equal(createdOrder.paymentStatus, 'pending');
+
+  const persistedOrdersResponse = await fetch(`${base}/api/orders/my`, {
+    headers: { Origin: webOrigin, Cookie: cookie },
+  });
+  assert.equal(persistedOrdersResponse.status, 200);
+  const persistedOrders = (await persistedOrdersResponse.json()).orders;
+  assert.equal(persistedOrders.length, 1);
+  assert.equal(String(persistedOrders[0].id), String(createdOrder.id));
+  assert.equal(persistedOrders[0].total, 527);
+  assert.equal(persistedOrders[0].deliveryDetails.postalCode, '999999');
+
   const logout = await fetch(`${base}/api/auth/logout`, {
     method: 'POST',
     headers: { Origin: webOrigin, Cookie: cookie },
