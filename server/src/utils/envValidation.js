@@ -40,6 +40,7 @@ export function validateEnv(env = process.env) {
       if (!isHttpsBaseUrl(env[key])) throw new Error(`${key} must be a valid HTTPS origin without a path, query, or fragment in production`);
     }
   }
+  if (env.REQUIRE_EMAIL_VERIFICATION !== undefined && !['true', 'false'].includes(String(env.REQUIRE_EMAIL_VERIFICATION).trim().toLowerCase())) throw new Error('REQUIRE_EMAIL_VERIFICATION must be true or false');
   if (env.RAZORPAY_KEY_ID && !String(env.RAZORPAY_KEY_ID).startsWith('rzp_test_')) throw new Error('This project is configured for Razorpay test mode; RAZORPAY_KEY_ID must start with rzp_test_');
   if (env.COOKIE_SAME_SITE && !validSameSiteValues.has(String(env.COOKIE_SAME_SITE).toLowerCase())) throw new Error('COOKIE_SAME_SITE must be strict, lax, or none');
   if (String(env.COOKIE_SAME_SITE || '').toLowerCase() === 'none' && env.NODE_ENV !== 'production') throw new Error('COOKIE_SAME_SITE=none requires production HTTPS; use strict or lax for local development');
