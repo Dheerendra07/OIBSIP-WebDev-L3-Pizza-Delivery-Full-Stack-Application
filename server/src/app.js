@@ -23,6 +23,19 @@ app.use(express.json({ limit: '32kb', strict: true }));
 app.use(cookieParser());
 app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'pizza-house-api', timestamp: new Date().toISOString() }));
+app.get('/', (_req, res) => res.json({
+  status: 'ok',
+  service: 'pizza-house-api',
+  message: 'Pizza House API is online. Open the customer website to place an order.',
+  website: config.clientBaseUrl,
+  health: '/api/health',
+  endpoints: {
+    catalog: '/api/catalog',
+    auth: '/api/auth',
+    orders: '/api/orders',
+    payments: '/api/payments',
+  },
+}));
 app.use('/api/auth', authRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/orders', orderRoutes);
