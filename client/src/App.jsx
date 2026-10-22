@@ -195,7 +195,7 @@ export default function App() {
         if (!pendingVerification) return;
         setPage('cart');
         notify('A previous payment still needs confirmation. Retry the same payment; do not pay again.', 'error');
-    }, [notify]);
+    }, [notify, pendingVerification]);
     useEffect(() => {
         try {
             if (!pendingVerification) {
