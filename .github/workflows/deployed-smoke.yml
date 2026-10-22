@@ -36,8 +36,8 @@ jobs:
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
 
-          const apiBase = process.env.API_BASE_URL.replace(/\\/$/, '');
-          const webBase = process.env.CLIENT_WEB_URL.replace(/\\/$/, '');
+          const apiRaw = process.env.API_BASE_URL;\n          const apiBase = apiRaw.endsWith('/') ? apiRaw.slice(0, -1) : apiRaw;
+          const webRaw = process.env.CLIENT_WEB_URL;\n          const webBase = webRaw.endsWith('/') ? webRaw.slice(0, -1) : webRaw;
 
           async function getJson(path) {
             const response = await fetch(`${apiBase}${path}`, {
