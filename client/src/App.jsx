@@ -9,7 +9,7 @@ import { matchesCartSnapshot, requiresPriceConfirmation, sameServerQuote, snapsh
 import { buildReorderCart } from './reorder.js';
 import { PENDING_PAYMENT_STORAGE_KEY, parsePendingVerification, serializePendingVerification } from './pendingPayment.js';
 import { evaluateBudget } from './budgetGuard.js';
-import { CHECKOUT_DRAFT_STORAGE_KEY, readCheckoutDraft, serializeCheckoutDraft } from './checkoutDraft.js';
+import { CHECKOUT_DRAFT_STORAGE_KEY, readCheckoutDraft, serializeCheckoutDraft, hasDeliveryDetailsForUpdate as shouldUpdateDeliveryDetails } from './checkoutDraft.js';
 const DEFAULT_CATALOG = {
     bases: [{ id: 'classic', name: 'Classic Hand-Tossed', price: 0 }, { id: 'thin', name: 'Thin & Crispy', price: 30 }, { id: 'whole-wheat', name: 'Whole Wheat', price: 40 }, { id: 'pan', name: 'Pan Crust', price: 50 }, { id: 'cheese-burst', name: 'Cheese Burst', price: 70 }],
     sauces: [{ id: 'classic-tomato', name: 'Classic Tomato', price: 0 }, { id: 'spicy-arrabbiata', name: 'Spicy Arrabbiata', price: 15 }, { id: 'pesto', name: 'Basil Pesto', price: 25 }, { id: 'bbq', name: 'Smoky BBQ', price: 20 }, { id: 'white-garlic', name: 'White Garlic', price: 20 }],
@@ -480,12 +480,17 @@ export default function App() {
             return;
         }
 
-        let normalizedDeliveryDetails;
-        try {
-            normalizedDeliveryDetails = normalizeDeliveryDetails(deliveryDetails);
-        } catch (error) {
-            notify(error.message, 'error');
-            return;
+        let normalizedDeliveryDetails = null;
+        const hasDeliveryDetailsForUpdate = shouldUpdateDeliveryDetails(deliveryDetails);
+        // A restored pending order already has server-stored delivery details.
+        // Do not force the customer to re-enter personal address data after a refresh.
+        if (!activeOrderId || hasDeliveryDetailsForUpdate) {
+            try {
+                normalizedDeliveryDetails = normalizeDeliveryDetails(deliveryDetails);
+            } catch (error) {
+                notify(error.message, 'error');
+                return;
+            }
         }
 
         setPending(true);
@@ -518,7 +523,7 @@ export default function App() {
                         orderId = null;
                         serverOrder = null;
                         setActiveOrderId(null);
-                    } else {
+                    } else if (normalizedDeliveryDetails) {
                         await api('/orders/' + orderId + '/delivery-details', {
                             method: 'PATCH',
                             body: { deliveryDetails: normalizedDeliveryDetails },
@@ -536,6 +541,14 @@ export default function App() {
             }
 
             if (!orderId) {
+                if (!normalizedDeliveryDetails) {
+                    try {
+                        normalizedDeliveryDetails = normalizeDeliveryDetails(deliveryDetails);
+                    } catch (error) {
+                        notify(error.message, 'error');
+                        return;
+                    }
+                }
                 const created = await api('/orders', {
                     method: 'POST',
                     body: {
