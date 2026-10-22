@@ -32,6 +32,7 @@ jobs:
         env:
           API_BASE_URL: https://pizza-house-api.onrender.com
           CLIENT_WEB_URL: https://pizza-house-web-n75h.onrender.com
+          EXPECTED_COMMIT: ${{ github.sha }}
         run: |
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
@@ -66,9 +67,15 @@ jobs:
             results.push('API base');
 
             const health = await getJson('/api/health');
-            assert.equal(health.response.status, 200);
+            assert.equal(health.response.status, 200, 'health must only pass while MongoDB is connected');
             assert.equal(health.body?.status, 'ok');
-            results.push('health');
+            assert.equal(health.body?.dependencies?.database, 'connected', 'database readiness must be explicit');
+            assert.equal(
+              health.body?.version,
+              process.env.EXPECTED_COMMIT,
+              `API must be running the expected Render commit ${process.env.EXPECTED_COMMIT}; got ${health.body?.version || 'no version'}`,
+            );
+            results.push('health/database readiness/expected commit');
 
             const catalog = await getJson('/api/catalog');
             assert.equal(catalog.response.status, 200, 'catalog must be available from the database');
