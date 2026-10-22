@@ -14,6 +14,9 @@ import { notFound, errorHandler } from './middleware/errors.js';
 import { handleRazorpayWebhook } from './controllers/paymentWebhookController.js';
 
 const app = express();
+// Render terminates TLS and forwards requests through one trusted reverse proxy.
+// Trusting that proxy lets express-rate-limit identify the real client IP safely.
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: config.clientOrigin.split(',').map((s) => s.trim()), credentials: true, methods: ['GET', 'POST', 'PATCH', 'OPTIONS'], allowedHeaders: ['Content-Type', 'X-Razorpay-Signature', 'X-Razorpay-Event-Id'] }));
