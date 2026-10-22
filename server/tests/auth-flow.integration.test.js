@@ -142,6 +142,68 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
       instructions: 'Test instructions',
     },
   };
+  // Abandoned orders that never created a provider order must not clog the admin queue forever.
+  // The scheduled cleanup may cancel only stale, unpaid, unreserved, non-provider-linked orders.
+  const {
+    cancelAbandonedUnreservedCheckouts,
+    UNRESERVED_CHECKOUT_TTL_MS,
+  } = await import('../src/jobs/stockAlerts.js');
+  const fixtureIngredients = {
+    base: 'classic',
+    sauce: 'classic-tomato',
+    cheese: 'mozzarella',
+    vegetables: ['tomato'],
+  };
+  const fixtureItem = {
+    name: 'Margherita Classic',
+    quantity: 1,
+    unitPrice: 249,
+    lineTotal: 249,
+    ingredients: fixtureIngredients,
+    inventoryKeys: ['base:classic', 'sauce:classic-tomato', 'cheese:mozzarella', 'vegetable:tomato'],
+  };
+  const makeCheckoutFixture = (label, overrides = {}) => Order.create({
+    orderNumber: `PH-CLEANUP-${label}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+    user: loginBody.user.id,
+    items: [fixtureItem],
+    subtotal: 249,
+    deliveryFee: 29,
+    total: 278,
+    deliveryDetails: createOrderPayload.deliveryDetails,
+    status: 'pending_payment',
+    paymentStatus: 'pending',
+    inventoryReserved: false,
+    paymentOrderCreationInProgress: false,
+    stockReservedAt: null,
+    stockReservationExpiresAt: null,
+    razorpayOrderId: null,
+    ...overrides,
+  });
+  const [abandonedOrder, recentOrder, providerLinkedOrder, creationInProgressOrder, reservedOrder] = await Promise.all([
+    makeCheckoutFixture('STALE'),
+    makeCheckoutFixture('RECENT'),
+    makeCheckoutFixture('PROVIDER', { razorpayOrderId: 'order_existing_provider_checkout' }),
+    makeCheckoutFixture('CREATING', { paymentOrderCreationInProgress: true }),
+    makeCheckoutFixture('RESERVED', { inventoryReserved: true, stockReservationExpiresAt: new Date(Date.now() - 60_000) }),
+  ]);
+  const staleFixtureTime = new Date(Date.now() - UNRESERVED_CHECKOUT_TTL_MS - 60_000);
+  for (const order of [abandonedOrder, providerLinkedOrder, creationInProgressOrder, reservedOrder]) {
+    await Order.collection.updateOne(
+      { _id: order._id },
+      { $set: { createdAt: staleFixtureTime, updatedAt: staleFixtureTime } },
+    );
+  }
+
+  const cancelledUnreserved = await cancelAbandonedUnreservedCheckouts(new Date());
+  assert.equal(cancelledUnreserved, 1, 'only one stale unreserved checkout without a provider order should be cancelled');
+  assert.equal((await Order.findById(abandonedOrder.id).lean()).status, 'cancelled');
+  assert.equal((await Order.findById(recentOrder.id).lean()).status, 'pending_payment', 'recent orders must remain payable');
+  assert.equal((await Order.findById(providerLinkedOrder.id).lean()).status, 'pending_payment', 'provider-linked orders must remain on payment reconciliation');
+  assert.equal((await Order.findById(creationInProgressOrder.id).lean()).status, 'pending_payment', 'orders marked as creating a payment order must be preserved');
+  assert.equal((await Order.findById(reservedOrder.id).lean()).status, 'pending_payment', 'reserved orders must be handled by reservation reconciliation instead');
+  assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, 100, 'unreserved-order cleanup must not modify ingredient stock');
+  await Order.deleteMany({ _id: { $in: [abandonedOrder._id, recentOrder._id, providerLinkedOrder._id, creationInProgressOrder._id, reservedOrder._id] } });
+
   const checkoutRequestKey = 'integration-checkout-request-0001';
   const postCreateOrder = (payload = createOrderPayload) => fetch(`${base}/api/orders`, {
     method: 'POST',
