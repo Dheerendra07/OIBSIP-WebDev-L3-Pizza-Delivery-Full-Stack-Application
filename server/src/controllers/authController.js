@@ -19,13 +19,32 @@ export const register = asyncHandler(async (req, res) => {
   if (!isStrongEnough(password)) return res.status(400).json({ error: 'Password must be 10–72 characters with uppercase, lowercase and a number' });
   const existing = await User.findOne({ email });
   if (existing) return res.status(409).json({ error: 'An account with that email already exists' });
-  const tokenData = createOpaqueToken();
-  const user = await User.create({ name, email, passwordHash: await hashPassword(password), role: 'user', emailVerificationTokenHash: tokenData.hash, emailVerificationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) });
-  const url = verificationEmailUrl(tokenData.token);
-  try { await sendMail({ to: email, subject: 'Verify your Pizza House account', text: `Hi ${name}, verify your email within 24 hours: ${url}` }); }
-  catch (error) { await User.deleteOne({ _id: user._id }); throw error; }
-  if (config.nodeEnv === 'development' && !isMailConfigured()) console.info(`[DEV ONLY] Email verification URL: ${url}`);
-  res.status(201).json({ message: 'Account created. Check your email for a verification link.' });
+  const tokenData = config.requireEmailVerification ? createOpaqueToken() : null;
+  const user = await User.create({
+    name,
+    email,
+    passwordHash: await hashPassword(password),
+    role: 'user',
+    emailVerifiedAt: config.requireEmailVerification ? null : new Date(),
+    emailVerificationTokenHash: tokenData?.hash ?? null,
+    emailVerificationExpiresAt: tokenData ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
+  });
+
+  if (tokenData) {
+    const url = verificationEmailUrl(tokenData.token);
+    try {
+      await sendMail({ to: email, subject: 'Verify your Pizza House account', text: `Hi ${name}, verify your email within 24 hours: ${url}` });
+    } catch (error) {
+      await User.deleteOne({ _id: user._id });
+      throw error;
+    }
+    if (config.nodeEnv === 'development' && !isMailConfigured()) console.info(`[DEV ONLY] Email verification URL: ${url}`);
+  }
+
+  const message = config.requireEmailVerification
+    ? 'Account created. Check your email for a verification link.'
+    : 'Account created. You can now sign in.';
+  res.status(201).json({ message, emailVerificationRequired: config.requireEmailVerification });
 });
 
 export const verifyEmail = asyncHandler(async (req, res) => {
@@ -43,7 +62,7 @@ async function loginCommon(req, res, adminOnly) {
   if (!user || !(await verifyPassword(password, user.passwordHash))) return res.status(401).json({ error: 'Email or password is incorrect' });
   if (adminOnly && user.role !== 'admin') return res.status(403).json({ error: 'This account does not have admin access' });
   if (!adminOnly && user.role !== 'user') return res.status(403).json({ error: 'Use the admin sign-in page for this account' });
-  if (!user.emailVerifiedAt) return res.status(403).json({ error: 'Verify your email before signing in' });
+  if (config.requireEmailVerification && !user.emailVerifiedAt) return res.status(403).json({ error: 'Verify your email before signing in' });
   issueSession(res, user); return res.json({ user: publicUser(user) });
 }
 export const login = asyncHandler(async (req, res) => loginCommon(req, res, false));
