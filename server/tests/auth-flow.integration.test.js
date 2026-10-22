@@ -71,6 +71,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   await ensureInventorySeeded();
   await ensureAdminAccount({ env });
   const { default: Order } = await import('../src/models/Order.js');
+  await Order.init(); // Ensure the unique checkout idempotency index exists before racing requests.
   const { default: InventoryItem } = await import('../src/models/InventoryItem.js');
   server = createServer(app);
   await new Promise((resolve, reject) => {
@@ -126,27 +127,46 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(orders.status, 200, 'authenticated customer should load order history');
   assert.deepEqual((await orders.json()).orders, []);
 
-  // Real HTTP order creation against isolated MongoDB: authoritative price and persistence.
-  const createOrder = await fetch(`${base}/api/orders`, {
+  // Real HTTP order creation against isolated MongoDB: authoritative price,
+  // persistence, replay safety when a response is lost, and payload mismatch protection.
+  const createOrderPayload = {
+    items: [{ type: 'featured', pizzaId: 'margherita', quantity: 2, unitPrice: 1, lineTotal: 1 }],
+    deliveryDetails: {
+      recipientName: 'Test Customer',
+      phone: '9000000000',
+      addressLine: '12 Example Test Lane',
+      landmark: 'Test Landmark',
+      city: 'Test City',
+      state: 'Test State',
+      postalCode: '999999',
+      instructions: 'Test instructions',
+    },
+  };
+  const checkoutRequestKey = 'integration-checkout-request-0001';
+  const postCreateOrder = (payload = createOrderPayload) => fetch(`${base}/api/orders`, {
     method: 'POST',
-    headers: { ...headers, Cookie: cookie },
-    body: JSON.stringify({
-      items: [{ type: 'featured', pizzaId: 'margherita', quantity: 2, unitPrice: 1, lineTotal: 1 }],
-      deliveryDetails: {
-        recipientName: 'Test Customer',
-        phone: '9000000000',
-        addressLine: '12 Example Test Lane',
-        landmark: 'Test Landmark',
-        city: 'Test City',
-        state: 'Test State',
-        postalCode: '999999',
-        instructions: 'Test instructions',
-      },
-    }),
+    headers: { ...headers, Cookie: cookie, 'Idempotency-Key': checkoutRequestKey },
+    body: JSON.stringify(payload),
   });
+  const createOrder = await postCreateOrder();
   assert.equal(createOrder.status, 201, 'authenticated customer should create an order');
   const createdOrder = (await createOrder.json()).order;
   assert.ok(createdOrder?.id);
+
+  const duplicateCreateOrder = await postCreateOrder();
+  assert.equal(duplicateCreateOrder.status, 200, 'replaying the same checkout request should return the already-created order');
+  const duplicateOrder = (await duplicateCreateOrder.json()).order;
+  assert.equal(String(duplicateOrder.id), String(createdOrder.id), 'retry must reuse the original order ID');
+  assert.equal(await Order.countDocuments({ user: loginBody.user.id }), 1, 'replaying a request must not create a duplicate order');
+
+  const changedPayloadResponse = await postCreateOrder({
+    ...createOrderPayload,
+    deliveryDetails: { ...createOrderPayload.deliveryDetails, addressLine: '99 Different Street' },
+  });
+  assert.equal(changedPayloadResponse.status, 409, 'the same idempotency key cannot silently attach a different delivery address');
+  assert.equal((await changedPayloadResponse.json()).code, 'CHECKOUT_IDEMPOTENCY_CONFLICT');
+  assert.equal(await Order.countDocuments({ user: loginBody.user.id }), 1, 'conflicting payload must not create a second order');
+
   assert.equal(createdOrder.items[0].unitPrice, 249, 'server catalog price must override client price');
   assert.equal(createdOrder.subtotal, 498);
   assert.equal(createdOrder.deliveryFee, 29);
