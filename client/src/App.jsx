@@ -346,8 +346,8 @@ export default function App() {
     }, [mobileMenu]);
     const submitAuth = async (e) => { e.preventDefault(); setPending(true); try {
         if (authMode === 'register') {
-            await api('/auth/register', { method: 'POST', body: form });
-            notify('Account created. Check your inbox; in local development without SMTP, the link appears in the API terminal.');
+            const result = await api('/auth/register', { method: 'POST', body: form });
+            notify(result.message || 'Account created. You can now sign in.');
             setAuthMode('login');
         }
         else if (authMode === 'login' || authMode === 'admin') {
