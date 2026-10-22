@@ -1,0 +1,137 @@
+name: Deployed smoke checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deployed-smoke.yml'
+      - 'server/src/**'
+      - 'server/tests/**'
+      - 'client/src/**'
+      - 'client/package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pizza-house-deployed-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify deployed API, catalog, CORS, webhook guard and website
+        env:
+          API_BASE_URL: https://pizza-house-api.onrender.com
+          CLIENT_WEB_URL: https://pizza-house-web-n75h.onrender.com
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+
+          const apiBase = process.env.API_BASE_URL.replace(/\\/$/, '');
+          const webBase = process.env.CLIENT_WEB_URL.replace(/\\/$/, '');
+
+          async function getJson(path) {
+            const response = await fetch(`${apiBase}${path}`, {
+              signal: AbortSignal.timeout(8000),
+              headers: { Accept: 'application/json' },
+            });
+            const body = await response.json().catch(() => null);
+            return { response, body };
+          }
+
+          async function checkAll() {
+            const results = [];
+
+            const root = await getJson('/');
+            assert.equal(root.response.status, 200, 'API root must return HTTP 200, not Route not found');
+            assert.equal(root.body?.service, 'pizza-house-api');
+            assert.equal(root.body?.status, 'ok');
+            assert.equal(root.body?.website, webBase);
+            results.push('API root');
+
+            const base = await getJson('/api');
+            assert.equal(base.response.status, 200, 'API base path must return HTTP 200');
+            assert.equal(base.body?.service, 'pizza-house-api');
+            results.push('API base');
+
+            const health = await getJson('/api/health');
+            assert.equal(health.response.status, 200);
+            assert.equal(health.body?.status, 'ok');
+            results.push('health');
+
+            const catalog = await getJson('/api/catalog');
+            assert.equal(catalog.response.status, 200, 'catalog must be available from the database');
+            for (const group of ['bases', 'sauces', 'cheeses', 'vegetables']) {
+              assert.ok(Array.isArray(catalog.body?.catalog?.[group]), `catalog.${group} must be an array`);
+              assert.ok(catalog.body.catalog[group].length > 0, `catalog.${group} must not be empty`);
+            }
+            assert.ok(Array.isArray(catalog.body?.featuredPizzas));
+            assert.ok(catalog.body.featuredPizzas.length > 0);
+            results.push('catalog/database');
+
+            const preflight = await fetch(`${apiBase}/api/health`, {
+              method: 'OPTIONS',
+              signal: AbortSignal.timeout(8000),
+              headers: {
+                Origin: webBase,
+                'Access-Control-Request-Method': 'GET',
+              },
+            });
+            assert.ok(preflight.status === 200 || preflight.status === 204, 'CORS preflight should pass');
+            assert.equal(preflight.headers.get('access-control-allow-origin'), webBase);
+            assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
+            results.push('credentialed CORS');
+
+            // Intentionally invalid test signature: proves the webhook route is mounted and rejects
+            // forged requests before they can touch orders or webhook receipts.
+            const webhook = await fetch(`${apiBase}/api/payments/webhook`, {
+              method: 'POST',
+              signal: AbortSignal.timeout(8000),
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Razorpay-Signature': 'invalid-smoke-test-signature',
+                'X-Razorpay-Event-Id': 'deployed-smoke-invalid-signature',
+              },
+              body: JSON.stringify({ event: 'payment.captured', payload: { payment: { entity: {} } } }),
+            });
+            assert.equal(webhook.status, 401, 'webhook must reject invalid signatures');
+            results.push('webhook signature guard');
+
+            const website = await fetch(webBase, {
+              signal: AbortSignal.timeout(8000),
+              headers: { Accept: 'text/html' },
+            });
+            assert.equal(website.status, 200, 'customer website must return HTTP 200');
+            const html = await website.text();
+            assert.ok(html.includes('id="root"'), 'website HTML must contain the app root');
+            assert.ok(html.includes('<title'), 'website HTML must contain a title');
+            results.push('customer website');
+
+            return results;
+          }
+
+          let lastError;
+          for (let attempt = 1; attempt <= 20; attempt += 1) {
+            try {
+              const passed = await checkAll();
+              for (const name of passed) console.log(`[PASS] ${name}`);
+              console.log(`Deployed smoke checks passed: ${passed.length}/${passed.length}`);
+              process.exit(0);
+            } catch (error) {
+              lastError = error;
+              console.error(`Attempt ${attempt}/20 failed: ${error.message}`);
+              if (attempt < 20) await new Promise((resolve) => setTimeout(resolve, 15000));
+            }
+          }
+          console.error('Deployed smoke checks failed after retries:', lastError?.stack || lastError);
+          process.exit(1);
+          NODE
