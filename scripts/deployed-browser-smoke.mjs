@@ -54,7 +54,13 @@ try {
   await mobileNav.getByRole('button', { name: 'Sign in', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor({ state: 'visible' });
-  await dialog.getByLabel('Email address').fill(`qa-smoke-${Date.now()}@example.invalid`);
+  const loginEmail = dialog.getByLabel('Email address');
+  await loginEmail.waitFor({ state: 'visible' });
+  if (!(await loginEmail.evaluate((element) => document.activeElement === element))) {
+    throw new Error('Opening sign-in from the mobile menu must move keyboard focus into the dialog.');
+  }
+  pass('mobile sign-in opens with focus inside the dialog');
+  await loginEmail.fill(`qa-smoke-${Date.now()}@example.invalid`);
   await dialog.getByLabel('Password').fill('NotARealPassword123');
 
   const loginResponsePromise = page.waitForResponse((response) =>
