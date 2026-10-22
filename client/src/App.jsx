@@ -11,6 +11,7 @@ import { PENDING_PAYMENT_STORAGE_KEY, parsePendingVerification, serializePending
 import { evaluateBudget } from './budgetGuard.js';
 import { CHECKOUT_DRAFT_STORAGE_KEY, readCheckoutDraft, serializeCheckoutDraft, hasDeliveryDetailsForUpdate as shouldUpdateDeliveryDetails } from './checkoutDraft.js';
 import { classifySessionLookupFailure } from './sessionLookup.js';
+import { completeSignOut } from './sessionLogout.js';
 const DEFAULT_CATALOG = {
     bases: [{ id: 'classic', name: 'Classic Hand-Tossed', price: 0 }, { id: 'thin', name: 'Thin & Crispy', price: 30 }, { id: 'whole-wheat', name: 'Whole Wheat', price: 40 }, { id: 'pan', name: 'Pan Crust', price: 50 }, { id: 'cheese-burst', name: 'Cheese Burst', price: 70 }],
     sauces: [{ id: 'classic-tomato', name: 'Classic Tomato', price: 0 }, { id: 'spicy-arrabbiata', name: 'Spicy Arrabbiata', price: 15 }, { id: 'pesto', name: 'Basil Pesto', price: 25 }, { id: 'bbq', name: 'Smoky BBQ', price: 20 }, { id: 'white-garlic', name: 'White Garlic', price: 20 }],
@@ -443,15 +444,38 @@ export default function App() {
     finally {
         setPending(false);
     } };
-    const signOut = async () => { if (pendingVerification) {
-        notify('Confirm the previous payment before signing out so you can safely retry verification.', 'error');
-        navigate('cart');
-        return;
-    } if (pending)
-        return; try {
-        await api('/auth/logout', { method: 'POST' });
-    }
-    catch { } setUser(null); setSessionStatus('ready'); setOrders([]); ordersLoaded.current = false; setOrdersStatus('idle'); setOrdersError(''); setAdminData({ summary: null, inventory: [], orders: [], paymentReviews: [] }); adminLoaded.current = false; setAdminStatus('idle'); setAdminError(''); setCart([]); setDeliveryDetails(EMPTY_DELIVERY_DETAILS); setDeliveryRestoreStatus('idle'); setDeliveryRestoreRetry(0); setActiveOrderId(null); setPage('home'); notify('You have signed out.'); };
+    const signOut = async () => {
+        if (pendingVerification) {
+            notify('Confirm the previous payment before signing out so you can safely retry verification.', 'error');
+            navigate('cart');
+            return;
+        }
+        if (pending) return;
+
+        await completeSignOut({
+            request: api,
+            clearLocalSession: () => {
+                setUser(null);
+                setSessionStatus('ready');
+                setOrders([]);
+                ordersLoaded.current = false;
+                setOrdersStatus('idle');
+                setOrdersError('');
+                setAdminData({ summary: null, inventory: [], orders: [], paymentReviews: [] });
+                adminLoaded.current = false;
+                setAdminStatus('idle');
+                setAdminError('');
+                setCart([]);
+                setDeliveryDetails(EMPTY_DELIVERY_DETAILS);
+                setDeliveryRestoreStatus('idle');
+                setDeliveryRestoreRetry(0);
+                setActiveOrderId(null);
+                setPage('home');
+                notify('You have signed out.');
+            },
+            onError: () => notify("We couldn't confirm sign-out. Check your connection and try again.", 'error'),
+        });
+    };
     const addFeatured = (pizza) => { const existing = cart.find(x => x.cartKey === `featured:${pizza.id}`); setCart(existing ? cart.map(x => x.cartKey === existing.cartKey ? { ...x, quantity: Math.min(10, x.quantity + 1) } : x) : [...cart, { cartKey: `featured:${pizza.id}`, type: 'featured', pizzaId: pizza.id, name: pizza.name, emoji: pizza.emoji, unitPrice: pizza.price, quantity: 1, ingredients: pizza.ingredients }]); notify(`${pizza.name} added to your bag`); };
     const addCustom = () => { const selected = [catalog.bases.find(x => x.id === builder.base), catalog.sauces.find(x => x.id === builder.sauce), catalog.cheeses.find(x => x.id === builder.cheese), ...builder.vegetables.map(id => catalog.vegetables.find(x => x.id === id))]; if (selected.some(x => x?.available === false)) {
         notify('One of those ingredients is out of stock. Update your recipe and try again.', 'error');
