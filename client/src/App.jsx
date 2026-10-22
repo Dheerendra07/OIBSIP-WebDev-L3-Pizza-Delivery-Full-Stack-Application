@@ -151,6 +151,11 @@ export default function App() {
             setDeliveryRestoreStatus('idle');
             return undefined;
         }
+        // Payment verification has its own recovery panel; do not interrupt it with address loading.
+        if (pendingVerification) {
+            setDeliveryRestoreStatus('ready');
+            return undefined;
+        }
         if (sessionStatus === 'checking') return undefined;
         if (!user || user.role !== 'user') {
             setDeliveryRestoreStatus('needs-sign-in');
@@ -176,7 +181,7 @@ export default function App() {
         })();
 
         return () => { cancelled = true; };
-    }, [activeOrderId, user, sessionStatus, deliveryRestoreRetry]);
+    }, [activeOrderId, user, sessionStatus, deliveryRestoreRetry, pendingVerification]);
     const refreshOrders = useCallback(async () => {
         if (!ordersLoaded.current) setOrdersStatus('loading');
         setOrdersError('');
