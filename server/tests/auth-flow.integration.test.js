@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 
 test('production auth HTTP flow: signup, login cookie, current user, protected orders and logout', async (t) => {
-  const mongod = await MongoMemoryServer.create();
+  const mongod = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   const webOrigin = 'https://pizza-house-web-n75h.onrender.com';
   const apiOrigin = 'https://pizza-house-api.onrender.com';
   const env = {
@@ -26,21 +26,51 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     ADMIN_ALERT_EMAIL: 'alerts@example.com',
     RAZORPAY_KEY_ID: 'rzp_test_auth_e2e',
     RAZORPAY_KEY_SECRET: 'test-only-not-used',
-    RAZORPAY_WEBHOOK_SECRET: 'test-only-not-used',
+    RAZORPAY_WEBHOOK_SECRET: 'test-only-webhook-secret',
   };
   for (const [key, value] of Object.entries(env)) process.env[key] = value;
 
   let server;
+  let restoreRazorpayClientFactory = () => {};
+  let razorpayOrderCreateCalls = 0;
+  const mockProviderOrderId = 'order_test_auth_e2e';
+  const mockProviderPaymentId = 'pay_test_auth_e2e';
   t.after(async () => {
+    restoreRazorpayClientFactory();
     if (server?.listening) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await mongoose.disconnect().catch(() => {});
     await mongod.stop();
   });
 
+  // The test provider prevents external payment calls while preserving the real HTTP,
+  // session, transaction, inventory, payment-verification and webhook code paths.
+  const { setRazorpayClientFactoryForIntegrationTests } = await import('../src/services/payments.js');
+  restoreRazorpayClientFactory = setRazorpayClientFactoryForIntegrationTests(() => ({
+    orders: {
+      create: async ({ amount, currency }) => {
+        razorpayOrderCreateCalls += 1;
+        return { id: mockProviderOrderId, amount, currency };
+      },
+    },
+    payments: {
+      fetch: async (id) => ({
+        id,
+        order_id: mockProviderOrderId,
+        amount: 52700,
+        currency: 'INR',
+        status: 'captured',
+      }),
+    },
+  }));
+
   // Import only after assigning test-only production settings so the real app
   // builds the exact Secure + SameSite=None cookie expected on Render.
   const { default: app } = await import('../src/app.js');
   await mongoose.connect(env.MONGODB_URI);
+  const { ensureInventorySeeded } = await import('../src/utils/databaseBootstrap.js');
+  await ensureInventorySeeded();
+  const { default: Order } = await import('../src/models/Order.js');
+  const { default: InventoryItem } = await import('../src/models/InventoryItem.js');
   server = createServer(app);
   await new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -132,6 +162,103 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(String(persistedOrders[0].id), String(createdOrder.id));
   assert.equal(persistedOrders[0].total, 527);
   assert.equal(persistedOrders[0].deliveryDetails.postalCode, '999999');
+
+  // A real MongoDB transaction reserves stock before the provider checkout is created.
+  assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, 100);
+  const createPaymentOrder = async () => fetch(`${base}/api/payments/create-order`, {
+    method: 'POST',
+    headers: { ...headers, Cookie: cookie },
+    body: JSON.stringify({ orderId: createdOrder.id }),
+  });
+  const paymentOrderResponse = await createPaymentOrder();
+  assert.equal(paymentOrderResponse.status, 200, 'checkout should create a provider order');
+  const paymentOrder = await paymentOrderResponse.json();
+  assert.equal(paymentOrder.paymentOrderId, mockProviderOrderId);
+  assert.equal(paymentOrder.amount, 52700);
+  assert.equal(paymentOrder.currency, 'INR');
+  assert.equal(razorpayOrderCreateCalls, 1);
+
+  const reservedOrder = await Order.findById(createdOrder.id).lean();
+  assert.equal(reservedOrder.inventoryReserved, true);
+  assert.equal(reservedOrder.paymentOrderCreationInProgress, false);
+  assert.ok(reservedOrder.stockReservationExpiresAt instanceof Date);
+  assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, 98);
+
+  // Reloading/retrying checkout reuses the same provider order and never reserves stock twice.
+  const repeatedPaymentOrderResponse = await createPaymentOrder();
+  assert.equal(repeatedPaymentOrderResponse.status, 200);
+  assert.equal((await repeatedPaymentOrderResponse.json()).paymentOrderId, mockProviderOrderId);
+  assert.equal(razorpayOrderCreateCalls, 1);
+  assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, 98);
+
+  // Simulate the browser's successful Razorpay callback and validate server-side capture status.
+  const paymentSignature = crypto.createHmac('sha256', env.RAZORPAY_KEY_SECRET)
+    .update(`${mockProviderOrderId}|${mockProviderPaymentId}`)
+    .digest('hex');
+  const paymentVerificationResponse = await fetch(`${base}/api/payments/verify`, {
+    method: 'POST',
+    headers: { ...headers, Cookie: cookie },
+    body: JSON.stringify({
+      orderId: createdOrder.id,
+      razorpay_order_id: mockProviderOrderId,
+      razorpay_payment_id: mockProviderPaymentId,
+      razorpay_signature: paymentSignature,
+    }),
+  });
+  assert.equal(paymentVerificationResponse.status, 200, 'captured payment should be verified');
+  const paymentVerification = await paymentVerificationResponse.json();
+  assert.equal(paymentVerification.order.status, 'order_received');
+  assert.equal(paymentVerification.order.paymentStatus, 'paid');
+  const paidOrder = await Order.findById(createdOrder.id).lean();
+  assert.equal(paidOrder.paymentStatus, 'paid');
+  assert.equal(paidOrder.status, 'order_received');
+  assert.equal(paidOrder.inventoryReserved, false);
+  assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, 98);
+
+  // Deliver a correctly signed provider webhook after browser verification, then replay it.
+  const webhookBody = JSON.stringify({
+    event: 'payment.captured',
+    payload: {
+      payment: {
+        entity: {
+          id: mockProviderPaymentId,
+          order_id: mockProviderOrderId,
+          amount: 52700,
+          currency: 'INR',
+          status: 'captured',
+        },
+      },
+    },
+  });
+  const webhookSignature = crypto.createHmac('sha256', env.RAZORPAY_WEBHOOK_SECRET)
+    .update(webhookBody)
+    .digest('hex');
+  const webhookHeaders = {
+    Origin: webOrigin,
+    'Content-Type': 'application/json',
+    'X-Razorpay-Signature': webhookSignature,
+    'X-Razorpay-Event-Id': 'integration-payment-captured-1',
+  };
+  const webhookResponse = await fetch(`${base}/api/payments/webhook`, {
+    method: 'POST',
+    headers: webhookHeaders,
+    body: webhookBody,
+  });
+  assert.equal(webhookResponse.status, 200);
+  assert.equal((await webhookResponse.json()).status, 'processed');
+  const { default: PaymentWebhookReceipt } = await import('../src/models/PaymentWebhookReceipt.js');
+  assert.equal(await PaymentWebhookReceipt.countDocuments({ eventId: 'integration-payment-captured-1' }), 1);
+
+  const replayResponse = await fetch(`${base}/api/payments/webhook`, {
+    method: 'POST',
+    headers: webhookHeaders,
+    body: webhookBody,
+  });
+  assert.equal(replayResponse.status, 200);
+  const replayBody = await replayResponse.json();
+  assert.equal(replayBody.duplicate, true);
+  assert.equal(await PaymentWebhookReceipt.countDocuments({ eventId: 'integration-payment-captured-1' }), 1);
+  assert.equal((await Order.findById(createdOrder.id).lean()).razorpayPaymentId, mockProviderPaymentId);
 
   const logout = await fetch(`${base}/api/auth/logout`, {
     method: 'POST',
