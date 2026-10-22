@@ -111,6 +111,13 @@ export function serializeCheckoutDraft(draft) {
   return normalized ? JSON.stringify(normalized) : null;
 }
 
+/** An address is being edited when the customer has started entering required address fields. */
+export function hasDeliveryDetailsForUpdate(details) {
+  if (!isRecord(details)) return false;
+  return ['phone', 'addressLine', 'city', 'state', 'postalCode'].some((key) =>
+    typeof details[key] === 'string' && details[key].trim().length > 0);
+}
+
 export function readCheckoutDraft() {
   try {
     return parseCheckoutDraft(sessionStorage.getItem(CHECKOUT_DRAFT_STORAGE_KEY)) ||
