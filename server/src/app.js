@@ -3,7 +3,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import mongoose from 'mongoose';
 import { config } from './config/env.js';
+import { getReadiness } from './utils/healthStatus.js';
 import authRoutes from './routes/authRoutes.js';
 import catalogRoutes from './routes/catalogRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
@@ -27,7 +29,16 @@ app.post('/api/payments/webhook', rateLimit({ windowMs: 60 * 1000, limit: 120, s
 app.use(express.json({ limit: '32kb', strict: true }));
 app.use(cookieParser());
 app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'pizza-house-api', timestamp: new Date().toISOString() }));
+app.get('/api/health', (_req, res) => {
+  const readiness = getReadiness(mongoose.connection.readyState);
+  res.set('Cache-Control', 'no-store');
+  return res.status(readiness.httpStatus).json({
+    status: readiness.status,
+    service: 'pizza-house-api',
+    timestamp: new Date().toISOString(),
+    dependencies: readiness.dependencies,
+  });
+});
 app.get('/api', (_req, res) => res.json({
   status: 'ok',
   service: 'pizza-house-api',
