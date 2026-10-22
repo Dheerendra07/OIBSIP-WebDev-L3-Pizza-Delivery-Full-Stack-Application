@@ -251,6 +251,7 @@ export default function App() {
         try {
             if (!cart.length && !activeOrderId) {
                 sessionStorage.removeItem(CHECKOUT_DRAFT_STORAGE_KEY);
+                if (checkoutRequestId) setCheckoutRequestId(null);
                 return;
             }
             const saved = serializeCheckoutDraft({ cart, activeOrderId, checkoutRequestId });
@@ -705,7 +706,7 @@ export default function App() {
             ));
             checkout.open();
         } catch (error) {
-            if (error.status === 409 && error.code === 'CHECKOUT_IDEMPOTENCY_CONFLICT') {
+            if (error.status === 409 && (error.code === 'CHECKOUT_IDEMPOTENCY_CONFLICT' || /This checkout request was already used with different details/i.test(error.message))) {
                 // The cart or delivery data changed after an uncertain request. Forget that
                 // key so a deliberate next click can create a new order rather than looping.
                 setCheckoutRequestId(null);
