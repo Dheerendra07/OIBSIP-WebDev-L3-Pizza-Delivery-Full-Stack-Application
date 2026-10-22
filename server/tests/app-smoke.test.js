@@ -49,18 +49,20 @@ test('customer issue and admin issue queue endpoints require authentication', as
   assert.ok(payloads.every((payload) => payload.error === 'Sign in to continue'));
 });
 
-test('HTTP app exposes health and structured not-found responses with security headers', async (t) => {
+test('HTTP app reports disconnected health and structured not-found responses with security headers', async (t) => {
   const { server, origin } = await startAppServer();
   t.after(async () => {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   });
 
   const health = await fetch(`${origin}/api/health`);
-  assert.equal(health.status, 200);
+  assert.equal(health.status, 503);
+  assert.equal(health.headers.get('cache-control'), 'no-store');
   assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
   const payload = await health.json();
-  assert.equal(payload.status, 'ok');
+  assert.equal(payload.status, 'degraded');
   assert.equal(payload.service, 'pizza-house-api');
+  assert.deepEqual(payload.dependencies, { database: 'unavailable' });
   assert.equal(typeof payload.timestamp, 'string');
   assert.ok(Number.isFinite(Date.parse(payload.timestamp)));
 
