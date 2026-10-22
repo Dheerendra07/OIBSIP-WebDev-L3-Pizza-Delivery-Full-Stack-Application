@@ -3,7 +3,23 @@ import { config } from '../config/env.js';
 import { verifyRazorpaySignature as verifySignature } from '../utils/paymentSignature.js';
 
 export function verifyRazorpaySignature(orderId, paymentId, signature) { return verifySignature(orderId, paymentId, signature, config.razorpayKeySecret); }
+let integrationTestClientFactory = null;
+
+/**
+ * Allow isolated integration tests to replace Razorpay's network client.
+ * The override is process-local and restored by the test; production uses the SDK.
+ */
+export function setRazorpayClientFactoryForIntegrationTests(factory) {
+  if (typeof factory !== 'function') throw new TypeError('Razorpay test client factory must be a function');
+  const previous = integrationTestClientFactory;
+  integrationTestClientFactory = factory;
+  return () => {
+    if (integrationTestClientFactory === factory) integrationTestClientFactory = previous;
+  };
+}
+
 export function getRazorpayClient() {
+  if (integrationTestClientFactory) return integrationTestClientFactory();
   if (!config.razorpayKeyId || !config.razorpayKeySecret) { const error = new Error('Razorpay test keys are not configured on the server'); error.statusCode = 503; throw error; }
   return new Razorpay({ key_id: config.razorpayKeyId, key_secret: config.razorpayKeySecret });
 }
