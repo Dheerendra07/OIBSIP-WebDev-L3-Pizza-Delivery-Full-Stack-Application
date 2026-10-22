@@ -152,3 +152,69 @@ test('password-reset delivery failures use the generic response and invalidate t
     else process.env.MAIL_FROM = previousMailFrom;
   }
 });
+
+test('password-reset database lookup failures use the generic response', async () => {
+  const originalFindOne = User.findOne;
+  const originalConsoleError = console.error;
+  const logs = [];
+  User.findOne = async () => {
+    throw new Error('mongodb://private-connection-details');
+  };
+  console.error = (...args) => logs.push(args);
+
+  try {
+    const res = responseRecorder();
+    let nextError;
+    await forgotPassword({ body: { email: 'registered@example.test' } }, res, (error) => { nextError = error; });
+
+    assert.equal(nextError, undefined);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.payload, {
+      message: 'If an account exists for this email, reset instructions will be sent.',
+    });
+    assert.equal(logs.length, 1);
+    assert.doesNotMatch(JSON.stringify(logs), /private-connection-details|registered@example\\.test/i);
+  } finally {
+    User.findOne = originalFindOne;
+    console.error = originalConsoleError;
+  }
+});
+
+test('password-reset token persistence failures use the generic response and attempt token cleanup', async () => {
+  const originalFindOne = User.findOne;
+  const originalConsoleError = console.error;
+  const logs = [];
+  let saveCalls = 0;
+  const user = {
+    passwordResetTokenHash: null,
+    passwordResetExpiresAt: null,
+    async save() {
+      saveCalls += 1;
+      if (saveCalls === 1) throw new Error('mongodb://private-connection-details');
+    },
+  };
+
+  User.findOne = async () => user;
+  console.error = (...args) => logs.push(args);
+
+  try {
+    const res = responseRecorder();
+    let nextError;
+    await forgotPassword({ body: { email: 'registered@example.test' } }, res, (error) => { nextError = error; });
+
+    assert.equal(nextError, undefined);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.payload, {
+      message: 'If an account exists for this email, reset instructions will be sent.',
+    });
+    assert.equal(saveCalls, 2, 'the handler should attempt to invalidate a possibly persisted token');
+    assert.equal(user.passwordResetTokenHash, null);
+    assert.equal(user.passwordResetExpiresAt, null);
+    assert.equal(logs.length, 1);
+    assert.doesNotMatch(JSON.stringify(logs), /private-connection-details|registered@example\\.test/i);
+  } finally {
+    User.findOne = originalFindOne;
+    console.error = originalConsoleError;
+  }
+});
+
