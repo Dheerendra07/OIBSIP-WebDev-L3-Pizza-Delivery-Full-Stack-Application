@@ -132,9 +132,13 @@ export default function App() {
             return d.user;
         } catch (error) {
             const failure = classifySessionLookupFailure(error);
-            if (failure === 'unauthenticated') setUser(null);
-            // A network/API failure is not proof that the visitor has signed out.
-            setSessionStatus(failure);
+            if (failure === 'unauthenticated') {
+                setUser(null);
+                setSessionStatus('ready');
+            } else {
+                // A network/API failure is not proof that the visitor has signed out.
+                setSessionStatus('unavailable');
+            }
             return null;
         }
     }, []);
