@@ -103,6 +103,45 @@ jobs:
             assert.equal(me.headers.get('access-control-allow-credentials'), 'true');
             results.push('unauthenticated session guard');
 
+            // Safe live auth probes: exercise the registered route and DB lookup without
+            // creating a persistent production account or sending verification email.
+            const registrationValidation = await fetch(`${apiBase}/api/auth/register`, {
+              method: 'POST',
+              signal: AbortSignal.timeout(8000),
+              headers: {
+                Origin: webBase,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+              },
+              body: JSON.stringify({
+                name: 'Smoke Test',
+                email: 'not-an-email',
+                password: 'SmokeTestPassword123',
+              }),
+            });
+            assert.equal(registrationValidation.status, 400, 'registration must validate bad email before writing to the database');
+            const registrationValidationBody = await registrationValidation.json();
+            assert.match(registrationValidationBody?.error || '', /valid email/i);
+            assert.equal(registrationValidation.headers.get('access-control-allow-origin'), webBase);
+            assert.equal(registrationValidation.headers.get('access-control-allow-credentials'), 'true');
+            results.push('auth registration validation');
+
+            const loginProbeEmail = `deployed-smoke-${process.env.GITHUB_RUN_ID || Date.now()}-${process.env.GITHUB_RUN_ATTEMPT || 1}@example.invalid`;
+            const loginProbe = await fetch(`${apiBase}/api/auth/login`, {
+              method: 'POST',
+              signal: AbortSignal.timeout(8000),
+              headers: {
+                Origin: webBase,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+              },
+              body: JSON.stringify({ email: loginProbeEmail, password: 'NeverThePassword123' }),
+            });
+            assert.equal(loginProbe.status, 401, 'login lookup for an unknown account should return 401; a server error can indicate DB/auth failure');
+            assert.equal(loginProbe.headers.get('access-control-allow-origin'), webBase);
+            assert.equal(loginProbe.headers.get('access-control-allow-credentials'), 'true');
+            results.push('auth login lookup/database path');
+
             // Browser GET must explain that provider webhook deliveries are POST-only.
             const webhookGet = await fetch(`${apiBase}/api/payments/webhook`, {
               signal: AbortSignal.timeout(8000),
