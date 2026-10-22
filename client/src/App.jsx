@@ -10,6 +10,7 @@ import { buildReorderCart } from './reorder.js';
 import { PENDING_PAYMENT_STORAGE_KEY, parsePendingVerification, serializePendingVerification } from './pendingPayment.js';
 import { evaluateBudget } from './budgetGuard.js';
 import { CHECKOUT_DRAFT_STORAGE_KEY, readCheckoutDraft, serializeCheckoutDraft, hasDeliveryDetailsForUpdate as shouldUpdateDeliveryDetails } from './checkoutDraft.js';
+import { classifySessionLookupFailure } from './sessionLookup.js';
 const DEFAULT_CATALOG = {
     bases: [{ id: 'classic', name: 'Classic Hand-Tossed', price: 0 }, { id: 'thin', name: 'Thin & Crispy', price: 30 }, { id: 'whole-wheat', name: 'Whole Wheat', price: 40 }, { id: 'pan', name: 'Pan Crust', price: 50 }, { id: 'cheese-burst', name: 'Cheese Burst', price: 70 }],
     sauces: [{ id: 'classic-tomato', name: 'Classic Tomato', price: 0 }, { id: 'spicy-arrabbiata', name: 'Spicy Arrabbiata', price: 15 }, { id: 'pesto', name: 'Basil Pesto', price: 25 }, { id: 'bbq', name: 'Smoky BBQ', price: 20 }, { id: 'white-garlic', name: 'White Garlic', price: 20 }],
@@ -54,6 +55,7 @@ export default function App() {
     const [catalog, setCatalog] = useState(DEFAULT_CATALOG);
     const [featured, setFeatured] = useState(FEATURED);
     const [user, setUser] = useState(null);
+    const [sessionStatus, setSessionStatus] = useState('checking');
     const [orders, setOrders] = useState([]);
     const [ordersStatus, setOrdersStatus] = useState('idle');
     const [ordersError, setOrdersError] = useState('');
@@ -121,15 +123,25 @@ export default function App() {
             return false;
         }
     }, []);
-    const refreshMe = useCallback(async () => { try {
-        const d = await api('/auth/me');
-        setUser(d.user);
-        return d.user;
-    }
-    catch {
-        setUser(null);
-        return null;
-    } }, []);
+    const refreshMe = useCallback(async () => {
+        setSessionStatus('checking');
+        try {
+            const d = await api('/auth/me');
+            setUser(d.user);
+            setSessionStatus('ready');
+            return d.user;
+        } catch (error) {
+            const failure = classifySessionLookupFailure(error);
+            if (failure === 'unauthenticated') {
+                setUser(null);
+                setSessionStatus('ready');
+            } else {
+                // A network/API failure is not proof that the visitor has signed out.
+                setSessionStatus('unavailable');
+            }
+            return null;
+        }
+    }, []);
     const refreshOrders = useCallback(async () => {
         if (!ordersLoaded.current) setOrdersStatus('loading');
         setOrdersError('');
@@ -367,6 +379,7 @@ export default function App() {
         else if (authMode === 'login' || authMode === 'admin') {
             const d = await api(authMode === 'admin' ? '/auth/admin/login' : '/auth/login', { method: 'POST', body: form });
             setUser(d.user);
+            setSessionStatus('ready');
             setAuthMode(null);
             setPage(d.user.role === 'admin' ? 'admin' : 'dashboard');
             notify(`Welcome${d.user.name ? `, ${d.user.name.split(' ')[0]}` : ''}!`);
@@ -398,7 +411,7 @@ export default function App() {
         return; try {
         await api('/auth/logout', { method: 'POST' });
     }
-    catch { } setUser(null); setOrders([]); ordersLoaded.current = false; setOrdersStatus('idle'); setOrdersError(''); setAdminData({ summary: null, inventory: [], orders: [], paymentReviews: [] }); adminLoaded.current = false; setAdminStatus('idle'); setAdminError(''); setCart([]); setActiveOrderId(null); setPage('home'); notify('You have signed out.'); };
+    catch { } setUser(null); setSessionStatus('ready'); setOrders([]); ordersLoaded.current = false; setOrdersStatus('idle'); setOrdersError(''); setAdminData({ summary: null, inventory: [], orders: [], paymentReviews: [] }); adminLoaded.current = false; setAdminStatus('idle'); setAdminError(''); setCart([]); setActiveOrderId(null); setPage('home'); notify('You have signed out.'); };
     const addFeatured = (pizza) => { const existing = cart.find(x => x.cartKey === `featured:${pizza.id}`); setCart(existing ? cart.map(x => x.cartKey === existing.cartKey ? { ...x, quantity: Math.min(10, x.quantity + 1) } : x) : [...cart, { cartKey: `featured:${pizza.id}`, type: 'featured', pizzaId: pizza.id, name: pizza.name, emoji: pizza.emoji, unitPrice: pizza.price, quantity: 1, ingredients: pizza.ingredients }]); notify(`${pizza.name} added to your bag`); };
     const addCustom = () => { const selected = [catalog.bases.find(x => x.id === builder.base), catalog.sauces.find(x => x.id === builder.sauce), catalog.cheeses.find(x => x.id === builder.cheese), ...builder.vegetables.map(id => catalog.vegetables.find(x => x.id === id))]; if (selected.some(x => x?.available === false)) {
         notify('One of those ingredients is out of stock. Update your recipe and try again.', 'error');
@@ -765,6 +778,7 @@ export default function App() {
     </header>
 
     <main>
+    {sessionStatus === 'unavailable' && !user && <div className="section-wrap session-check-warning"><InlineDataWarning message="We couldn't verify your existing sign-in session. You may still be signed in; retry the check or sign in again." onRetry={() => void refreshMe()}/></div>}
     {page === 'home' && <><section className="hero section-wrap"><div className="hero-copy"><div className="eyebrow"><span className="eyebrow-dot"/> NOT YOUR AVERAGE PIZZA NIGHT</div><h1>Happiness is<br />a <em>perfect slice.</em></h1><p className="hero-description">Thoughtfully made dough. Ingredients that shine. And that first bite you’ll think about tomorrow.</p><div className="hero-actions"><button className="button button-dark" onClick={() => navigate('menu')}>Explore the menu <ArrowRight size={17}/></button><button className="text-link" onClick={() => navigate('builder')}>Make it yours <ArrowUpRight size={16}/></button></div><div className="hero-proof"><div className="avatar-stack"><span>🍅</span><span>🧀</span><span>🌿</span></div><div><div className="stars">✳ <span>Made for your cravings</span></div><small>Choose your ingredients, make it yours</small></div><div className="proof-divider"/><div><strong>5<span>+</span></strong><small>base & sauce choices</small></div></div></div><div className="hero-art"><div className="hero-halo"/><div className="hero-ring ring-one"/><div className="hero-ring ring-two"/><div className="hero-pizza"><span className="pizza-emoji">🍕</span><div className="pizza-stamp">MADE FRESH<br />JUST FOR YOU</div></div><div className="floating-note note-top"><span>✳</span><div><strong>Fresh daily</strong><small>Never frozen dough</small></div></div><div className="floating-note note-bottom"><span className="note-leaf">♧</span><div><strong>Your kind of pizza</strong><small>Built exactly your way</small></div></div><span className="art-spark spark-one">✳</span><span className="art-spark spark-two">✦</span></div></section>
       <section className="promise-strip"><div><span className="promise-icon"><Leaf size={20}/></span><div><b>Good ingredients</b><small>Nothing to hide</small></div></div><div><span className="promise-icon"><Flame size={20}/></span><div><b>Hot from our oven</b><small>Made when you order</small></div></div><div><span className="promise-icon"><Truck size={20}/></span><div><b>At your door</b><small>With love, not late</small></div></div><div><span className="promise-icon"><BadgeCheck size={20}/></span><div><b>Easy & secure</b><small>Checkout you can trust</small></div></div></section>
       <section className="section-wrap menu-preview"><div className="section-heading"><div><div className="eyebrow">THE CROWD PLEASERS</div><h2>Love at first <em>bite.</em></h2><p>The ones everyone talks about on the way home.</p></div><button className="text-link" onClick={() => navigate('menu')}>The full menu <ArrowRight size={16}/></button></div>{catalogStatus === 'loading' ? <PizzaGridSkeleton count={3}/> : catalogStatus === 'error' ? <CatalogUnavailable onRetry={refreshCatalog} message={catalogError}/> : featured.length ? <div className="pizza-grid">{featured.slice(0, 3).map((pizza, i) => <PizzaCard key={pizza.id} pizza={pizza} index={i} onAdd={() => addFeatured(pizza)} onCustomize={() => navigate('builder')}/>)}</div> : <CatalogEmpty onRetry={refreshCatalog} />}<div className="custom-callout"><div className="callout-icon">✳</div><div><span>THE CHEF IS YOU</span><h3>Have it your way.</h3><p>Choose your crust, sauce, cheese and all the good stuff.</p></div><button className="button button-light" onClick={() => navigate('builder')}>Build my pizza <ArrowRight size={17}/></button><div className="callout-watermark">🍕</div></div></section>
