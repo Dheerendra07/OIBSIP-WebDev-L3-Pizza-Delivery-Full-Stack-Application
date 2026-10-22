@@ -25,6 +25,52 @@ export async function scanLowStock() {
   return { sent: due.length };
 }
 
+export const UNRESERVED_CHECKOUT_TTL_MS = 30 * 60 * 1000;
+
+/**
+ * Remove stale unpaid orders that never reached provider-order creation and
+ * therefore never held inventory. The conditional update protects orders that
+ * were resumed while this scan was running. Provider-linked and reserved orders
+ * stay on the payment-reconciliation path and are never touched here.
+ */
+export async function cancelAbandonedUnreservedCheckouts(now = new Date()) {
+  const cutoff = new Date(now.getTime() - UNRESERVED_CHECKOUT_TTL_MS);
+  const eligibility = {
+    status: 'pending_payment',
+    paymentStatus: 'pending',
+    inventoryReserved: { $ne: true },
+    paymentOrderCreationInProgress: { $ne: true },
+    updatedAt: { $lte: cutoff },
+    $or: [
+      { razorpayOrderId: null },
+      { razorpayOrderId: { $exists: false } },
+    ],
+  };
+
+  const candidates = await Order.find(eligibility).select('_id').limit(100).lean();
+  let cancelled = 0;
+  for (const candidate of candidates) {
+    const order = await Order.findOneAndUpdate(
+      { _id: candidate._id, ...eligibility },
+      {
+        $set: {
+          status: 'cancelled',
+          paymentOrderCreationInProgress: false,
+          stockReservedAt: null,
+          stockReservationExpiresAt: null,
+        },
+      },
+      { new: true },
+    ).lean();
+    if (!order) continue;
+
+    cancelled += 1;
+    publishOrderUpdate(order);
+    publishAdminRefresh();
+  }
+  return cancelled;
+}
+
 export async function releaseExpiredReservations(now = new Date()) {
   const expired = await Order.find({ inventoryReserved: true, paymentStatus: 'pending', status: 'pending_payment', stockReservationExpiresAt: { $lte: now } }).limit(100);
   let released = 0; let reconciled = 0; let deferred = 0; let razorpay;
@@ -122,7 +168,8 @@ export async function releaseExpiredReservations(now = new Date()) {
       publishAdminRefresh();
     }
   }
-  return { released, reconciled, deferred };
+  const cancelledUnreserved = await cancelAbandonedUnreservedCheckouts(now);
+  return { released, reconciled, deferred, cancelledUnreserved };
 }
 
 export function startStockAlertJob() {
