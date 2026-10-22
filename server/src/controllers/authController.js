@@ -97,10 +97,10 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     await sendMail({
       to: email,
       subject: 'Reset your Pizza House password',
-      text: \`Use this one-time link within 30 minutes: \${url}\`,
+      text: `Use this one-time link within 30 minutes: ${url}`,
     });
 
-    if (config.nodeEnv === 'development' && !isMailConfigured()) console.info(\`[DEV ONLY] Password reset URL: \${url}\`);
+    if (config.nodeEnv === 'development' && !isMailConfigured()) console.info(`[DEV ONLY] Password reset URL: ${url}`);
   } catch (error) {
     // Token persistence and provider failures must not create an account-enumeration
     // response difference. Keep diagnostics useful without logging addresses, URLs,
