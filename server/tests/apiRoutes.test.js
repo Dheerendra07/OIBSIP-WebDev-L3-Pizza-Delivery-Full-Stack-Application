@@ -45,12 +45,14 @@ test('API base path returns a helpful JSON response', async () => {
   assert.equal(body.health, '/api/health');
 });
 
-test('health endpoint returns ok with an ISO timestamp', async () => {
+test('health endpoint reports degraded when MongoDB is disconnected', async () => {
   const response = await fetch(`${baseUrl}/api/health`);
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
   const body = await response.json();
-  assert.equal(body.status, 'ok');
+  assert.equal(body.status, 'degraded');
   assert.equal(body.service, 'pizza-house-api');
+  assert.deepEqual(body.dependencies, { database: 'unavailable' });
   assert.equal(Number.isNaN(Date.parse(body.timestamp)), false);
 });
 
