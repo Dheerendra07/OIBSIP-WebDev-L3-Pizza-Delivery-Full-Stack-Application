@@ -4,6 +4,7 @@ import {
   CHECKOUT_DRAFT_STORAGE_KEY,
   parseCheckoutDraft,
   serializeCheckoutDraft,
+  hasDeliveryDetailsForUpdate,
 } from '../src/checkoutDraft.js';
 
 const orderId = '64b000000000000000000001';
@@ -78,4 +79,11 @@ test('empty basket never keeps a stale active order ID', () => {
 
 test('storage key is scoped to the current browser tab', () => {
   assert.equal(CHECKOUT_DRAFT_STORAGE_KEY, 'pizza-house.checkout-draft');
+});
+
+test('a restored order keeps its saved address unless the customer starts editing address fields', () => {
+  assert.equal(hasDeliveryDetailsForUpdate({ recipientName: 'Account Name' }), false);
+  assert.equal(hasDeliveryDetailsForUpdate({ phone: '', addressLine: '', city: '', state: '', postalCode: '' }), false);
+  assert.equal(hasDeliveryDetailsForUpdate({ phone: '9000000000' }), true);
+  assert.equal(hasDeliveryDetailsForUpdate({ addressLine: 'New street' }), true);
 });
