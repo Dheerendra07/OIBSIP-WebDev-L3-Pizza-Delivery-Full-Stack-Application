@@ -184,7 +184,7 @@ jobs:
             assert.ok(bundle.includes(`${apiBase}/api`), 'production bundle must point at the deployed API URL');
             assert.ok(!bundle.includes('http://localhost:4000/api'), 'production bundle must not fall back to localhost API');
             assert.ok(bundle.includes('pizza-house.checkout-draft'), 'deployed bundle must include checkout draft recovery code');
-            assert.ok(bundle.includes(\"We couldn't confirm sign-out. Check your connection and try again.\"), 'deployed bundle must include the logout failure recovery fix');
+            assert.ok(bundle.includes("We couldn't confirm sign-out. Check your connection and try again."), 'deployed bundle must include the logout failure recovery fix');
             results.push('production bundle API URL');
             results.push('checkout draft recovery bundle');
             results.push('logout failure recovery bundle');
