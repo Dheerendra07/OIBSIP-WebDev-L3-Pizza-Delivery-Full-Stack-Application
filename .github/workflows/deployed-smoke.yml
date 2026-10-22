@@ -93,6 +93,22 @@ jobs:
             assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
             results.push('credentialed CORS');
 
+            const checkoutPreflight = await fetch(`${apiBase}/api/orders`, {
+              method: 'OPTIONS',
+              signal: AbortSignal.timeout(8000),
+              headers: {
+                Origin: webBase,
+                'Access-Control-Request-Method': 'POST',
+                'Access-Control-Request-Headers': 'content-type,idempotency-key',
+              },
+            });
+            assert.ok(checkoutPreflight.status === 200 || checkoutPreflight.status === 204, 'checkout preflight should pass');
+            assert.equal(checkoutPreflight.headers.get('access-control-allow-origin'), webBase);
+            const allowedHeaders = (checkoutPreflight.headers.get('access-control-allow-headers') || '')
+              .split(',').map((value) => value.trim().toLowerCase());
+            assert.ok(allowedHeaders.includes('idempotency-key'), 'browser checkout retries need the idempotency header allowed by CORS');
+            results.push('checkout idempotency CORS preflight');
+
             // The customer API must reject a request without a session cookie.
             const me = await fetch(`${apiBase}/api/auth/me`, {
               signal: AbortSignal.timeout(8000),
