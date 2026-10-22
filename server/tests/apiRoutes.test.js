@@ -67,6 +67,13 @@ test('frontend origin is allowed for credentialed CORS requests', async () => {
   assert.equal(response.headers.get('access-control-allow-credentials'), 'true');
 });
 
+test('opening the webhook endpoint in a browser explains that POST is required', async () => {
+  const response = await fetch(`${baseUrl}/api/payments/webhook`);
+  assert.equal(response.status, 405);
+  const body = await response.json();
+  assert.match(body.error, /POST requests only/i);
+});
+
 test('Razorpay webhook route rejects an invalid signature without processing it', async () => {
   const response = await fetch(`${baseUrl}/api/payments/webhook`, {
     method: 'POST',
