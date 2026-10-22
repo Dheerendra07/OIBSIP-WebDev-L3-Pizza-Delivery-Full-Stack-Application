@@ -385,6 +385,79 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(finalCustomerHistory.status, 200);
   assert.equal((await finalCustomerHistory.json()).orders[0].status, 'delivered', 'customer history should reflect admin fulfillment updates');
 
+  // Provider order creation can fail after the database reservation is committed.
+  // Verify the compensating transaction releases stock, leaves the unpaid order
+  // recoverable, and allows a retry without double-reserving ingredients.
+  const failedProviderCheckout = await fetch(`${base}/api/orders`, {
+    method: 'POST',
+    headers: { ...headers, Cookie: cookie, 'Idempotency-Key': 'integration-payment-failure-recovery-0001' },
+    body: JSON.stringify(createOrderPayload),
+  });
+  assert.equal(failedProviderCheckout.status, 201);
+  const failedProviderOrder = (await failedProviderCheckout.json()).order;
+  const stockBeforeProviderFailure = (await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock;
+
+  const restoreFailingProvider = setRazorpayClientFactoryForIntegrationTests(() => ({
+    orders: {
+      create: async () => { throw new Error('synthetic provider outage'); },
+    },
+  }));
+  try {
+    const failedPaymentSetup = await fetch(`${base}/api/payments/create-order`, {
+      method: 'POST',
+      headers: { ...headers, Cookie: cookie },
+      body: JSON.stringify({ orderId: failedProviderOrder.id }),
+    });
+    assert.equal(failedPaymentSetup.status, 500, 'provider outage should surface as a retryable checkout error');
+    assert.equal((await failedPaymentSetup.json()).error, 'An unexpected server error occurred');
+
+    const releasedOrder = await Order.findById(failedProviderOrder.id).lean();
+    assert.equal(releasedOrder.status, 'pending_payment', 'the customer can retry checkout on the same order');
+    assert.equal(releasedOrder.paymentStatus, 'pending');
+    assert.equal(releasedOrder.inventoryReserved, false);
+    assert.equal(releasedOrder.paymentOrderCreationInProgress, false);
+    assert.equal(releasedOrder.stockReservedAt, null);
+    assert.equal(releasedOrder.stockReservationExpiresAt, null);
+    assert.equal(releasedOrder.razorpayOrderId, null);
+    assert.equal(
+      (await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock,
+      stockBeforeProviderFailure,
+      'a provider outage must not permanently consume ingredient stock',
+    );
+  } finally {
+    restoreFailingProvider();
+  }
+
+  const restoreRetryProvider = setRazorpayClientFactoryForIntegrationTests(() => ({
+    orders: {
+      create: async ({ amount, currency }) => ({ id: 'order_test_auth_e2e_recovered', amount, currency }),
+    },
+  }));
+  try {
+    const recoveredPaymentSetup = await fetch(`${base}/api/payments/create-order`, {
+      method: 'POST',
+      headers: { ...headers, Cookie: cookie },
+      body: JSON.stringify({ orderId: failedProviderOrder.id }),
+    });
+    assert.equal(recoveredPaymentSetup.status, 200, 'the same unpaid order should be retryable after provider recovery');
+    const recoveredPayment = await recoveredPaymentSetup.json();
+    assert.equal(recoveredPayment.paymentOrderId, 'order_test_auth_e2e_recovered');
+    assert.equal(recoveredPayment.amount, failedProviderOrder.total * 100);
+    assert.equal(recoveredPayment.currency, 'INR');
+
+    const recoveredOrder = await Order.findById(failedProviderOrder.id).lean();
+    assert.equal(recoveredOrder.inventoryReserved, true);
+    assert.equal(recoveredOrder.paymentOrderCreationInProgress, false);
+    assert.equal(recoveredOrder.razorpayOrderId, 'order_test_auth_e2e_recovered');
+    assert.equal(
+      (await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock,
+      stockBeforeProviderFailure - 2,
+      'retry should reserve ingredients exactly once',
+    );
+  } finally {
+    restoreRetryProvider();
+  }
+
   const logout = await fetch(`${base}/api/auth/logout`, {
     method: 'POST',
     headers: { Origin: webOrigin, Cookie: cookie },
