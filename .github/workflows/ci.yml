@@ -29,6 +29,8 @@ jobs:
             package-lock.json
             server/package-lock.json
             client/package-lock.json
+      - name: Check hosted browser smoke script syntax
+        run: node --check scripts/deployed-browser-smoke.mjs
       - name: Install locked root, API, and web dependencies
         run: npm run install:all
       - name: Audit root, API, and web dependencies for high/critical vulnerabilities
