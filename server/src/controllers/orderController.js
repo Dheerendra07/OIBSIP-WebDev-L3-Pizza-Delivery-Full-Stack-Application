@@ -11,13 +11,88 @@ import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js
 
 const isRequestObjectId = (value) => typeof value === 'string' && mongoose.isObjectIdOrHexString(value);
 
+function publicOrder(order) {
+  return {
+    id: String(order.id || order._id),
+    orderNumber: order.orderNumber,
+    items: order.items,
+    deliveryDetails: order.deliveryDetails,
+    subtotal: order.subtotal,
+    deliveryFee: order.deliveryFee,
+    total: order.total,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+  };
+}
+
+function checkoutRequestFingerprint(items, deliveryDetails) {
+  // Hash only canonical recipe choices, quantity and delivery fields—not prices.
+  // If menu prices move after a lost response, the existing quote is returned
+  // and the client’s normal price-review step protects the customer.
+  const stableItems = items.map(({ name, quantity, ingredients }) => ({ name, quantity, ingredients }));
+  return crypto.createHash('sha256').update(JSON.stringify({ items: stableItems, deliveryDetails })).digest('hex');
+}
+
+function idempotencyConflict(res) {
+  return res.status(409).json({
+    error: 'This checkout request was already used with different details. Tap checkout again to start a fresh order.',
+    code: 'CHECKOUT_IDEMPOTENCY_CONFLICT',
+  });
+}
+
 export const createOrder = asyncHandler(async (req, res) => {
   const items = buildOrderItems(req.body?.items);
   const deliveryDetails = validateDeliveryDetails(req.body?.deliveryDetails);
   const { subtotal, deliveryFee, total } = calculateOrderTotals(items);
-  const order = await Order.create({ orderNumber: `PH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, user: req.user._id, items, deliveryDetails, subtotal, deliveryFee, total });
+  const rawKey = req.get('Idempotency-Key');
+  let checkoutRequestId = null;
+  let requestFingerprint = null;
+
+  if (rawKey !== undefined) {
+    if (typeof rawKey !== 'string' || rawKey.length < 16 || rawKey.length > 128 ||
+        !/^[A-Za-z0-9._:-]+$/.test(rawKey)) {
+      return res.status(400).json({ error: 'A valid checkout idempotency key is required' });
+    }
+    checkoutRequestId = rawKey;
+    requestFingerprint = checkoutRequestFingerprint(items, deliveryDetails);
+
+    const existing = await Order.findOne({ user: req.user._id, checkoutRequestId });
+    if (existing) {
+      if (existing.checkoutRequestFingerprint !== requestFingerprint) return idempotencyConflict(res);
+      return res.status(200).json({ order: publicOrder(existing), reused: true });
+    }
+  }
+
+  let order;
+  try {
+    order = await Order.create({
+      orderNumber: `PH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+      user: req.user._id,
+      items,
+      deliveryDetails,
+      subtotal,
+      deliveryFee,
+      total,
+      ...(checkoutRequestId ? {
+        checkoutRequestId,
+        checkoutRequestFingerprint: requestFingerprint,
+      } : {}),
+    });
+  } catch (error) {
+    // A concurrent retry can pass the lookup above at the same time. The unique
+    // (user, checkoutRequestId) index lets only one create win; the other reuses it.
+    if (checkoutRequestId && error?.code === 11000) {
+      const existing = await Order.findOne({ user: req.user._id, checkoutRequestId });
+      if (existing) {
+        if (existing.checkoutRequestFingerprint !== requestFingerprint) return idempotencyConflict(res);
+        return res.status(200).json({ order: publicOrder(existing), reused: true });
+      }
+    }
+    throw error;
+  }
+
   publishOrderUpdate(order);
-  res.status(201).json({ order: { id: order.id, orderNumber: order.orderNumber, items: order.items, deliveryDetails: order.deliveryDetails, subtotal, deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus } });
+  res.status(201).json({ order: publicOrder(order), reused: false });
 });
 export const myOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(50).lean();

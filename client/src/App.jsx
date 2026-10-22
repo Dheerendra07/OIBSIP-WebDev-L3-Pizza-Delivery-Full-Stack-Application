@@ -9,7 +9,7 @@ import { matchesCartSnapshot, requiresPriceConfirmation, sameServerQuote, snapsh
 import { buildReorderCart } from './reorder.js';
 import { PENDING_PAYMENT_STORAGE_KEY, parsePendingVerification, serializePendingVerification } from './pendingPayment.js';
 import { evaluateBudget } from './budgetGuard.js';
-import { CHECKOUT_DRAFT_STORAGE_KEY, readCheckoutDraft, serializeCheckoutDraft, hasDeliveryDetailsForUpdate as shouldUpdateDeliveryDetails } from './checkoutDraft.js';
+import { CHECKOUT_DRAFT_STORAGE_KEY, readCheckoutDraft, serializeCheckoutDraft, createCheckoutRequestId, hasDeliveryDetailsForUpdate as shouldUpdateDeliveryDetails } from './checkoutDraft.js';
 import { classifySessionLookupFailure } from './sessionLookup.js';
 import { completeSignOut } from './sessionLogout.js';
 const DEFAULT_CATALOG = {
@@ -95,6 +95,7 @@ export default function App() {
     const [resetToken, setResetToken] = useState(new URLSearchParams(location.search).get('resetToken') || '');
     const [filter, setFilter] = useState('All');
     const [activeOrderId, setActiveOrderId] = useState(() => initialCheckoutDraft.activeOrderId);
+    const [checkoutRequestId, setCheckoutRequestId] = useState(() => initialCheckoutDraft.checkoutRequestId || null);
     const [deliveryRestoreStatus, setDeliveryRestoreStatus] = useState(() => initialCheckoutDraft.activeOrderId ? 'loading' : 'idle');
     const [deliveryRestoreRetry, setDeliveryRestoreRetry] = useState(0);
     const [priceReview, setPriceReview] = useState(null);
@@ -250,14 +251,15 @@ export default function App() {
         try {
             if (!cart.length && !activeOrderId) {
                 sessionStorage.removeItem(CHECKOUT_DRAFT_STORAGE_KEY);
+                if (checkoutRequestId) setCheckoutRequestId(null);
                 return;
             }
-            const saved = serializeCheckoutDraft({ cart, activeOrderId });
+            const saved = serializeCheckoutDraft({ cart, activeOrderId, checkoutRequestId });
             if (saved) sessionStorage.setItem(CHECKOUT_DRAFT_STORAGE_KEY, saved);
         } catch {
             // Storage can be disabled; keep checkout functional for the current page session.
         }
-    }, [cart, activeOrderId]);
+    }, [cart, activeOrderId, checkoutRequestId]);
     useEffect(() => {
         if (!pendingVerification) return;
         setPage('cart');
@@ -626,8 +628,22 @@ export default function App() {
                         return;
                     }
                 }
+                let requestId = checkoutRequestId;
+                if (!requestId) {
+                    requestId = createCheckoutRequestId();
+                    setCheckoutRequestId(requestId);
+                    // Save the opaque retry key before the network request. Delivery details
+                    // are deliberately excluded from session storage.
+                    try {
+                        const saved = serializeCheckoutDraft({ cart, activeOrderId: null, checkoutRequestId: requestId });
+                        if (saved) sessionStorage.setItem(CHECKOUT_DRAFT_STORAGE_KEY, saved);
+                    } catch {
+                        // The current page can still retry in memory if storage is unavailable.
+                    }
+                }
                 const created = await api('/orders', {
                     method: 'POST',
+                    headers: { 'Idempotency-Key': requestId },
                     body: {
                         items: cart.map(item => item.type === 'featured'
                             ? { type: 'featured', pizzaId: item.pizzaId, quantity: item.quantity }
@@ -645,6 +661,7 @@ export default function App() {
                 serverOrder = created.order;
                 orderId = serverOrder.id;
                 setActiveOrderId(orderId);
+                setCheckoutRequestId(null);
             }
 
             if (!serverOrder) {
@@ -689,6 +706,19 @@ export default function App() {
             ));
             checkout.open();
         } catch (error) {
+            if (error.status === 409 && (error.code === 'CHECKOUT_IDEMPOTENCY_CONFLICT' || /This checkout request was already used with different details/i.test(error.message))) {
+                // The cart or delivery data changed after an uncertain request. Forget that
+                // key so a deliberate next click can create a new order rather than looping.
+                setCheckoutRequestId(null);
+                try {
+                    const saved = serializeCheckoutDraft({ cart, activeOrderId: null, checkoutRequestId: null });
+                    if (saved) sessionStorage.setItem(CHECKOUT_DRAFT_STORAGE_KEY, saved);
+                } catch {
+                    // The state still resets the in-memory key.
+                }
+                notify('Your previous checkout attempt used different details. Tap Checkout securely again to start a fresh order.', 'error');
+                return;
+            }
             if (error.status === 409 && /reservation expired/i.test(error.message)) setActiveOrderId(null);
             notify(error.message, 'error');
         } finally {
