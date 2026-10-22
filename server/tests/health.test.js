@@ -23,6 +23,7 @@ test('GET /api/health returns 503 without a database connection and disables cac
   process.env.NODE_ENV = 'test';
   process.env.RAZORPAY_KEY_ID = 'rzp_test_health';
   process.env.COOKIE_SAME_SITE = 'strict';
+  process.env.RENDER_GIT_COMMIT = 'test-health-commit';
 
   const { default: mongoose } = await import('mongoose');
   if (mongoose.connection.readyState !== 0) await mongoose.disconnect();
@@ -47,6 +48,7 @@ test('GET /api/health returns 503 without a database connection and disables cac
   assert.equal(response.status, 503);
   assert.equal(body.status, 'degraded');
   assert.equal(body.service, 'pizza-house-api');
+  assert.equal(body.version, 'test-health-commit');
   assert.deepEqual(body.dependencies, { database: 'unavailable' });
   assert.equal(response.headers.get('cache-control'), 'no-store');
 });
