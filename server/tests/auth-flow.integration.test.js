@@ -179,7 +179,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     razorpayOrderId: null,
     ...overrides,
   });
-  const [abandonedOrder, recentOrder, providerLinkedOrder, creationInProgressOrder, reservedOrder] = await Promise.all([
+  const [abandonedOrder, recentOrder, providerLinkedOrder, creationInProgressOrder, reservedFixtureOrder] = await Promise.all([
     makeCheckoutFixture('STALE'),
     makeCheckoutFixture('RECENT'),
     makeCheckoutFixture('PROVIDER', { razorpayOrderId: 'order_existing_provider_checkout' }),
@@ -187,7 +187,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     makeCheckoutFixture('RESERVED', { inventoryReserved: true, stockReservationExpiresAt: new Date(Date.now() - 60_000) }),
   ]);
   const staleFixtureTime = new Date(Date.now() - UNRESERVED_CHECKOUT_TTL_MS - 60_000);
-  for (const order of [abandonedOrder, providerLinkedOrder, creationInProgressOrder, reservedOrder]) {
+  for (const order of [abandonedOrder, providerLinkedOrder, creationInProgressOrder, reservedFixtureOrder]) {
     await Order.collection.updateOne(
       { _id: order._id },
       { $set: { createdAt: staleFixtureTime, updatedAt: staleFixtureTime } },
@@ -200,9 +200,9 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal((await Order.findById(recentOrder.id).lean()).status, 'pending_payment', 'recent orders must remain payable');
   assert.equal((await Order.findById(providerLinkedOrder.id).lean()).status, 'pending_payment', 'provider-linked orders must remain on payment reconciliation');
   assert.equal((await Order.findById(creationInProgressOrder.id).lean()).status, 'pending_payment', 'orders marked as creating a payment order must be preserved');
-  assert.equal((await Order.findById(reservedOrder.id).lean()).status, 'pending_payment', 'reserved orders must be handled by reservation reconciliation instead');
+  assert.equal((await Order.findById(reservedFixtureOrder.id).lean()).status, 'pending_payment', 'reserved orders must be handled by reservation reconciliation instead');
   assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, 100, 'unreserved-order cleanup must not modify ingredient stock');
-  await Order.deleteMany({ _id: { $in: [abandonedOrder._id, recentOrder._id, providerLinkedOrder._id, creationInProgressOrder._id, reservedOrder._id] } });
+  await Order.deleteMany({ _id: { $in: [abandonedOrder._id, recentOrder._id, providerLinkedOrder._id, creationInProgressOrder._id, reservedFixtureOrder._id] } });
 
   const checkoutRequestKey = 'integration-checkout-request-0001';
   const postCreateOrder = (payload = createOrderPayload) => fetch(`${base}/api/orders`, {
