@@ -80,11 +80,39 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   const email = String(body.email || '').trim().toLowerCase();
   const response = { message: 'If an account exists for this email, reset instructions will be sent.' };
   if (!validEmail(email)) return res.json(response);
-  const user = await User.findOne({ email }); if (!user) return res.json(response);
-  const tokenData = createOpaqueToken(); user.passwordResetTokenHash = tokenData.hash; user.passwordResetExpiresAt = new Date(Date.now() + 30 * 60 * 1000); await user.save();
+
+  const user = await User.findOne({ email });
+  if (!user) return res.json(response);
+
+  const tokenData = createOpaqueToken();
+  user.passwordResetTokenHash = tokenData.hash;
+  user.passwordResetExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+  await user.save();
+
   const url = passwordResetUrl(tokenData.token);
-  try { await sendMail({ to: email, subject: 'Reset your Pizza House password', text: `Use this one-time link within 30 minutes: ${url}` }); }
-  catch (error) { user.passwordResetTokenHash = null; user.passwordResetExpiresAt = null; await user.save(); throw error; }
+  try {
+    await sendMail({
+      to: email,
+      subject: 'Reset your Pizza House password',
+      text: `Use this one-time link within 30 minutes: ${url}`,
+    });
+  } catch (error) {
+    // Keep the public response identical to the unknown-account path to avoid
+    // exposing which email addresses are registered when the provider is down.
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpiresAt = null;
+    try {
+      await user.save();
+    } catch (cleanupError) {
+      console.error('[password reset] Could not invalidate reset token after delivery failure.', {
+        message: cleanupError?.message || 'unknown database error',
+      });
+    }
+    console.error('[password reset] Email delivery failed.', {
+      message: error?.message || 'unknown delivery error',
+    });
+  }
+
   if (config.nodeEnv === 'development' && !isMailConfigured()) console.info(`[DEV ONLY] Password reset URL: ${url}`);
   res.json(response);
 });
