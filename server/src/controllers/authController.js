@@ -81,42 +81,48 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   const response = { message: 'If an account exists for this email, reset instructions will be sent.' };
   if (!validEmail(email)) return res.json(response);
 
-  const user = await User.findOne({ email });
-  if (!user) return res.json(response);
-
-  const tokenData = createOpaqueToken();
-  user.passwordResetTokenHash = tokenData.hash;
-  user.passwordResetExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
-  await user.save();
-
-  const url = passwordResetUrl(tokenData.token);
+  let user = null;
+  let resetTokenPrepared = false;
   try {
+    user = await User.findOne({ email });
+    if (!user) return res.json(response);
+
+    const tokenData = createOpaqueToken();
+    user.passwordResetTokenHash = tokenData.hash;
+    user.passwordResetExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    resetTokenPrepared = true;
+    await user.save();
+
+    const url = passwordResetUrl(tokenData.token);
     await sendMail({
       to: email,
       subject: 'Reset your Pizza House password',
       text: `Use this one-time link within 30 minutes: ${url}`,
     });
+
+    if (config.nodeEnv === 'development' && !isMailConfigured()) console.info(`[DEV ONLY] Password reset URL: ${url}`);
   } catch (error) {
-    // Keep the public response identical to the unknown-account path to avoid
-    // exposing which email addresses are registered when the provider is down.
-    user.passwordResetTokenHash = null;
-    user.passwordResetExpiresAt = null;
-    try {
-      await user.save();
-    } catch (cleanupError) {
-      console.error('[password reset] Could not invalidate reset token after delivery failure.', {
-        message: cleanupError?.message || 'unknown database error',
-      });
+    // Token persistence and provider failures must not create an account-enumeration
+    // response difference. Keep diagnostics useful without logging addresses, URLs,
+    // provider response bodies, or database connection details.
+    if (user && resetTokenPrepared) {
+      user.passwordResetTokenHash = null;
+      user.passwordResetExpiresAt = null;
+      try {
+        await user.save();
+      } catch (cleanupError) {
+        console.error('[password reset] Could not invalidate reset token after request failure.', {
+          name: cleanupError?.name || 'Error',
+        });
+      }
     }
-    console.error('[password reset] Email delivery failed.', {
-      message: error?.message || 'unknown delivery error',
+    console.error('[password reset] Request could not be completed.', {
+      name: error?.name || 'Error',
     });
   }
 
-  if (config.nodeEnv === 'development' && !isMailConfigured()) console.info(`[DEV ONLY] Password reset URL: ${url}`);
   res.json(response);
 });
-
 export const resetPassword = asyncHandler(async (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const password = body.password;
