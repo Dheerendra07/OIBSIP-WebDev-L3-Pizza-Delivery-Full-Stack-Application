@@ -93,6 +93,15 @@ jobs:
             assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
             results.push('credentialed CORS');
 
+            // Browser GET must explain that provider webhook deliveries are POST-only.
+            const webhookGet = await fetch(`${apiBase}/api/payments/webhook`, {
+              signal: AbortSignal.timeout(8000),
+            });
+            assert.equal(webhookGet.status, 405, 'webhook GET should explain POST-only behavior');
+            const webhookGetBody = await webhookGet.json();
+            assert.match(webhookGetBody?.error || '', /POST requests only/i);
+            results.push('webhook GET guidance');
+
             // Intentionally invalid test signature: this must not create a receipt or alter an order.
             const webhook = await fetch(`${apiBase}/api/payments/webhook`, {
               method: 'POST',
