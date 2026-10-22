@@ -9,6 +9,7 @@ import { matchesCartSnapshot, requiresPriceConfirmation, sameServerQuote, snapsh
 import { buildReorderCart } from './reorder.js';
 import { PENDING_PAYMENT_STORAGE_KEY, parsePendingVerification, serializePendingVerification } from './pendingPayment.js';
 import { evaluateBudget } from './budgetGuard.js';
+import { CHECKOUT_DRAFT_STORAGE_KEY, readCheckoutDraft, serializeCheckoutDraft } from './checkoutDraft.js';
 const DEFAULT_CATALOG = {
     bases: [{ id: 'classic', name: 'Classic Hand-Tossed', price: 0 }, { id: 'thin', name: 'Thin & Crispy', price: 30 }, { id: 'whole-wheat', name: 'Whole Wheat', price: 40 }, { id: 'pan', name: 'Pan Crust', price: 50 }, { id: 'cheese-burst', name: 'Cheese Burst', price: 70 }],
     sauces: [{ id: 'classic-tomato', name: 'Classic Tomato', price: 0 }, { id: 'spicy-arrabbiata', name: 'Spicy Arrabbiata', price: 15 }, { id: 'pesto', name: 'Basil Pesto', price: 25 }, { id: 'bbq', name: 'Smoky BBQ', price: 20 }, { id: 'white-garlic', name: 'White Garlic', price: 20 }],
@@ -80,7 +81,8 @@ export default function App() {
     const [toast, setToast] = useState(null);
     const [authMode, setAuthMode] = useState(null);
     const [mobileMenu, setMobileMenu] = useState(false);
-    const [cart, setCart] = useState([]);
+    const initialCheckoutDraft = useMemo(() => readCheckoutDraft(), []);
+    const [cart, setCart] = useState(() => initialCheckoutDraft.cart);
     const [budgetLimit, setBudgetLimit] = useState('');
     const [deliveryDetails, setDeliveryDetails] = useState({ recipientName: '', phone: '', addressLine: '', landmark: '', city: '', state: '', postalCode: '', instructions: '' });
     const [builder, setBuilder] = useState({ base: 'classic', sauce: 'classic-tomato', cheese: 'mozzarella', vegetables: ['onion', 'corn'], quantity: 1 });
@@ -88,7 +90,7 @@ export default function App() {
     const [emailOnly, setEmailOnly] = useState('');
     const [resetToken, setResetToken] = useState(new URLSearchParams(location.search).get('resetToken') || '');
     const [filter, setFilter] = useState('All');
-    const [activeOrderId, setActiveOrderId] = useState(null);
+    const [activeOrderId, setActiveOrderId] = useState(() => initialCheckoutDraft.activeOrderId);
     const [priceReview, setPriceReview] = useState(null);
     const [pendingRefundOrderId, setPendingRefundOrderId] = useState(null);
     const [pendingVerification, setPendingVerification] = useState(() => {
@@ -191,6 +193,18 @@ export default function App() {
             return false;
         }
     }, []);
+    useEffect(() => {
+        try {
+            if (!cart.length && !activeOrderId) {
+                sessionStorage.removeItem(CHECKOUT_DRAFT_STORAGE_KEY);
+                return;
+            }
+            const saved = serializeCheckoutDraft({ cart, activeOrderId });
+            if (saved) sessionStorage.setItem(CHECKOUT_DRAFT_STORAGE_KEY, saved);
+        } catch {
+            // Storage can be disabled; keep checkout functional for the current page session.
+        }
+    }, [cart, activeOrderId]);
     useEffect(() => {
         if (!pendingVerification) return;
         setPage('cart');
