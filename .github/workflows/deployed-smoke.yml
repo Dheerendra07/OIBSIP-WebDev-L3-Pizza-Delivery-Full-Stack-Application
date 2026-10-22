@@ -23,16 +23,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
+      - name: Determine latest backend runtime revision
+        shell: bash
+        run: |
+          api_commit="$(git log -1 --format=%H -- server/src server/package.json server/package-lock.json package.json package-lock.json)"
+          test -n "$api_commit"
+          echo "EXPECTED_API_COMMIT=$api_commit" >> "$GITHUB_ENV"
+          echo "Expected backend runtime commit: $api_commit"
+
       - name: Verify deployed API, catalog, CORS, webhook guard and website
         env:
           API_BASE_URL: https://pizza-house-api.onrender.com
           CLIENT_WEB_URL: https://pizza-house-web-n75h.onrender.com
-          EXPECTED_COMMIT: ${{ github.sha }}
+          EXPECTED_API_COMMIT: ${{ env.EXPECTED_API_COMMIT }}
         run: |
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
@@ -72,7 +83,7 @@ jobs:
             assert.equal(health.body?.dependencies?.database, 'connected', 'database readiness must be explicit');
             assert.equal(
               health.body?.version,
-              process.env.EXPECTED_COMMIT,
+              process.env.EXPECTED_API_COMMIT,
               `API must be running the expected Render commit ${process.env.EXPECTED_COMMIT}; got ${health.body?.version || 'no version'}`,
             );
             results.push('health/database readiness/expected commit');
