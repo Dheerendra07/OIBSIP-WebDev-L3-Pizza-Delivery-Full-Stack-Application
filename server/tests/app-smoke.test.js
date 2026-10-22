@@ -14,6 +14,10 @@ async function startAppServer() {
   return { server, origin: `http://127.0.0.1:${address.port}` };
 }
 
+test('Express trusts the single Render proxy used for forwarded client IPs', () => {
+  assert.equal(app.get('trust proxy'), 1);
+});
+
 test('customer issue and admin issue queue endpoints require authentication', async (t) => {
   const { server, origin } = await startAppServer();
   t.after(async () => {

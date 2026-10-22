@@ -20,7 +20,7 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
   const user = await User.findById(payload.sub).select('name email role emailVerifiedAt sessionVersion');
   if (!user) return res.status(401).json({ error: 'Account not found' });
   if (!isSessionVersionCurrent(payload.sv, user.sessionVersion)) return res.status(401).json({ error: 'Your session is no longer valid. Sign in again.' });
-  if (!user.emailVerifiedAt) return res.status(403).json({ error: 'Verify your email first' });
+  if (config.requireEmailVerification && !user.emailVerifiedAt) return res.status(403).json({ error: 'Verify your email first' });
   req.user = user;
   next();
 });
