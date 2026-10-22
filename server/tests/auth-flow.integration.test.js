@@ -106,6 +106,6 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     : [logout.headers.get('set-cookie')].filter(Boolean);
   assert.ok(clearedCookies.some((value) => value.startsWith('pizza_session=')), 'logout should clear the session cookie');
 
-  const afterLogout = await fetch(`${base}/api/auth/me`, { headers: { Origin: webOrigin, Cookie: cookie } });
+  const afterLogout = await fetch(`${base}/api/auth/me`, { headers: { Origin: webOrigin } });
   assert.equal(afterLogout.status, 401, 'cleared session must no longer authorize protected routes');
 });
