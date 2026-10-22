@@ -173,7 +173,7 @@ test('password-reset database lookup failures use the generic response', async (
       message: 'If an account exists for this email, reset instructions will be sent.',
     });
     assert.equal(logs.length, 1);
-    assert.doesNotMatch(JSON.stringify(logs), /private-connection-details|registered@example\\.test/i);
+    assert.doesNotMatch(JSON.stringify(logs), /private-connection-details|registered@example\.test/i);
   } finally {
     User.findOne = originalFindOne;
     console.error = originalConsoleError;
@@ -211,7 +211,7 @@ test('password-reset token persistence failures use the generic response and att
     assert.equal(user.passwordResetTokenHash, null);
     assert.equal(user.passwordResetExpiresAt, null);
     assert.equal(logs.length, 1);
-    assert.doesNotMatch(JSON.stringify(logs), /private-connection-details|registered@example\\.test/i);
+    assert.doesNotMatch(JSON.stringify(logs), /private-connection-details|registered@example\.test/i);
   } finally {
     User.findOne = originalFindOne;
     console.error = originalConsoleError;
