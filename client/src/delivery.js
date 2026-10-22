@@ -42,3 +42,17 @@ export function normalizeDeliveryDetails(raw) {
 
   return deliveryDetails;
 }
+
+/**
+ * Fill blank delivery fields from the authenticated server order while preserving
+ * any edits the customer started making during the restore request.
+ */
+export function mergeRestoredDeliveryDetails(current, saved) {
+  const normalizedSaved = normalizeDeliveryDetails(saved);
+  if (!current || typeof current !== 'object' || Array.isArray(current)) return normalizedSaved;
+  const keys = Object.keys(normalizedSaved);
+  return Object.fromEntries(keys.map((key) => {
+    const value = current[key];
+    return [key, typeof value === 'string' && value.trim() ? value : normalizedSaved[key]];
+  }));
+}
