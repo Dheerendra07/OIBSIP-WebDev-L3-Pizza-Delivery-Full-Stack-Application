@@ -136,7 +136,7 @@ jobs:
             assert.ok(html.includes('<title'), 'website HTML must contain a title');
 
             // Verify the generated production JavaScript uses the hosted API, not localhost.
-            const scriptMatch = html.match(/<script\\b[^>]*\\bsrc=["']([^"']+\\.js[^"']*)["']/i);
+            const scriptMatch = html.match(/<script\b[^>]*\bsrc=["']([^"']+\.js[^"']*)["']/i);
             assert.ok(scriptMatch, 'website HTML must reference a JavaScript bundle');
             const bundleUrl = new URL(scriptMatch[1], webBase);
             const bundleResponse = await fetch(bundleUrl, { signal: AbortSignal.timeout(8000) });
