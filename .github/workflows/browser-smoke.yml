@@ -1,19 +1,15 @@
 name: Pizza House Browser Smoke
 
 on:
+  # Run only against the published production app, never a PR commit before
+  # Render Static Site has deployed it. The script polls for the new UI marker.
   push:
-    branches: [main, 'fix/**']
+    branches: [main]
     paths:
       - 'scripts/deployed-browser-smoke.mjs'
       - '.github/workflows/browser-smoke.yml'
       - 'client/src/**'
       - 'client/index.html'
-      - 'server/src/**'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'scripts/deployed-browser-smoke.mjs'
-      - '.github/workflows/browser-smoke.yml'
   workflow_dispatch:
 
 permissions:
