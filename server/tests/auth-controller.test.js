@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { register, login, adminLogin, resetPassword } from '../src/controllers/authController.js';
+import { register, login, adminLogin, forgotPassword, resetPassword } from '../src/controllers/authController.js';
 import User from '../src/models/User.js';
 import { config } from '../src/config/env.js';
 
@@ -94,4 +94,61 @@ test('password reset rejects missing request bodies before looking up a token', 
   assert.equal(nextError, undefined);
   assert.equal(res.statusCode, 400);
   assert.deepEqual(res.payload, { error: 'Password must be 10–72 characters with uppercase, lowercase and a number' });
+});
+
+
+test('password-reset delivery failures use the generic response and invalidate the token', async () => {
+  const originalFindOne = User.findOne;
+  const originalFetch = globalThis.fetch;
+  const originalConsoleError = console.error;
+  const previousResendKey = process.env.RESEND_API_KEY;
+  const previousMailFrom = process.env.MAIL_FROM;
+  const logs = [];
+  const saveSnapshots = [];
+  const user = {
+    passwordResetTokenHash: null,
+    passwordResetExpiresAt: null,
+    async save() {
+      saveSnapshots.push({
+        passwordResetTokenHash: this.passwordResetTokenHash,
+        passwordResetExpiresAt: this.passwordResetExpiresAt,
+      });
+    },
+  };
+
+  process.env.RESEND_API_KEY = 're_test_example';
+  process.env.MAIL_FROM = 'Pizza House <orders@example.test>';
+  User.findOne = async () => user;
+  globalThis.fetch = async () => new Response(
+    JSON.stringify({ message: 'sender domain is not verified' }),
+    { status: 422, headers: { 'content-type': 'application/json' } },
+  );
+  console.error = (...args) => logs.push(args);
+
+  try {
+    const res = responseRecorder();
+    let nextError;
+    await forgotPassword({ body: { email: 'registered@example.test' } }, res, (error) => { nextError = error; });
+
+    assert.equal(nextError, undefined);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.payload, {
+      message: 'If an account exists for this email, reset instructions will be sent.',
+    });
+    assert.equal(saveSnapshots.length, 2, 'reset token should be created then invalidated');
+    assert.ok(saveSnapshots[0].passwordResetTokenHash);
+    assert.ok(saveSnapshots[0].passwordResetExpiresAt instanceof Date);
+    assert.equal(saveSnapshots[1].passwordResetTokenHash, null);
+    assert.equal(saveSnapshots[1].passwordResetExpiresAt, null);
+    assert.equal(logs.length, 1, 'provider failure should be recorded without exposing account details');
+    assert.doesNotMatch(JSON.stringify(logs), /registered@example\.test|sender domain is not verified/i);
+  } finally {
+    User.findOne = originalFindOne;
+    globalThis.fetch = originalFetch;
+    console.error = originalConsoleError;
+    if (previousResendKey === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = previousResendKey;
+    if (previousMailFrom === undefined) delete process.env.MAIL_FROM;
+    else process.env.MAIL_FROM = previousMailFrom;
+  }
 });
