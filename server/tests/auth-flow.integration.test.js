@@ -67,8 +67,9 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   // builds the exact Secure + SameSite=None cookie expected on Render.
   const { default: app } = await import('../src/app.js');
   await mongoose.connect(env.MONGODB_URI);
-  const { ensureInventorySeeded } = await import('../src/utils/databaseBootstrap.js');
+  const { ensureInventorySeeded, ensureAdminAccount } = await import('../src/utils/databaseBootstrap.js');
   await ensureInventorySeeded();
+  await ensureAdminAccount({ env });
   const { default: Order } = await import('../src/models/Order.js');
   const { default: InventoryItem } = await import('../src/models/InventoryItem.js');
   server = createServer(app);
@@ -259,6 +260,48 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(replayBody.duplicate, true);
   assert.equal(await PaymentWebhookReceipt.countDocuments({ eventId: 'integration-payment-captured-1' }), 1);
   assert.equal((await Order.findById(createdOrder.id).lean()).razorpayPaymentId, mockProviderPaymentId);
+
+  // Customer sessions cannot access the admin queue; the seeded admin can.
+  const forbiddenAdminQueue = await fetch(`${base}/api/admin/orders`, {
+    headers: { Origin: webOrigin, Cookie: cookie },
+  });
+  assert.equal(forbiddenAdminQueue.status, 403, 'customer must not access the admin order queue');
+
+  const adminLogin = await fetch(`${base}/api/auth/admin/login`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD }),
+  });
+  assert.equal(adminLogin.status, 200, 'the seeded admin should be able to sign in');
+  const adminCookies = typeof adminLogin.headers.getSetCookie === 'function'
+    ? adminLogin.headers.getSetCookie()
+    : [adminLogin.headers.get('set-cookie')].filter(Boolean);
+  const adminSession = adminCookies.find((value) => value.startsWith('pizza_session='));
+  assert.ok(adminSession, 'admin login should issue a session cookie');
+  const adminCookie = adminSession.split(';', 1)[0];
+
+  const adminQueueResponse = await fetch(`${base}/api/admin/orders`, {
+    headers: { Origin: webOrigin, Cookie: adminCookie },
+  });
+  assert.equal(adminQueueResponse.status, 200);
+  const adminQueue = (await adminQueueResponse.json()).orders;
+  assert.ok(adminQueue.some((order) => String(order.id) === String(createdOrder.id)), 'admin queue should contain the customer order');
+
+  // Admin fulfillment must follow the legal paid-order transition sequence.
+  for (const status of ['in_kitchen', 'sent_to_delivery', 'delivered']) {
+    const update = await fetch(`${base}/api/admin/orders/${createdOrder.id}/status`, {
+      method: 'PATCH',
+      headers: { ...headers, Cookie: adminCookie },
+      body: JSON.stringify({ status }),
+    });
+    assert.equal(update.status, 200, `admin should be able to move paid order to ${status}`);
+    assert.equal((await update.json()).order.status, status);
+  }
+  const finalCustomerHistory = await fetch(`${base}/api/orders/my`, {
+    headers: { Origin: webOrigin, Cookie: cookie },
+  });
+  assert.equal(finalCustomerHistory.status, 200);
+  assert.equal((await finalCustomerHistory.json()).orders[0].status, 'delivered', 'customer history should reflect admin fulfillment updates');
 
   const logout = await fetch(`${base}/api/auth/logout`, {
     method: 'POST',
