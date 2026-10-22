@@ -35,7 +35,7 @@ jobs:
         id: backend-revision
         shell: bash
         run: |
-          api_commit="$(git log -1 --format=%H -- server/src server/package.json server/package-lock.json package.json package-lock.json)"
+          api_commit="$(git log -1 --format=%H -- server/src/ server/package.json server/package-lock.json)"
           test -n "$api_commit"
           echo "sha=$api_commit" >> "$GITHUB_OUTPUT"
           echo "Expected backend runtime commit: $api_commit"
@@ -85,7 +85,7 @@ jobs:
             assert.equal(
               health.body?.version,
               process.env.EXPECTED_API_COMMIT,
-              `API must be running the expected Render commit ${process.env.EXPECTED_COMMIT}; got ${health.body?.version || 'no version'}`,
+              `API must be running the latest backend runtime commit ${process.env.EXPECTED_API_COMMIT}; got ${health.body?.version || 'no version'}`,
             );
             results.push('health/database readiness/expected commit');
 
