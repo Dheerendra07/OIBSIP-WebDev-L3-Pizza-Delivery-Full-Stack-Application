@@ -11,6 +11,7 @@ export const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
   cookieSameSite: String(process.env.COOKIE_SAME_SITE || (process.env.NODE_ENV === 'production' ? 'lax' : 'strict')).toLowerCase(),
+  requireEmailVerification: String(process.env.REQUIRE_EMAIL_VERIFICATION || 'false').trim().toLowerCase() === 'true',
   clientBaseUrl: (process.env.CLIENT_BASE_URL || 'http://localhost:5173').replace(/\/$/, ''),
   appBaseUrl: (process.env.APP_BASE_URL || 'http://localhost:4000').replace(/\/$/, ''),
   razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
