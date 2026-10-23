@@ -15,10 +15,10 @@ Open the existing `pizza-house-api` Web Service. Keep the existing service and i
    npm ci && npm --prefix server ci && npm --prefix client ci && npm --prefix client run build
    ```
 
-3. Set **Start Command** to:
+3. Keep **Start Command** as:
 
    ```sh
-   npm start
+   npm --prefix server start
    ```
 
 4. Set the non-secret build/runtime variables below. Keep all existing secret/provider variables as they are.
