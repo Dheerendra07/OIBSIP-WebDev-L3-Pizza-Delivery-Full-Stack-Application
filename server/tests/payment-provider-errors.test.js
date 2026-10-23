@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mapRazorpayOrderCreationError } from '../src/utils/paymentProviderErrors.js';
+import { getSafeRazorpayDiagnostics, mapRazorpayOrderCreationError } from '../src/utils/paymentProviderErrors.js';
 
 test('provider HTTP 401 becomes a safe 502 credential diagnostic, not a customer-auth 401', () => {
   const mapped = mapRazorpayOrderCreationError({
@@ -53,4 +53,38 @@ test('provider diagnostic codes are constrained to safe characters', () => {
     error: { code: 'BAD\nPRIVATE-DATA' },
   });
   assert.equal(mapped.diagnostics.providerCode, null);
+});
+
+
+test('operational provider diagnostics never include raw upstream messages or response bodies', () => {
+  const privateDetail = 'private-key-or-customer-response-content';
+  const cases = [
+    {
+      error: {
+        statusCode: 502,
+        message: privateDetail,
+        error: { code: 'BAD_REQUEST_ERROR', description: privateDetail },
+      },
+      expected: { upstreamStatus: 502, providerCode: 'BAD_REQUEST_ERROR' },
+    },
+    {
+      error: { status: 503, code: 'UPSTREAM_BUSY', response: { body: privateDetail } },
+      expected: { upstreamStatus: 503, providerCode: 'UPSTREAM_BUSY' },
+    },
+    {
+      error: { message: privateDetail },
+      expected: { upstreamStatus: null, providerCode: null },
+    },
+    {
+      error: { statusCode: 401, error: { code: 'BAD\\nPRIVATE-CONTENT' } },
+      expected: { upstreamStatus: 401, providerCode: null },
+    },
+  ];
+
+  for (const item of cases) {
+    const diagnostics = getSafeRazorpayDiagnostics(item.error);
+    assert.deepEqual(diagnostics, item.expected);
+    assert.equal(JSON.stringify(diagnostics).includes(privateDetail), false);
+    assert.equal(JSON.stringify(diagnostics).includes('description'), false);
+  }
 });
