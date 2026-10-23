@@ -24,7 +24,28 @@ const clientIndexPath = fileURLToPath(new URL('../../client/dist/index.html', im
 // Trusting that proxy lets express-rate-limit identify the real client IP safely.
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+// Razorpay Standard Checkout runs from its official CDN and opens a provider-hosted frame.
+// Keep Helmet's restrictive defaults, adding only the external sources required by checkout.
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      scriptSrc: ["'self'", 'https://checkout.razorpay.com', 'https://cdn.razorpay.com'],
+      frameSrc: ["'self'", 'https://api.razorpay.com', 'https://checkout-static-next.razorpay.com'],
+      connectSrc: [
+        "'self'",
+        'https://api.razorpay.com',
+        'https://api-dark.razorpay.com',
+        'https://express.razorpay.com',
+        'https://lumberjack.razorpay.com',
+        'https://lumberjack-cx.razorpay.com',
+        'https://lumberjack-metrics.razorpay.com',
+      ],
+      imgSrc: ["'self'", 'data:', 'https://cdn.razorpay.com'],
+      formAction: ["'self'", 'https://api.razorpay.com', 'https://checkout.razorpay.com'],
+    },
+  },
+}));
 app.use(cors({ origin: config.clientOrigin.split(',').map((s) => s.trim()), credentials: true, methods: ['GET', 'POST', 'PATCH', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Idempotency-Key', 'X-Razorpay-Signature', 'X-Razorpay-Event-Id'] }));
 // A browser GET is not a webhook delivery; explain the expected method rather than returning a generic 404.
 app.get('/api/payments/webhook', (_req, res) => res.status(405).json({ error: 'Razorpay webhook endpoint accepts POST requests only', service: 'pizza-house-api' }));
