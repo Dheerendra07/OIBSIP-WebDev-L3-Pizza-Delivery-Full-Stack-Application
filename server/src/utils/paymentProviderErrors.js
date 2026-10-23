@@ -25,9 +25,6 @@ export function mapRazorpayOrderCreationError(error) {
   const diagnostics = getSafeRazorpayDiagnostics(error);
   const credentialsRejected = diagnostics.upstreamStatus === 401 || diagnostics.upstreamStatus === 403;
 
-  const providerCode = diagnostics.providerCode;
-
-
   return {
     statusCode: 502,
     safeToExpose: true,
