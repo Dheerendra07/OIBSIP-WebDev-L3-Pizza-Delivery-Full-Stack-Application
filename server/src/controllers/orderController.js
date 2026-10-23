@@ -190,6 +190,7 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
     throw Object.assign(new Error(mappedError.message), {
       statusCode: mappedError.statusCode,
       code: mappedError.code,
+      safeToExpose: mappedError.safeToExpose,
     });
   }
 });
