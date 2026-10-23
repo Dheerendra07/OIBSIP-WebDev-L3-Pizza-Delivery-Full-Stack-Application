@@ -34,20 +34,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Determine latest backend runtime revision
-        id: backend-revision
-        shell: bash
-        run: |
-          api_commit="$(git log -1 --format=%H -- server/src/ server/package.json server/package-lock.json)"
-          test -n "$api_commit"
-          echo "sha=$api_commit" >> "$GITHUB_OUTPUT"
-          echo "Expected backend runtime commit: $api_commit"
+      # Render's RENDER_GIT_COMMIT identifies the commit actually deployed. Require
+      # the exact revision under test, not the last commit touching a backend path.
 
       - name: Verify deployed API, catalog, CORS, webhook guard and website
         env:
           API_BASE_URL: https://pizza-house-api.onrender.com
           CLIENT_WEB_URL: https://pizza-house-api.onrender.com
-          EXPECTED_API_COMMIT: ${{ steps.backend-revision.outputs.sha }}
+          EXPECTED_API_COMMIT: ${{ github.sha }}
         run: |
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
@@ -99,7 +93,7 @@ jobs:
             assert.equal(
               health.body?.version,
               process.env.EXPECTED_API_COMMIT,
-              `API must be running the latest backend runtime commit ${process.env.EXPECTED_API_COMMIT}; got ${health.body?.version || 'no version'}`,
+              `API must be running the exact tested commit ${process.env.EXPECTED_API_COMMIT}; got ${health.body?.version || 'no version'}`,
             );
             results.push('health/database readiness/expected commit');
 
