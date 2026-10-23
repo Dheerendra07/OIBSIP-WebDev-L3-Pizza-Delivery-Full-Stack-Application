@@ -39,4 +39,7 @@ jobs:
       - name: Exercise the hosted website in a real browser
         env:
           CLIENT_WEB_URL: https://pizza-house-api.onrender.com
+          # Never expose production QA secrets to workflow_dispatch runs on non-main refs.
+          PIZZA_QA_CUSTOMER_EMAIL: ${{ github.ref == 'refs/heads/main' && secrets.PIZZA_QA_CUSTOMER_EMAIL || '' }}
+          PIZZA_QA_CUSTOMER_PASSWORD: ${{ github.ref == 'refs/heads/main' && secrets.PIZZA_QA_CUSTOMER_PASSWORD || '' }}
         run: node scripts/deployed-browser-smoke.mjs
