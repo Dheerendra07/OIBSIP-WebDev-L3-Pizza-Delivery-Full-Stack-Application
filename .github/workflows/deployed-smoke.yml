@@ -34,23 +34,19 @@ jobs:
         with:
           node-version: 22
 
-      # Render's RENDER_GIT_COMMIT identifies the commit actually deployed.
-      # Test/docs-only commits do not change runtime code; compare with the newest
-      # commit that changed backend/frontend runtime code or frontend dependencies.
-      - name: Determine expected deployed runtime commit
-        run: |
-          runtime_commit="$(git log -1 --format=%H -- server/src client/src client/package.json)"
-          test -n "$runtime_commit"
-          echo "EXPECTED_API_COMMIT=$runtime_commit" >> "$GITHUB_ENV"
-          echo "Expected deployed runtime commit: $runtime_commit"
-
+      # Render deploys a commit, but may include later test/docs-only commits.
+      # Validate that the deployed commit is an ancestor of this checkout and that
+      # no runtime files changed after it. This stays strict without false failures
+      # when only tests or documentation changed.
       - name: Verify deployed API, catalog, CORS, webhook guard and website
         env:
           API_BASE_URL: https://pizza-house-api.onrender.com
           CLIENT_WEB_URL: https://pizza-house-api.onrender.com
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
+          import { execFileSync, spawnSync } from 'node:child_process';
 
           const apiRaw = process.env.API_BASE_URL;
           const apiBase = apiRaw.endsWith('/') ? apiRaw.slice(0, -1) : apiRaw;
@@ -96,12 +92,24 @@ jobs:
             assert.equal(health.response.status, 200, 'health must only pass while MongoDB is connected');
             assert.equal(health.body?.status, 'ok');
             assert.equal(health.body?.dependencies?.database, 'connected', 'database readiness must be explicit');
+            const deployedCommit = health.body?.version;
+            const testedCommit = process.env.GITHUB_SHA;
+            assert.match(deployedCommit || '', /^[a-f0-9]{40}$/i, 'API health must expose the deployed Git commit SHA');
+            const ancestry = spawnSync('git', ['merge-base', '--is-ancestor', deployedCommit, testedCommit], { stdio: 'ignore' });
+            assert.equal(ancestry.status, 0, `deployed commit ${deployedCommit} must be present in the tested Git history`);
+            const runtimeChanges = execFileSync('git', [
+              'diff', '--name-only', `${deployedCommit}..${testedCommit}`, '--',
+              'server/src', 'server/scripts', 'server/package.json', 'server/package-lock.json',
+              'client/src', 'client/public', 'client/index.html', 'client/vite.config.*',
+              'client/package.json', 'client/package-lock.json',
+              'package.json', 'package-lock.json', 'scripts/render-client-build.js',
+            ], { encoding: 'utf8' }).trim();
             assert.equal(
-              health.body?.version,
-              process.env.EXPECTED_API_COMMIT,
-              `API must be running the exact tested commit ${process.env.EXPECTED_API_COMMIT}; got ${health.body?.version || 'no version'}`,
+              runtimeChanges,
+              '',
+              `deployed revision ${deployedCommit} is missing runtime changes from ${testedCommit}:\n${runtimeChanges}`,
             );
-            results.push('health/database readiness/expected commit');
+            results.push('health/database readiness/deployed revision has no missing runtime changes');
 
             const catalog = await getJson('/api/catalog');
             assert.equal(catalog.response.status, 200, 'catalog must be available from the database');
