@@ -1128,8 +1128,57 @@ function InventoryRow({ item, onSave }) {
         </div>
     </div>;
 }
-async function loadRazorpay() { if (window.Razorpay)
-    return; await new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = 'https://checkout.razorpay.com/v1/checkout.js'; script.onload = resolve; script.onerror = () => reject(new Error('Could not load Razorpay Checkout. Check your connection and try again.')); document.body.appendChild(script); }); }
+let razorpayLoadPromise = null;
+
+function loadRazorpay() {
+    if (typeof window.Razorpay === 'function') return Promise.resolve();
+    if (razorpayLoadPromise) return razorpayLoadPromise;
+
+    const load = new Promise((resolve, reject) => {
+        let timeoutId;
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+
+        const cleanup = () => {
+            if (timeoutId) window.clearTimeout(timeoutId);
+            script.onload = null;
+            script.onerror = null;
+        };
+        const fail = (message) => {
+            cleanup();
+            script.remove();
+            reject(new Error(message));
+        };
+
+        script.onload = () => {
+            if (typeof window.Razorpay !== 'function') {
+                fail('Razorpay Checkout downloaded but did not initialize. Refresh the page and try again.');
+                return;
+            }
+            cleanup();
+            resolve();
+        };
+        script.onerror = () => {
+            const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+            fail(offline
+                ? 'Your device appears to be offline. Reconnect and retry Razorpay Checkout.'
+                : 'Your browser could not load Razorpay Checkout from its official host. Check your network, VPN/Private DNS or content blocker; then reopen Pizza House directly in Chrome and retry.');
+        };
+        timeoutId = window.setTimeout(() => {
+            fail('Razorpay Checkout took too long to load. Check your connection or content blocker, then retry.');
+        }, 15000);
+
+        document.head.appendChild(script);
+    });
+
+    let sharedLoad;
+    sharedLoad = load.finally(() => {
+        if (razorpayLoadPromise === sharedLoad) razorpayLoadPromise = null;
+    });
+    razorpayLoadPromise = sharedLoad;
+    return sharedLoad;
+}
 
 function PriceReviewDialog({ review, catalog, pending, onAccept, onCancel }) {
     const dialogRef = useRef(null);
