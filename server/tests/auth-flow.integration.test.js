@@ -408,8 +408,8 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
       headers: { ...headers, Cookie: cookie },
       body: JSON.stringify({ orderId: failedProviderOrder.id }),
     });
-    assert.equal(failedPaymentSetup.status, 500, 'provider outage should surface as a retryable checkout error');
-    assert.equal((await failedPaymentSetup.json()).error, 'An unexpected server error occurred');
+    assert.equal(failedPaymentSetup.status, 502, 'provider outage should surface as a retryable upstream checkout error');
+    assert.equal((await failedPaymentSetup.json()).error, 'Razorpay could not create the checkout order. No payment was started; please retry later.');
 
     const releasedOrder = await Order.findById(failedProviderOrder.id).lean();
     assert.equal(releasedOrder.status, 'pending_payment', 'the customer can retry checkout on the same order');
