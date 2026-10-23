@@ -347,3 +347,11 @@
 .budget-guard-feedback{margin:9px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
 .budget-guard-feedback.over-budget{color:#8f2f20;font-weight:600}
 .budget-clear{min-height:44px;margin-top:5px;padding:7px 0;border:0;background:transparent;color:#8f2f20;text-decoration:underline;font:inherit;font-size:12px;cursor:pointer}
+
+/* Admin-only Razorpay Test Mode diagnostics use a read-only provider request. */
+.payment-provider-panel .panel-heading{gap:14px}
+.payment-provider-panel .button{flex-shrink:0}
+.provider-check-message{margin:0;color:var(--muted);font-size:11px;line-height:1.6}
+.provider-check-message.connected{color:#536943}
+.provider-check-message.error{color:#9d3e28}
+@media(max-width:520px){.payment-provider-panel .panel-heading{align-items:flex-start;flex-direction:column}.payment-provider-panel .button{width:100%}}

@@ -36,6 +36,13 @@ test('API root returns service information instead of Route not found', async ()
   assert.equal(typeof body.website, 'string');
 });
 
+test('payment provider diagnostic rejects visitors without an admin session', async () => {
+  const response = await fetch(`${baseUrl}/api/admin/payment-provider-check`);
+  assert.equal(response.status, 401);
+  const body = await response.json();
+  assert.equal(body.error, 'Sign in to continue');
+});
+
 test('API base path returns a helpful JSON response', async () => {
   const response = await fetch(`${baseUrl}/api`);
   assert.equal(response.status, 200);

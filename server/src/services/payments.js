@@ -24,6 +24,24 @@ export function getRazorpayClient() {
   return new Razorpay({ key_id: config.razorpayKeyId, key_secret: config.razorpayKeySecret });
 }
 
+/**
+ * Verify the deployed Test Mode API credentials with a read-only provider call.
+ * The result never exposes provider order data or credential values.
+ */
+export async function checkRazorpayTestModeConnection() {
+  const client = getRazorpayClient();
+  let response;
+  try {
+    response = await client.orders.all({ count: 1 });
+  } catch {
+    throw Object.assign(new Error('Razorpay Test Mode API request failed'), { statusCode: 502 });
+  }
+  if (!response || !Array.isArray(response.items)) {
+    throw Object.assign(new Error('Razorpay returned an unexpected response'), { statusCode: 502 });
+  }
+  return { checkedAt: new Date().toISOString() };
+}
+
 
 /**
  * Submit a full refund using Razorpay's native idempotency header.

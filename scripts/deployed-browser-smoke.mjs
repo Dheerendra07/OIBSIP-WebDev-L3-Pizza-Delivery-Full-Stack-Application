@@ -26,15 +26,16 @@ try {
     await page.goto(webUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 30_000 });
     if ((await page.locator('.mobile-auth-link').count() === 1) &&
-        (await page.locator('[data-mobile-auth-focus="dialog-first"]').count() === 1)) {
+        (await page.locator('[data-mobile-auth-focus="dialog-first"]').count() === 1) &&
+        (await page.locator('[data-payment-provider-check="readonly-admin-v1"]').count() === 1)) {
       mobileSignInReady = true;
       break;
     }
-    console.log(`[WAIT] hosted frontend has not published the mobile auth focus fix yet (${attempt}/12)`);
+    console.log(`[WAIT] hosted frontend has not published the admin payment-check panel yet (${attempt}/12)`);
     await page.waitForTimeout(5_000);
   }
   if (!mobileSignInReady) {
-    throw new Error('Hosted frontend did not publish the mobile auth focus fix after 12 checks.');
+    throw new Error('Hosted frontend did not publish the admin payment-check panel after 12 checks.');
   }
   await page.getByRole('button', { name: 'Explore the menu' }).click();
   await page.locator('.pizza-card').first().waitFor({ state: 'visible', timeout: 30_000 });

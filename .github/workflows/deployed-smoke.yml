@@ -141,6 +141,19 @@ jobs:
             assert.equal(me.headers.get('access-control-allow-credentials'), 'true');
             results.push('unauthenticated session guard');
 
+            // Payment-provider diagnostics must remain admin-only, and unauthenticated
+            // requests must never trigger a Razorpay network check.
+            const providerCheck = await fetch(`${apiBase}/api/admin/payment-provider-check`, {
+              signal: AbortSignal.timeout(8000),
+              headers: { Origin: webBase, Accept: 'application/json' },
+            });
+            assert.equal(providerCheck.status, 401, 'payment-provider diagnostics must require an authenticated admin session');
+            const providerCheckBody = await providerCheck.json();
+            assert.equal(providerCheckBody?.error, 'Sign in to continue');
+            assert.equal(providerCheck.headers.get('access-control-allow-origin'), webBase);
+            assert.equal(providerCheck.headers.get('access-control-allow-credentials'), 'true');
+            results.push('payment-provider diagnostic admin/session guard');
+
             // Safe live auth probes: exercise the registered route and DB lookup without
             // creating a persistent production account or sending verification email.
             const registrationValidation = await fetch(`${apiBase}/api/auth/register`, {
