@@ -84,6 +84,86 @@ try {
   await dialog.getByRole('button', { name: 'Create my account', exact: true }).waitFor({ state: 'visible' });
   pass('signup form renders without creating a production account');
 
+  // Optional credential-backed production QA. Use a dedicated verified QA customer,
+  // never an admin account; no order/payment is created by this path.
+  const qaEmail = (process.env.PIZZA_QA_CUSTOMER_EMAIL || '').trim();
+  const qaPassword = process.env.PIZZA_QA_CUSTOMER_PASSWORD || '';
+  if (Boolean(qaEmail) !== Boolean(qaPassword)) {
+    throw new Error('Configure both PIZZA_QA_CUSTOMER_EMAIL and PIZZA_QA_CUSTOMER_PASSWORD secrets to enable successful customer-session QA.');
+  }
+
+  if (qaEmail && qaPassword) {
+    await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await dialog.getByLabel('Email address').fill(qaEmail);
+    await dialog.getByLabel('Password').fill(qaPassword);
+
+    const qaLoginResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/auth/login' &&
+      response.request().method() === 'POST',
+    );
+    await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
+    const qaLoginResponse = await qaLoginResponsePromise;
+    if (qaLoginResponse.status() !== 200) {
+      throw new Error(`Configured QA customer login returned HTTP ${qaLoginResponse.status()}; expected 200.`);
+    }
+
+    const rawSetCookie = qaLoginResponse.headers()['set-cookie'] || '';
+    const setCookie = Array.isArray(rawSetCookie) ? rawSetCookie.join('; ') : String(rawSetCookie);
+    for (const [label, pattern] of [
+      ['HttpOnly', /\\bHttpOnly\\b/i],
+      ['Secure', /\\bSecure\\b/i],
+      ['SameSite=Lax', /\\bSameSite=Lax\\b/i],
+    ]) {
+      if (!pattern.test(setCookie)) {
+        throw new Error(`Successful QA login did not issue the expected ${label} session-cookie attribute.`);
+      }
+    }
+
+    await dialog.waitFor({ state: 'hidden', timeout: 15_000 });
+    await page.locator('.account-button').waitFor({ state: 'visible', timeout: 15_000 });
+    await page.locator('.account-button').click();
+    await page.getByRole('heading', { name: /Good to see you,/ }).waitFor({ state: 'visible', timeout: 15_000 });
+
+    const sessionRefreshResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/auth/me' &&
+      response.request().method() === 'GET',
+    );
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const sessionRefreshResponse = await sessionRefreshResponsePromise;
+    if (sessionRefreshResponse.status() !== 200) {
+      throw new Error(`QA session did not survive a full-page reload: /api/auth/me returned HTTP ${sessionRefreshResponse.status()}.`);
+    }
+    await page.locator('.account-button').waitFor({ state: 'visible', timeout: 15_000 });
+    await page.locator('.account-button').click();
+    await page.getByRole('heading', { name: /Good to see you,/ }).waitFor({ state: 'visible', timeout: 15_000 });
+    pass('QA customer login issues Secure/HttpOnly/SameSite=Lax cookie and session survives a full-page reload');
+
+    const logoutResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/auth/logout' &&
+      response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    const logoutResponse = await logoutResponsePromise;
+    if (logoutResponse.status() !== 200) {
+      throw new Error(`QA logout returned HTTP ${logoutResponse.status()}; expected 200.`);
+    }
+    await page.locator('.account-button').waitFor({ state: 'hidden', timeout: 15_000 });
+
+    const unauthenticatedMePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/auth/me' &&
+      response.request().method() === 'GET',
+    );
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const unauthenticatedMe = await unauthenticatedMePromise;
+    if (unauthenticatedMe.status() !== 401) {
+      throw new Error(`QA logout did not clear the session cookie; /api/auth/me returned HTTP ${unauthenticatedMe.status()}.`);
+    }
+    await page.getByRole('button', { name: 'Sign in', exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
+    pass('QA logout clears the browser session and remains signed out after reload');
+  } else {
+    console.log('[SKIP] Successful customer login/session-reload/logout checks need both PIZZA_QA_CUSTOMER_EMAIL and PIZZA_QA_CUSTOMER_PASSWORD GitHub Actions secrets.');
+  }
+
   if (pageErrors.length) {
     throw new Error(`Browser page errors detected: ${pageErrors.join(' | ')}`);
   }
