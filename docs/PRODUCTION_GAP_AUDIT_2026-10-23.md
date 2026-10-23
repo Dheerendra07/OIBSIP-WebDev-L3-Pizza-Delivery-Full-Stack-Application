@@ -11,10 +11,10 @@ Scope: live-browser registration/login/session/cart/checkout-recovery, deployed 
 
 ## Run links and deployed revision
 
-- Current CI: [run 39933091083](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39933091083) — 226/226 tests passed, production client build passed, root/server/client audits reported zero vulnerabilities.
+- Latest CI: [run 39950832004](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39950832004) — success after adding expired-reservation reconciliation integration coverage; locked dependency install, high/critical audits, production build and test step all passed. Earlier run [39933091083](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39933091083) passed 226/226 tests and production build.
 - Current deployed smoke: [run 39933091241](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39933091241) — 16/16 checks passed.
 - Current browser smoke: [run 39933091078](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39933091078) — passed.
-- Live health: https://pizza-house-api.onrender.com/api/health — HTTP 200, database connected, revision `857b8cb3c926bae6e8f3d00cc0f495374c6e8d51`.
+- Live health: https://pizza-house-api.onrender.com/api/health — HTTP 200, database connected, revision `cbce61f442de10d7a74718770ef35035bf38277a` (latest deployed frontend guidance update). The newer `0ec1657` commit changes tests only; it does not require a Render redeploy.
 - Latest deployed-smoke workflow fix: [commit 8b97dfe](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/8b97dfe8286b20ac1d9c187dd61b5325ea694c28) compares health version to the exact commit under test, avoiding a false mismatch when test-only commits follow backend runtime commits.
 
 ## Actual live-browser results
@@ -30,6 +30,7 @@ Scope: live-browser registration/login/session/cart/checkout-recovery, deployed 
 | Payment order creation | An earlier attempt reached POST `/api/payments/create-order` and got a safe HTTP 502 after upstream Razorpay returned HTTP 401 (`BAD_REQUEST_ERROR`). A later user-supplied live screenshot reached the post-OTP order-history state, showing a separate order as Paid / Order received. The later result supersedes the earlier blocked attempt for Test Mode checkout. | **Pass in Test Mode UI** |
 | Error handling fix | Server now normalizes provider authentication failures to HTTP 502, logs only upstream status and a safe provider code, and shows explicit Test Mode credential guidance. Real UI toast was verified after deployment. No cookie, key or provider response body was logged. | **Pass** |
 | Payment verification / webhook / refund | The order-history UI shows Paid / Order received after the checkout callback. The client calls `/api/payments/verify`; server code checks provider payment status before marking paid. A separate provider-dashboard inspection and real signed webhook delivery/idempotency/refund exercise were not performed. | **Test Mode verification passed; webhook/refund pending** |
+| Expired inventory reservation reconciliation | New mocked-provider MongoDB integration cases cover: no capture → cancel + restore stock; captured payment → paid/order-received without restoring stock; authorized/in-flight payment → defer and preserve stock hold. CI [run 39950832004](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39950832004) passed. Live order inventory values were not queried. | **Automated pass; live state pending** |
 | Email delivery / admin fulfillment / live realtime | No configured SMTP delivery, paid order fulfillment or real customer Socket.IO order lifecycle was attempted in this run. | **Not yet verified** |
 
 ## Confirmed QA order and safety state
@@ -43,12 +44,13 @@ The earlier synthetic QA order `PH-D1488AA0` remains a separate QA diagnostic or
 - Updated the production error handler to expose only explicitly marked, short safe messages; other 5xx production errors remain redacted.
 - Added unit tests covering provider 401/403, network/other upstream errors, safe public messaging and safe diagnostic code handling.
 - Updated the real Express/Mongo integration test to assert that provider credential rejection is a sanitized 502 and that the existing reservation release/retry assertions still pass.
+- Expanded the real Express/Mongo integration test to exercise expired reservation reconciliation with mocked provider states: empty payments restore inventory/cancel the order; a valid late capture marks paid/order-received while consuming reserved stock; an authorized payment keeps the order pending and the stock hold intact. Full CI passed in [run 39950832004](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39950832004).
 - Added `buildPendingCheckoutCart` plus tests to restore a pending order from its server-saved quote; customer order cards now expose “Resume checkout”. Live browser verification confirmed saved cart/address restoration and no duplicate order.
 - Fixed deployed-smoke revision checking to validate the precise checked-out commit. Current CI and deployed smoke both pass.
 
 ## Next blocking action
 
-The initial browser-side failure on the latest screenshot was Razorpay's official checkout JavaScript failing to load. The loader now has shared in-flight loading, timeout, cleanup and actionable network/content-blocker guidance; the updated bundle is live. The later Test Mode journey reached Paid / Order received, so the current highest-priority work is to verify inventory reservation release/consumption for the successful Test Mode order and ensure the still-pending order is safely reconciled, then exercise signed webhook idempotency and admin order-state transitions. Do not use live-mode keys or perform real-money payment tests as part of this pass. The Razorpay secret previously exposed in chat should be rotated privately; never copy secrets into GitHub or public documentation.
+The initial browser-side failure was Razorpay's official checkout JavaScript failing to load. The loader now has shared in-flight loading, timeout, cleanup and actionable network/content-blocker guidance; the updated bundle is live. The later Test Mode journey reached Paid / Order received. Automated tests now cover stock reconciliation for empty, captured and authorized provider-payment states, but the actual live order's inventory values and provider dashboard record remain unqueried. Next, exercise signed webhook idempotency and admin order-state transitions with Test Mode data, then reconcile the separate pending order safely without paying again or delivering test orders. Do not use live-mode keys or perform real-money payment tests. The Razorpay secret previously exposed in chat should be rotated privately; never copy secrets into GitHub or public documentation.
 
 ## Acceptance gate
 
