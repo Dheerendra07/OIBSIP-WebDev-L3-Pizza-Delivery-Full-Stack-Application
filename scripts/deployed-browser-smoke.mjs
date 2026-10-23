@@ -152,7 +152,9 @@ try {
     if (unauthenticatedMe.status() !== 401) {
       throw new Error(`QA logout did not clear the session cookie; /api/auth/me returned HTTP ${unauthenticatedMe.status()}.`);
     }
-    await page.getByRole('button', { name: 'Sign in', exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
+    await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+    await page.locator('.main-nav.open').getByRole('button', { name: 'Sign in', exact: true })
+      .waitFor({ state: 'visible', timeout: 15_000 });
     pass('QA logout clears the browser session and remains signed out after reload');
   } else {
     // No production test account is required for this deterministic UI flow.
@@ -218,7 +220,7 @@ try {
     if (simulatedLoginResponse.status() !== 200) {
       throw new Error('Simulated successful customer login returned HTTP ' + simulatedLoginResponse.status() + '; expected 200.');
     }
-        // Because the API is mocked in this branch, simulate the browser state change
+    // Because the API is mocked in this branch, simulate the browser state change
     // that its real Set-Cookie response performs; this is a UI/session-state test.
     await context.addCookies([{
       name: 'pizza_session',
@@ -277,7 +279,9 @@ try {
     if (unauthenticatedMe.status() !== 401) {
       throw new Error('Simulated logout did not persist after reload: /api/auth/me returned HTTP ' + unauthenticatedMe.status() + '.');
     }
-    await page.getByRole('button', { name: 'Sign in', exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
+    await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+    await page.locator('.main-nav.open').getByRole('button', { name: 'Sign in', exact: true })
+      .waitFor({ state: 'visible', timeout: 15_000 });
     pass('simulated logout clears the cookie and remains signed out after reload');
     console.log('[INFO] These successful-auth browser checks use mocked auth endpoints; live production sign-in still needs the optional QA customer secrets.');
   }
@@ -286,7 +290,7 @@ try {
     throw new Error(`Browser page errors detected: ${pageErrors.join(' | ')}`);
   }
   pass('no uncaught browser page errors');
-  console.log(`Live browser smoke checks passed: ${checks.length}/${checks.length}`);
+  console.log(`Hosted browser smoke checks passed: ${checks.length}/${checks.length}`);
 } catch (error) {
   console.error('Live browser smoke failed:', error?.stack || error);
   process.exitCode = 1;
