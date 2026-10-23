@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import app from '../src/app.js';
 
 async function startAppServer() {
@@ -13,6 +15,26 @@ async function startAppServer() {
   if (!address || typeof address === 'string') throw new Error('Could not determine test server address');
   return { server, origin: `http://127.0.0.1:${address.port}` };
 }
+
+test('root serves the production customer UI when its built bundle exists', async (t) => {
+  const { server, origin } = await startAppServer();
+  t.after(async () => {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  });
+
+  const response = await fetch(`${origin}/`);
+  assert.equal(response.status, 200);
+  const indexPath = fileURLToPath(new URL('../../client/dist/index.html', import.meta.url));
+
+  if (existsSync(indexPath)) {
+    assert.match(response.headers.get('content-type') || '', /text\/html/i);
+    assert.match(await response.text(), /id="root"/);
+  } else {
+    const payload = await response.json();
+    assert.equal(payload.service, 'pizza-house-api');
+    assert.equal(payload.health, '/api/health');
+  }
+});
 
 test('Express trusts the single Render proxy used for forwarded client IPs', () => {
   assert.equal(app.get('trust proxy'), 1);
