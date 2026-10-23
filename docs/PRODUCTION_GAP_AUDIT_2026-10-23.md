@@ -3,55 +3,50 @@
 Audit date: 2026-10-23
 Repository: `Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application`
 Branch: `main`
-Scope: production evidence and the latest hosted-browser/API smoke logs available during this audit.
+Scope: live-browser registration/login/session/cart/checkout, deployed API responses and current CI/deployed-smoke evidence.
 
-## Executive status
+## Current verdict
 
-**Not yet end-to-end production verified.** Automated CI is green and the deployed smoke checks passed, but a successful real customer login/session and provider-backed order journey have not been demonstrated. Do not treat mocked authentication as production authentication.
+**Partially end-to-end verified; payment completion is blocked.** Real customer registration, login, persisted session, logout, live catalog/cart interactions and delivery validation have been exercised against the deployed app. The provider-backed checkout step is not passing: the authenticated request reaches Razorpay, but Razorpay rejects the configured Test Mode credential pair with HTTP 401. The site now surfaces a safe, actionable HTTP 502 message instead of misleading “Request failed”. No payment was started or captured.
 
-## Evidence reviewed
+## Run links and deployed revision
 
-- Hosted browser smoke run [39914211411](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39914211411): 9/9 checks passed.
-- Deployed API smoke run [39907398646](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39907398646): 16/16 checks passed.
-- CI/test/build run [39921284402](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39921284402): passed 217/217 tests, production client build, and root/server/client high/critical audits with zero reported vulnerabilities. The previous run [39914211397](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39914211397) also passed.
-- Current project evidence: [PROJECT_STATUS.md](../PROJECT_STATUS.md).
+- Current CI: [run 39931529547](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39931529547) — 221/221 tests passed, production client build passed, root/server/client audits reported zero vulnerabilities.
+- Current deployed smoke: [run 39931529688](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39931529688) — 16/16 checks passed.
+- Live health: https://pizza-house-api.onrender.com/api/health — HTTP 200, database connected, revision `8b97dfe8286b20ac1d9c187dd61b5325ea694c28`.
+- Latest deployed-smoke workflow fix: [commit 8b97dfe](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/8b97dfe8286b20ac1d9c187dd61b5325ea694c28) compares health version to the exact commit under test, avoiding a false mismatch when test-only commits follow backend runtime commits.
 
-## Findings
+## Actual live-browser results
 
-| Priority | Area | Evidence / gap | Status |
-|---|---|---|---|
-| P0 | Real customer login | Run [39914211411 attempt 2](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39914211411) still showed both QA secret environment values empty. A fail-closed check was added in commit `10b6ddd619686d24ee0f34a7e66e0fe0e99c2660`; run [39921284506](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39921284506) correctly stopped before browser testing. | **Blocked: secrets are not available as repository Actions secrets** |
-| P0 | Real checkout/payment | No confirmed full browser-to-Razorpay Test Mode journey with captured payment and matching production order record was present in reviewed evidence. | **Unverified** |
-| P0 | Razorpay webhook/refund | Invalid signature guard passed. That proves rejection of a bad signature only; it does not prove a valid dashboard webhook was delivered, reconciled idempotently, or that a refund was completed. | **Partially verified** |
-| P1 | Email delivery | Registration form render and validation passed, but successful email verification/password-reset delivery and inbox receipt are not proven by these runs. | **Unverified** |
-| P1 | Inventory transactions | API readiness/catalog and test coverage are green; live concurrent reservation/stock contention and reservation-expiry reconciliation were not demonstrated by the reviewed production smoke. | **Unverified** |
-| P1 | End-to-end order lifecycle | Menu → bag → delivery form was exercised. A real authenticated customer order through payment, order history, admin fulfillment and customer-visible Socket.IO update was not demonstrated. | **Unverified** |
-| P1 | UI/accessibility | Hosted browser checks covered home/menu, bag/delivery, mobile sign-in focus, accessible invalid-login feedback, signup rendering and uncaught page errors. They do not cover every route/state, a full keyboard-only checkout, real screen-reader sessions or literal 200% zoom. | **Partial coverage** |
-| P2 | Deployment propagation | The API smoke log initially saw HTTP 503 and the previous separate web hostname during retries, then passed all 16 checks against the canonical same-origin deployment. | **Passed after retries; monitor on next deploy** |
+| Area | Observed evidence | Status |
+|---|---|---|
+| Customer registration | Synthetic QA customer registered on the live app; visible response: “Account created. You can now sign in.” | **Pass** |
+| Login and session | Live login HTTP 200; authenticated dashboard appeared; `/api/auth/me` was HTTP 200 after reload; cookie flags were checked without reading or logging the token: Secure, HttpOnly, SameSite=Lax. Logout removed signed-in controls and a subsequent `/api/auth/me` returned 401. | **Pass** |
+| Catalog and cart | Live Margherita Classic at ₹249; one item plus ₹29 delivery = ₹278. Quantity 2 recalculated to ₹498 subtotal and ₹527 total. Decrement, remove and empty-cart state worked. | **Pass** |
+| Delivery validation | An incomplete delivery form was blocked with “Enter a valid 10-digit Indian mobile number.” Valid QA-only form data was accepted for the existing test order. | **Pass** |
+| Order history | The real customer saw the existing order and its pending-payment status. Read-only GET for that owned order returned HTTP 200. | **Pass** |
+| Payment order creation | With a valid authenticated session, GET order was HTTP 200 and PATCH delivery details was HTTP 200. POST `/api/payments/create-order` failed because upstream Razorpay returned HTTP 401, provider code `BAD_REQUEST_ERROR`. | **Blocked by provider credentials** |
+| Error handling fix | Server now normalizes provider authentication failures to HTTP 502, logs only upstream status and a safe provider code, and shows explicit Test Mode credential guidance. Real UI toast was verified after deployment. No cookie, key or provider response body was logged. | **Pass** |
+| Payment capture / webhook / refund | No successful Razorpay checkout modal or captured payment was possible while provider credentials were rejected. Valid webhook processing and real refund remain unverified; existing tests cover signatures/reconciliation behavior. | **Not yet verified** |
+| Email delivery / admin fulfillment / live realtime | No configured SMTP delivery, paid order fulfillment or real customer Socket.IO order lifecycle was attempted in this run. | **Not yet verified** |
 
-## Verified hosted-browser checks (9/9)
+## Confirmed QA order and safety state
 
-1. Hosted home and live menu render.
-2. Menu → bag → delivery form interaction.
-3. Mobile sign-in opens with focus inside the dialog.
-4. Live sign-in API error reaches the browser accessibly.
-5. Signup form renders without creating a production account.
-6. Simulated successful login updates the UI and stores a simulated secure session cookie.
-7. Simulated signed-in state is restored after a full-page reload.
-8. Simulated logout clears the simulated cookie and remains signed out after reload.
-9. No uncaught browser page errors.
+Only one QA order was created: `PH-D1488AA0`, total ₹278, with one Margherita Classic. The address is explicitly marked `QA TEST ONLY - DO NOT DELIVER`. The order remains `pending_payment` with `paymentStatus: pending`; `paymentReviewRequired` is false. No payment was started or captured, and no duplicate order was created. Do not fulfill/deliver this order. It was reused for diagnostics rather than creating new orders.
 
-Important: checks 6–8 are explicitly mocked. They are not proof of production authentication.
+## Code and test changes
 
-## Safe next steps
+- Added `server/src/utils/paymentProviderErrors.js` to translate provider HTTP 401/403 into an actionable, sanitized HTTP 502 and to normalize other upstream/network failures as retryable HTTP 502.
+- Updated the payment-order controller to log only `upstreamStatus` and a constrained `providerCode`, release stock through the existing compensating transaction, and throw the normalized error.
+- Updated the production error handler to expose only explicitly marked, short safe messages; other 5xx production errors remain redacted.
+- Added unit tests covering provider 401/403, network/other upstream errors, safe public messaging and safe diagnostic code handling.
+- Updated the real Express/Mongo integration test to assert that provider outage is a 502 retryable checkout failure and that the existing reservation release/retry assertions still pass.
+- Fixed deployed-smoke revision checking to validate the precise checked-out commit. Current CI and deployed smoke both pass.
 
-1. Add a dedicated, verified, non-admin QA customer's email and password under **Settings → Secrets and variables → Actions → Repository secrets** using exact names `PIZZA_QA_CUSTOMER_EMAIL` and `PIZZA_QA_CUSTOMER_PASSWORD`. The latest run proves these values are not currently visible to the workflow. Values stored as Actions variables or in an Environment not assigned to this job will not be read. Do not paste credentials into an issue, commit, or chat. The workflow exposes them only to the `main` browser QA job.
-2. Rerun the hosted-browser smoke and confirm that the real login path, secure HttpOnly/SameSite cookie, session lookup after reload and logout invalidation pass. If the customer account cannot sign in, record the actual response and fix the verified cause.
-3. Exercise Razorpay **Test Mode** only: successful capture, invalid signature, duplicate/out-of-order webhook delivery, uncertain verification, payment-review handling and eligible test refund. Do not create live payments or issue real refunds during QA.
-4. Verify email delivery with the configured provider and a test inbox; confirm verification/reset links work without logging tokens.
-5. Run the full browser order lifecycle with a dedicated test account and test payment, then verify customer history, admin queue/status changes, stock reconciliation and scoped realtime updates.
-6. Complete manual keyboard, 320px and 200% zoom, screen-reader and error/empty/loading-state review.
+## Next blocking action
+
+The remaining blocker is the Razorpay Test Mode key pair configured in Render. The live request's 401 `BAD_REQUEST_ERROR` comes from the provider, not from customer authentication: login and order endpoints succeed with the same customer session. In Render's Environment settings, ensure `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are from the **same Test Mode key generation**. Do not put either value in chat, logs, commits or documentation. After updating the pair privately, verify the admin-only provider check or retry checkout on this same QA order and confirm the Razorpay Test Mode modal opens before any test-only payment attempt.
 
 ## Acceptance gate
 
-Mark production end-to-end complete only after the real customer session path and safe test-payment/order lifecycle pass with evidence. A passing CI run, mocked login, health endpoint, invalid webhook rejection or successful build alone is insufficient.
+Do not mark Pizza House fully end-to-end complete until Test Mode checkout opens with valid matching keys, a controlled test capture is verified server-side, webhook idempotency/reconciliation and the order record agree, stock state is correct, and admin/customer order-state updates work. CI success, an HTTP-200 health endpoint, a successful login or a pending order alone is not proof of a completed payment journey.
