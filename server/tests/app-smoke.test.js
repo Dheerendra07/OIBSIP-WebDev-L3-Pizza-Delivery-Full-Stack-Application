@@ -24,6 +24,13 @@ test('root serves the production customer UI when its built bundle exists', asyn
 
   const response = await fetch(`${origin}/`);
   assert.equal(response.status, 200);
+  const csp = response.headers.get('content-security-policy') || '';
+  assert.match(csp, /script-src 'self' https:\/\/checkout\.razorpay\.com https:\/\/cdn\.razorpay\.com/);
+  assert.match(csp, /frame-src 'self' https:\/\/api\.razorpay\.com https:\/\/checkout-static-next\.razorpay\.com/);
+  assert.match(csp, /connect-src 'self' https:\/\/api\.razorpay\.com/);
+  assert.match(csp, /script-src-attr 'none'/);
+  assert.match(csp, /object-src 'none'/);
+  assert.doesNotMatch(csp, /unsafe-eval/);
   const indexPath = fileURLToPath(new URL('../../client/dist/index.html', import.meta.url));
 
   if (existsSync(indexPath)) {
