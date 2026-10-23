@@ -67,6 +67,10 @@ app.get('/api/health', (_req, res) => {
     dependencies: readiness.dependencies,
   });
 });
+app.get('/api/config', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ paymentMode: config.paymentMode });
+});
 app.get('/api', (_req, res) => res.json({
   status: 'ok',
   service: 'pizza-house-api',
