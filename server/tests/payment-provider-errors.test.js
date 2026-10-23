@@ -12,6 +12,7 @@ test('provider HTTP 401 becomes a safe 502 credential diagnostic, not a customer
   });
 
   assert.equal(mapped.statusCode, 502);
+  assert.equal(mapped.safeToExpose, true);
   assert.equal(mapped.code, 'RAZORPAY_TEST_CREDENTIALS_REJECTED');
   assert.match(mapped.message, /matching Test Mode pair/);
   assert.match(mapped.message, /No payment was started/);
