@@ -161,7 +161,129 @@ try {
     await page.getByRole('button', { name: 'Sign in', exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
     pass('QA logout clears the browser session and remains signed out after reload');
   } else {
-    console.log('[SKIP] Successful customer login/session-reload/logout checks need both PIZZA_QA_CUSTOMER_EMAIL and PIZZA_QA_CUSTOMER_PASSWORD GitHub Actions secrets.');
+    // No production test account is required for this deterministic UI flow.
+    // Mock only auth/session endpoints after all read-only live smoke checks have finished.
+    const mockedUser = {
+      id: 'browser-smoke-customer',
+      name: 'Browser QA Customer',
+      email: 'browser-qa@example.invalid',
+      role: 'user',
+    };
+    const mockedSessionCookie = 'pizza_session=browser-smoke-session';
+
+    await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.route('**/api/auth/login', async (route) => {
+      const body = route.request().postDataJSON();
+      if (body?.email !== mockedUser.email || body?.password !== 'MockOnlyPass123') {
+        await route.fulfill({ status: 400, json: { error: 'Unexpected mock sign-in input.' } });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'set-cookie': mockedSessionCookie + '; Path=/; HttpOnly; Secure; SameSite=Lax',
+        },
+        json: { user: mockedUser },
+      });
+    });
+    await page.route('**/api/auth/me', async (route) => {
+      const hasSession = (route.request().headers().cookie || '').includes(mockedSessionCookie);
+      await route.fulfill({
+        status: hasSession ? 200 : 401,
+        json: hasSession ? { user: mockedUser } : { error: 'Sign in to continue' },
+      });
+    });
+    await page.route('**/api/orders/my', (route) =>
+      route.fulfill({ status: 200, json: { orders: [] } }),
+    );
+    await page.route('**/api/issues/my', (route) =>
+      route.fulfill({ status: 200, json: { issues: [] } }),
+    );
+    await page.route('**/api/auth/logout', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'set-cookie': 'pizza_session=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax',
+        },
+        json: { message: 'Signed out' },
+      });
+    });
+
+    await dialog.getByLabel('Email address').fill(mockedUser.email);
+    await dialog.getByLabel('Password').fill('MockOnlyPass123');
+    const simulatedLoginResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/auth/login' &&
+      response.request().method() === 'POST',
+    );
+    await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
+    const simulatedLoginResponse = await simulatedLoginResponsePromise;
+    if (simulatedLoginResponse.status() !== 200) {
+      throw new Error('Simulated successful customer login returned HTTP ' + simulatedLoginResponse.status() + '; expected 200.');
+    }
+    const simulatedCookie = simulatedLoginResponse.headers()['set-cookie'] || '';
+    for (const [label, pattern] of [
+      ['HttpOnly', /\bHttpOnly\b/i],
+      ['Secure', /\bSecure\b/i],
+      ['SameSite=Lax', /\bSameSite=Lax\b/i],
+    ]) {
+      if (!pattern.test(simulatedCookie)) {
+        throw new Error('Mock login did not return the expected ' + label + ' cookie attribute.');
+      }
+    }
+    const browserCookies = await context.cookies(webUrl);
+    const sessionCookie = browserCookies.find((cookie) => cookie.name === 'pizza_session');
+    if (!sessionCookie || !sessionCookie.httpOnly || !sessionCookie.secure || sessionCookie.sameSite !== 'Lax') {
+      throw new Error('Browser did not persist the simulated secure HttpOnly SameSite=Lax session cookie.');
+    }
+    await dialog.waitFor({ state: 'hidden', timeout: 15_000 });
+    await page.locator('.account-button').waitFor({ state: 'visible', timeout: 15_000 });
+    await page.locator('.account-button').click();
+    await page.getByRole('heading', { name: /Good to see you,.*Browser QA/i }).waitFor({ state: 'visible', timeout: 15_000 });
+    pass('simulated successful customer login updates the UI and stores a secure session cookie');
+
+    const sessionRefreshResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/auth/me' &&
+      response.request().method() === 'GET',
+    );
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const sessionRefreshResponse = await sessionRefreshResponsePromise;
+    if (sessionRefreshResponse.status() !== 200) {
+      throw new Error('Simulated session did not survive a full-page reload: /api/auth/me returned HTTP ' + sessionRefreshResponse.status() + '.');
+    }
+    await page.locator('.account-button').waitFor({ state: 'visible', timeout: 15_000 });
+    await page.locator('.account-button').click();
+    await page.getByRole('heading', { name: /Good to see you,.*Browser QA/i }).waitFor({ state: 'visible', timeout: 15_000 });
+    pass('simulated signed-in customer session is restored after a full-page reload');
+
+    const logoutResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/auth/logout' &&
+      response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    const logoutResponse = await logoutResponsePromise;
+    if (logoutResponse.status() !== 200) {
+      throw new Error('Simulated logout returned HTTP ' + logoutResponse.status() + '; expected 200.');
+    }
+    await page.locator('.account-button').waitFor({ state: 'hidden', timeout: 15_000 });
+    const remainingSession = (await context.cookies(webUrl)).find((cookie) => cookie.name === 'pizza_session');
+    if (remainingSession) throw new Error('Simulated logout left the session cookie in the browser context.');
+
+    const unauthenticatedMePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/auth/me' &&
+      response.request().method() === 'GET',
+    );
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const unauthenticatedMe = await unauthenticatedMePromise;
+    if (unauthenticatedMe.status() !== 401) {
+      throw new Error('Simulated logout did not persist after reload: /api/auth/me returned HTTP ' + unauthenticatedMe.status() + '.');
+    }
+    await page.getByRole('button', { name: 'Sign in', exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
+    pass('simulated logout clears the cookie and remains signed out after reload');
+    console.log('[INFO] These successful-auth browser checks use mocked auth endpoints; live production sign-in still needs the optional QA customer secrets.');
   }
 
   if (pageErrors.length) {
