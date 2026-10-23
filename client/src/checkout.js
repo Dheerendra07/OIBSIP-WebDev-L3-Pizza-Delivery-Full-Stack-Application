@@ -1,3 +1,4 @@
+const CATALOG_ID = /^[a-z0-9][a-z0-9-]{0,79}$/i;
 function normalizedIngredients(ingredients = {}) {
   return { base: ingredients.base ?? null, sauce: ingredients.sauce ?? null, cheese: ingredients.cheese ?? null, vegetables: [...(Array.isArray(ingredients.vegetables) ? ingredients.vegetables : [])].sort() };
 }
