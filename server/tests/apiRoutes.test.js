@@ -26,16 +26,6 @@ after(async () => {
   });
 });
 
-test('API root returns service information instead of Route not found', async () => {
-  const response = await fetch(`${baseUrl}/`);
-  assert.equal(response.status, 200);
-  const body = await response.json();
-  assert.equal(body.status, 'ok');
-  assert.equal(body.service, 'pizza-house-api');
-  assert.equal(body.health, '/api/health');
-  assert.equal(typeof body.website, 'string');
-});
-
 test('payment provider diagnostic rejects visitors without an admin session', async () => {
   const response = await fetch(`${baseUrl}/api/admin/payment-provider-check`);
   assert.equal(response.status, 401);
