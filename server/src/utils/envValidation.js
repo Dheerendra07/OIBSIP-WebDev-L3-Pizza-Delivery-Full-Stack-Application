@@ -49,7 +49,7 @@ export function validateEnv(env = process.env) {
   }
   if (paymentMode === 'live') {
     const deliveryPins = String(env.DELIVERY_PIN_CODES || '').split(',').map((pin) => pin.trim()).filter(Boolean);
-    if (!deliveryPins.length || deliveryPins.some((pin) => !/^[1-9]\\d{5}$/.test(pin))) {
+    if (!deliveryPins.length || deliveryPins.some((pin) => !/^[1-9]\d{5}$/.test(pin))) {
       throw new Error('DELIVERY_PIN_CODES must list one or more supported six-digit Indian PIN codes before live payments can be enabled');
     }
   }
