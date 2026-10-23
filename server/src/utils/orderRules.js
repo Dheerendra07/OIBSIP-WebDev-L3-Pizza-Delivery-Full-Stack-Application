@@ -1,4 +1,5 @@
 import { FEATURED_PIZZAS, calculateCustomPizza } from './catalog.js';
+import { config } from '../config/env.js';
 
 const NEXT_ORDER_STATUSES = Object.freeze({
   order_received: ['in_kitchen'],
@@ -101,6 +102,9 @@ export function validateDeliveryDetails(raw) {
   const state = text(raw.state, 'State', 2, 80);
   const postalCode = text(raw.postalCode, 'PIN code', 6, 6);
   if (!/^[1-9]\d{5}$/.test(postalCode)) throw invalidInput('Enter a valid 6-digit Indian PIN code');
+  if (config.paymentMode === 'live' && !config.deliveryPinCodes.includes(postalCode)) {
+    throw Object.assign(invalidInput('This PIN code is outside the current delivery area.'), { code: 'DELIVERY_AREA_UNSUPPORTED' });
+  }
   const instructions = text(raw.instructions, 'Delivery instructions', 0, 200, false);
 
   return { recipientName, phone, addressLine, landmark, city, state, postalCode, instructions };
