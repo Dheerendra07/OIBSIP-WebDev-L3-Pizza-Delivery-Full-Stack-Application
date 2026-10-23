@@ -78,6 +78,9 @@ try {
     throw new Error('Hosted frontend did not publish the admin payment-check panel after 12 checks.');
   }
 
+  await page.locator('.pizza-card').first().waitFor({ state: 'visible', timeout: 30_000 });
+  await page.getByRole('heading', { name: 'Margherita Classic', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+  pass('home featured cards wait for live catalog before visual capture');
   await captureScreenshot(page, '01-home-mobile.png');
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.waitForTimeout(200);
@@ -98,6 +101,7 @@ try {
   if ((await page.locator('.bag-button b').innerText()).trim() !== '1') {
     throw new Error('Adding a pizza did not update the bag count to one.');
   }
+  await page.locator('.toast').waitFor({ state: 'hidden', timeout: 6_000 }).catch(() => {});
   await captureScreenshot(page, '04-bag-mobile.png');
   await auditResponsiveState(page, 'bag');
   pass('menu → bag → delivery form interaction');
@@ -107,6 +111,11 @@ try {
   await mobileNav.getByRole('button', { name: 'Sign in', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor({ state: 'visible' });
+  if (await page.locator('.toast').count()) {
+    throw new Error('Opening sign-in left a stale toast on top of the authentication dialog.');
+  }
+  pass('opening sign-in clears stale cart toast before showing the dialog');
+  await auditResponsiveState(page, 'sign-in-dialog');
   await captureScreenshot(page, '05-sign-in-dialog-mobile.png');
   const loginEmail = dialog.getByLabel('Email address');
   await loginEmail.waitFor({ state: 'visible' });
@@ -169,6 +178,7 @@ try {
     await page.locator('.account-button').waitFor({ state: 'visible', timeout: 15_000 });
     await page.locator('.account-button').click();
     await page.getByRole('heading', { name: /Good to see you,/ }).waitFor({ state: 'visible', timeout: 15_000 });
+    await page.locator('.toast').waitFor({ state: 'hidden', timeout: 6_000 }).catch(() => {});
     await captureScreenshot(page, '06-live-customer-dashboard.png');
     await auditResponsiveState(page, 'live-customer-dashboard');
 
@@ -293,6 +303,7 @@ try {
     await page.locator('.account-button').waitFor({ state: 'visible', timeout: 15_000 });
     await page.locator('.account-button').click();
     await page.getByRole('heading', { name: /Good to see you,.*Browser/i }).waitFor({ state: 'visible', timeout: 15_000 });
+    await page.locator('.toast').waitFor({ state: 'hidden', timeout: 6_000 }).catch(() => {});
     await captureScreenshot(page, '06-mocked-customer-dashboard.png');
     await auditResponsiveState(page, 'mocked-customer-dashboard');
     pass('simulated successful customer login updates the UI and stores a secure session cookie');

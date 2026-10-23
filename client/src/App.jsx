@@ -349,7 +349,7 @@ export default function App() {
         serverOrder: order,
     });
     const navigate = (next) => { setPage(next); setMobileMenu(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    const openAuth = (mode) => { authTriggerRef.current = document.activeElement; setAuthMode(mode); setForm({ name: '', email: '', password: '' }); setEmailOnly(''); };
+    const openAuth = (mode) => { authTriggerRef.current = document.activeElement; setToast(null); setAuthMode(mode); setForm({ name: '', email: '', password: '' }); setEmailOnly(''); };
     useEffect(() => {
         if (!authMode) {
             if (authWasOpenRef.current) {
