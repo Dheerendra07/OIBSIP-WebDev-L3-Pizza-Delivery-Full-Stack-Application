@@ -110,9 +110,9 @@ try {
     const rawSetCookie = qaLoginResponse.headers()['set-cookie'] || '';
     const setCookie = Array.isArray(rawSetCookie) ? rawSetCookie.join('; ') : String(rawSetCookie);
     for (const [label, pattern] of [
-      ['HttpOnly', /\\bHttpOnly\\b/i],
-      ['Secure', /\\bSecure\\b/i],
-      ['SameSite=Lax', /\\bSameSite=Lax\\b/i],
+      ['HttpOnly', /\bHttpOnly\b/i],
+      ['Secure', /\bSecure\b/i],
+      ['SameSite=Lax', /\bSameSite=Lax\b/i],
     ]) {
       if (!pattern.test(setCookie)) {
         throw new Error(`Successful QA login did not issue the expected ${label} session-cookie attribute.`);
