@@ -29,6 +29,8 @@ const orderSchema = new mongoose.Schema({
   deliveryDetails: { type: deliveryDetailsSchema, default: undefined },
   status: { type: String, enum: ['pending_payment', 'payment_review', 'order_received', 'in_kitchen', 'sent_to_delivery', 'delivered', 'cancelled'], default: 'pending_payment', index: true },
   paymentStatus: { type: String, enum: ['pending', 'paid', 'failed', 'refunded'], default: 'pending', index: true },
+  // Persist the mode used at checkout so Test Mode transactions can never become real kitchen orders later.
+  paymentMode: { type: String, enum: ['test', 'live'], default: 'test', required: true, index: true },
   paymentReviewRequired: { type: Boolean, default: false, index: true },
   paymentReviewReason: { type: String, default: null },
   razorpayRefundId: { type: String, default: null, index: true },
