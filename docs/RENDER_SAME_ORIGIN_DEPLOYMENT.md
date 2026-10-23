@@ -12,7 +12,7 @@ Open the existing `pizza-house-api` Web Service. Keep the existing service and i
 2. Set **Build Command** to:
 
    ```sh
-   npm ci && npm --prefix server ci && npm --prefix client ci && npm --prefix client run build
+   npm ci --include=dev && npm --prefix server ci --omit=dev && npm --prefix client ci --include=dev && npm --prefix client run build
    ```
 
 3. Keep **Start Command** as:
