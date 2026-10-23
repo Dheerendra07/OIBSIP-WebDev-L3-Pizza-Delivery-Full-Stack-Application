@@ -38,7 +38,7 @@ jobs:
           npm audit --audit-level=high
           npm --prefix server audit --audit-level=high
           npm --prefix client audit --audit-level=high
-      - name: Run API and client unit tests
-        run: npm test
       - name: Build production web bundle
         run: npm run build
+      - name: Run API and client unit tests
+        run: npm test

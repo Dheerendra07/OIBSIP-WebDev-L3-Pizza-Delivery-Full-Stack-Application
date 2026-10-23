@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 
-const webUrl = (process.env.CLIENT_WEB_URL || 'https://pizza-house-web-n75h.onrender.com').replace(/\/$/, '');
+const webUrl = (process.env.CLIENT_WEB_URL || 'https://pizza-house-api.onrender.com').replace(/\/$/, '');
 const checks = [];
 let browser;
 

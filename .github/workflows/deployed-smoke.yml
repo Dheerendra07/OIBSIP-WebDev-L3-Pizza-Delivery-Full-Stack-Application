@@ -46,7 +46,7 @@ jobs:
       - name: Verify deployed API, catalog, CORS, webhook guard and website
         env:
           API_BASE_URL: https://pizza-house-api.onrender.com
-          CLIENT_WEB_URL: https://pizza-house-web-n75h.onrender.com
+          CLIENT_WEB_URL: https://pizza-house-api.onrender.com
           EXPECTED_API_COMMIT: ${{ steps.backend-revision.outputs.sha }}
         run: |
           node --input-type=module <<'NODE'
@@ -54,8 +54,7 @@ jobs:
 
           const apiRaw = process.env.API_BASE_URL;
           const apiBase = apiRaw.endsWith('/') ? apiRaw.slice(0, -1) : apiRaw;
-          const webRaw = process.env.CLIENT_WEB_URL;
-          const webBase = webRaw.endsWith('/') ? webRaw.slice(0, -1) : webRaw;
+          const webBase = (process.env.CLIENT_WEB_URL || apiBase).replace(/\/$/, '');
 
           async function getJson(path) {
             const response = await fetch(`${apiBase}${path}`, {
@@ -69,12 +68,24 @@ jobs:
           async function checkAll() {
             const results = [];
 
-            const root = await getJson('/');
-            assert.equal(root.response.status, 200, 'API root must return HTTP 200, not Route not found');
-            assert.equal(root.body?.service, 'pizza-house-api');
-            assert.equal(root.body?.status, 'ok');
-            assert.equal(root.body?.website, webBase);
-            results.push('API root');
+            const rootResponse = await fetch(`${apiBase}/`, {
+              signal: AbortSignal.timeout(8000),
+              headers: { Accept: 'text/html,application/json' },
+            });
+            assert.equal(rootResponse.status, 200, 'service root must return HTTP 200');
+            const rootContentType = rootResponse.headers.get('content-type') || '';
+            if (rootContentType.includes('text/html')) {
+              const rootHtml = await rootResponse.text();
+              assert.ok(rootHtml.includes('id="root"'), 'same-origin customer website must contain the app root');
+              assert.ok(rootHtml.includes('<title'), 'same-origin customer website must contain a title');
+              results.push('same-origin customer website root');
+            } else {
+              const root = await rootResponse.json();
+              assert.equal(root.service, 'pizza-house-api');
+              assert.equal(root.status, 'ok');
+              assert.equal(root.website, webBase);
+              results.push('API root');
+            }
 
             const base = await getJson('/api');
             assert.equal(base.response.status, 200, 'API base path must return HTTP 200');
@@ -232,7 +243,7 @@ jobs:
             const bundleResponse = await fetch(bundleUrl, { signal: AbortSignal.timeout(8000) });
             assert.equal(bundleResponse.status, 200, 'production JavaScript bundle must be reachable');
             const bundle = await bundleResponse.text();
-            assert.ok(bundle.includes(`${apiBase}/api`), 'production bundle must point at the deployed API URL');
+            assert.ok(bundle.includes(`${apiBase}/api`) || bundle.includes('\"/api\"') || bundle.includes("'/api'"), 'production bundle must use the deployed API URL or the same-origin /api path');
             assert.ok(!bundle.includes('http://localhost:4000/api'), 'production bundle must not fall back to localhost API');
             assert.ok(bundle.includes('pizza-house.checkout-draft'), 'deployed bundle must include checkout draft recovery code');
             assert.ok(bundle.includes("We couldn't confirm sign-out. Check your connection and try again."), 'deployed bundle must include the logout failure recovery fix');

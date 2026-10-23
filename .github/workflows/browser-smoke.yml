@@ -38,5 +38,5 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Exercise the hosted website in a real browser
         env:
-          CLIENT_WEB_URL: https://pizza-house-web-n75h.onrender.com
+          CLIENT_WEB_URL: https://pizza-house-api.onrender.com
         run: node scripts/deployed-browser-smoke.mjs

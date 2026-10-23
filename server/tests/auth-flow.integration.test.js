@@ -7,7 +7,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 
 test('production auth HTTP flow: signup, login cookie, current user, protected orders and logout', async (t) => {
   const mongod = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
-  const webOrigin = 'https://pizza-house-web-n75h.onrender.com';
+  const webOrigin = 'https://pizza-house-api.onrender.com';
   const apiOrigin = 'https://pizza-house-api.onrender.com';
   const env = {
     NODE_ENV: 'production',
@@ -17,7 +17,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     CLIENT_ORIGIN: webOrigin,
     CLIENT_BASE_URL: webOrigin,
     APP_BASE_URL: apiOrigin,
-    COOKIE_SAME_SITE: 'none',
+    COOKIE_SAME_SITE: 'lax',
     REQUIRE_EMAIL_VERIFICATION: 'false',
     MAIL_FROM: 'Pizza House <noreply@example.com>',
     RESEND_API_KEY: 'test-only-not-used',
@@ -64,7 +64,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   }));
 
   // Import only after assigning test-only production settings so the real app
-  // builds the exact Secure + SameSite=None cookie expected on Render.
+  // builds the Secure + SameSite=Lax cookie used by the same-origin Render setup.
   const { default: app } = await import('../src/app.js');
   await mongoose.connect(env.MONGODB_URI);
   const { ensureInventorySeeded, ensureAdminAccount } = await import('../src/utils/databaseBootstrap.js');
@@ -116,7 +116,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.ok(sessionCookie, 'login should issue the pizza_session cookie');
   assert.match(sessionCookie, /HttpOnly/i);
   assert.match(sessionCookie, /Secure/i);
-  assert.match(sessionCookie, /SameSite=None/i);
+  assert.match(sessionCookie, /SameSite=Lax/i);
   const cookie = sessionCookie.split(';', 1)[0];
 
   const me = await fetch(`${base}/api/auth/me`, { headers: { Origin: webOrigin, Cookie: cookie } });

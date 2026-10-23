@@ -9,7 +9,8 @@
     "test": "node --test",
     "qa:preflight": "node scripts/qa-preflight.js",
     "seed:inventory": "node src/utils/seedInventory.js",
-    "seed:admin": "node src/utils/seedAdmin.js"
+    "seed:admin": "node src/utils/seedAdmin.js",
+    "postinstall": "node scripts/render-client-build.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

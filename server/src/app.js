@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { config } from './config/env.js';
 import { getReadiness } from './utils/healthStatus.js';
 import authRoutes from './routes/authRoutes.js';
@@ -16,6 +18,8 @@ import { notFound, errorHandler } from './middleware/errors.js';
 import { handleRazorpayWebhook } from './controllers/paymentWebhookController.js';
 
 const app = express();
+const clientDistPath = fileURLToPath(new URL('../../client/dist/', import.meta.url));
+const clientIndexPath = fileURLToPath(new URL('../../client/dist/index.html', import.meta.url));
 // Render terminates TLS and forwards requests through one trusted reverse proxy.
 // Trusting that proxy lets express-rate-limit identify the real client IP safely.
 app.set('trust proxy', 1);
@@ -49,19 +53,30 @@ app.get('/api', (_req, res) => res.json({
   website: config.clientBaseUrl,
   health: '/api/health',
 }));
-app.get('/', (_req, res) => res.json({
-  status: 'ok',
-  service: 'pizza-house-api',
-  message: 'Pizza House API is online. Open the customer website to place an order.',
-  website: config.clientBaseUrl,
-  health: '/api/health',
-  endpoints: {
-    catalog: '/api/catalog',
-    auth: '/api/auth',
-    orders: '/api/orders',
-    payments: '/api/payments',
-  },
-}));
+app.use(express.static(clientDistPath, { index: false, fallthrough: true }));
+app.get('/', (_req, res) => {
+  // When the API service also builds client/dist, serve the customer application
+  // on this same origin. This avoids third-party-cookie restrictions from the
+  // isolated *.onrender.com frontend/API hostnames. Local API-only runs retain
+  // the JSON service landing page when no production bundle exists.
+  if (existsSync(clientIndexPath)) {
+    res.set('Cache-Control', 'no-cache');
+    return res.sendFile(clientIndexPath);
+  }
+  return res.json({
+    status: 'ok',
+    service: 'pizza-house-api',
+    message: 'Pizza House API is online. Open the customer website to place an order.',
+    website: config.clientBaseUrl,
+    health: '/api/health',
+    endpoints: {
+      catalog: '/api/catalog',
+      auth: '/api/auth',
+      orders: '/api/orders',
+      payments: '/api/payments',
+    },
+  });
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/orders', orderRoutes);

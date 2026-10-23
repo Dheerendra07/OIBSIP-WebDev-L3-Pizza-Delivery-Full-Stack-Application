@@ -1,6 +1,6 @@
 # Pizza House — Full-Stack Pizza Ordering & Inventory
 
-Pizza House is a MERN full-stack internship project for custom pizza ordering, secure accounts, inventory reservation, payment verification and live order tracking. The payment integration uses Razorpay Test Mode; this repository has not been certified for production payments.
+Pizza House is a MERN full-stack pizza ordering platform for custom orders, secure accounts, inventory reservation, payment verification and live order tracking. The payment integration uses Razorpay Test Mode; this repository has not been certified for production payments.
 
 ## Features
 
@@ -42,6 +42,10 @@ Pizza House is a MERN full-stack internship project for custom pizza ordering, s
 - Realtime: Socket.IO
 - Security: HttpOnly JWT cookie, password hashing, expiring hashed verification/reset tokens, auth rate limiting, admin-only routes and session-version invalidation
 - Checks: Node.js test runner, client unit tests, Vite production build and GitHub Actions CI
+
+## Production deployment and login sessions
+
+The recommended Render setup serves the built customer frontend from the API service on one origin. This avoids cross-site session-cookie restrictions caused by the default isolated `*.onrender.com` frontend and API hosts. Follow [Render Same-Origin Deployment](docs/RENDER_SAME_ORIGIN_DEPLOYMENT.md) before changing production service settings. Keep secrets in Render's environment settings and use Razorpay Test Mode while validating checkout.
 
 ## Run locally
 
