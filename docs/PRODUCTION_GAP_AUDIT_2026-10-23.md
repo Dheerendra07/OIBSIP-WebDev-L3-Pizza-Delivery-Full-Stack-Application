@@ -13,14 +13,14 @@ Scope: production evidence and the latest hosted-browser/API smoke logs availabl
 
 - Hosted browser smoke run [39914211411](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39914211411): 9/9 checks passed.
 - Deployed API smoke run [39907398646](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39907398646): 16/16 checks passed.
-- CI/test/build run [39914211397](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39914211397): status recorded by the project as 217/217 tests, client production build, and root/server/client audits with zero reported vulnerabilities.
+- CI/test/build run [39921284402](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39921284402): passed 217/217 tests, production client build, and root/server/client high/critical audits with zero reported vulnerabilities. The previous run [39914211397](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39914211397) also passed.
 - Current project evidence: [PROJECT_STATUS.md](../PROJECT_STATUS.md).
 
 ## Findings
 
 | Priority | Area | Evidence / gap | Status |
 |---|---|---|---|
-| P0 | Real customer login | Browser smoke run has empty `PIZZA_QA_CUSTOMER_EMAIL` and `PIZZA_QA_CUSTOMER_PASSWORD`. Successful login, cookie flags, session restoration after full reload and logout invalidation were tested against mocked auth endpoints, not the production auth API. | **Blocked on dedicated QA account secrets** |
+| P0 | Real customer login | Run [39914211411 attempt 2](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39914211411) still showed both QA secret environment values empty. A fail-closed check was added in commit `10b6ddd619686d24ee0f34a7e66e0fe0e99c2660`; run [39921284506](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39921284506) correctly stopped before browser testing. | **Blocked: secrets are not available as repository Actions secrets** |
 | P0 | Real checkout/payment | No confirmed full browser-to-Razorpay Test Mode journey with captured payment and matching production order record was present in reviewed evidence. | **Unverified** |
 | P0 | Razorpay webhook/refund | Invalid signature guard passed. That proves rejection of a bad signature only; it does not prove a valid dashboard webhook was delivered, reconciled idempotently, or that a refund was completed. | **Partially verified** |
 | P1 | Email delivery | Registration form render and validation passed, but successful email verification/password-reset delivery and inbox receipt are not proven by these runs. | **Unverified** |
@@ -45,7 +45,7 @@ Important: checks 6–8 are explicitly mocked. They are not proof of production 
 
 ## Safe next steps
 
-1. Add a dedicated, verified, non-admin QA customer's email and password as GitHub Actions repository secrets named `PIZZA_QA_CUSTOMER_EMAIL` and `PIZZA_QA_CUSTOMER_PASSWORD`. Do not paste credentials into an issue, commit, or chat. The workflow exposes them only to the `main` browser QA job.
+1. Add a dedicated, verified, non-admin QA customer's email and password under **Settings → Secrets and variables → Actions → Repository secrets** using exact names `PIZZA_QA_CUSTOMER_EMAIL` and `PIZZA_QA_CUSTOMER_PASSWORD`. The latest run proves these values are not currently visible to the workflow. Values stored as Actions variables or in an Environment not assigned to this job will not be read. Do not paste credentials into an issue, commit, or chat. The workflow exposes them only to the `main` browser QA job.
 2. Rerun the hosted-browser smoke and confirm that the real login path, secure HttpOnly/SameSite cookie, session lookup after reload and logout invalidation pass. If the customer account cannot sign in, record the actual response and fix the verified cause.
 3. Exercise Razorpay **Test Mode** only: successful capture, invalid signature, duplicate/out-of-order webhook delivery, uncertain verification, payment-review handling and eligible test refund. Do not create live payments or issue real refunds during QA.
 4. Verify email delivery with the configured provider and a test inbox; confirm verification/reset links work without logging tokens.
