@@ -62,20 +62,21 @@ try {
   // The static site deploys independently from the API/workflow. Wait for the newly
   // deployed bundle marker instead of testing yesterday's live frontend by accident.
   let mobileSignInReady = false;
-  for (let attempt = 1; attempt <= 12; attempt += 1) {
+  for (let attempt = 1; attempt <= 20; attempt += 1) {
     await page.goto(webUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 30_000 });
     if ((await page.locator('.mobile-auth-link').count() === 1) &&
         (await page.locator('[data-mobile-auth-focus="dialog-first"]').count() === 1) &&
-        (await page.locator('[data-payment-provider-check="readonly-admin-v1"]').count() === 1)) {
+        (await page.locator('[data-payment-provider-check="readonly-admin-v1"]').count() === 1) &&
+        (await page.locator('[data-auth-toast-fix="clear-stale-toast-v1"]').count() === 1)) {
       mobileSignInReady = true;
       break;
     }
-    console.log(`[WAIT] hosted frontend has not published the admin payment-check panel yet (${attempt}/12)`);
+    console.log(`[WAIT] hosted frontend has not published the admin payment-check panel yet (${attempt}/20)`);
     await page.waitForTimeout(5_000);
   }
   if (!mobileSignInReady) {
-    throw new Error('Hosted frontend did not publish the admin payment-check panel after 12 checks.');
+    throw new Error('Hosted frontend did not publish the admin payment-check panel after 20 checks.');
   }
 
   await page.locator('.pizza-card').first().waitFor({ state: 'visible', timeout: 30_000 });
@@ -105,6 +106,14 @@ try {
   await captureScreenshot(page, '04-bag-mobile.png');
   await auditResponsiveState(page, 'bag');
   pass('menu → bag → delivery form interaction');
+
+  // Recreate the stale-toast condition deliberately: a cart success message is live,
+  // then a customer opens Sign in immediately. The dialog must dismiss the old toast.
+  await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+  await page.locator('.main-nav.open').getByRole('button', { name: 'Our menu', exact: true }).click();
+  await page.getByRole('button', { name: 'Add Margherita Classic', exact: true }).click();
+  await page.locator('.toast').waitFor({ state: 'visible', timeout: 5_000 });
+  pass('adding a pizza creates a visible success toast before auth opens');
 
   await page.getByRole('button', { name: 'Open menu', exact: true }).click();
   const mobileNav = page.locator('.main-nav.open');
