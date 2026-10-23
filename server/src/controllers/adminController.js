@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import User from '../models/User.js';
 import PaymentWebhookReceipt from '../models/PaymentWebhookReceipt.js';
 import { requestFullPaymentReviewRefund } from '../services/refunds.js';
+import { checkRazorpayTestModeConnection } from '../services/payments.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateOrderStatusTransition } from '../utils/orderRules.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
@@ -82,4 +83,26 @@ export const refundPaymentReview = asyncHandler(async (req, res) => {
         ? 'Refund failed; manual provider review is required'
         : 'Refund request saved for safe reconciliation';
   res.json({ message, ...result });
+});
+
+export const checkPaymentProvider = asyncHandler(async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const result = await checkRazorpayTestModeConnection();
+    return res.json({
+      status: 'connected',
+      mode: 'test',
+      checkedAt: result.checkedAt,
+      message: 'Razorpay Test Mode API access verified with a read-only request.',
+    });
+  } catch (error) {
+    const notConfigured = error?.statusCode === 503;
+    return res.status(notConfigured ? 503 : 502).json({
+      status: 'unavailable',
+      mode: 'test',
+      error: notConfigured
+        ? 'Razorpay Test Mode credentials are not configured on the server.'
+        : 'Razorpay Test Mode connection could not be confirmed. Check the key pair or provider availability.',
+    });
+  }
 });
