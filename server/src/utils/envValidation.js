@@ -40,8 +40,23 @@ export function validateEnv(env = process.env) {
       if (!isHttpsBaseUrl(env[key])) throw new Error(`${key} must be a valid HTTPS origin without a path, query, or fragment in production`);
     }
   }
+  const paymentMode = String(env.PAYMENT_MODE || 'test').trim().toLowerCase();
+  if (!['test', 'live'].includes(paymentMode)) throw new Error('PAYMENT_MODE must be test or live');
+  if (paymentMode === 'live' && env.NODE_ENV !== 'production') throw new Error('PAYMENT_MODE=live is only allowed in production; use test mode for development and staging');
+  const expectedKeyPrefix = paymentMode === 'live' ? 'rzp_live_' : 'rzp_test_';
+  if (env.RAZORPAY_KEY_ID && !String(env.RAZORPAY_KEY_ID).startsWith(expectedKeyPrefix)) {
+    throw new Error(`RAZORPAY_KEY_ID must start with ${expectedKeyPrefix} when PAYMENT_MODE=${paymentMode}`);
+  }
+  if (paymentMode === 'live') {
+    const deliveryPins = String(env.DELIVERY_PIN_CODES || '').split(',').map((pin) => pin.trim()).filter(Boolean);
+    if (!deliveryPins.length || deliveryPins.some((pin) => !/^[1-9]\\d{5}$/.test(pin))) {
+      throw new Error('DELIVERY_PIN_CODES must list one or more supported six-digit Indian PIN codes before live payments can be enabled');
+    }
+  }
+  if (env.RAZORPAY_KEY_SECRET && env.RAZORPAY_WEBHOOK_SECRET && env.RAZORPAY_KEY_SECRET === env.RAZORPAY_WEBHOOK_SECRET) {
+    throw new Error('RAZORPAY_WEBHOOK_SECRET must be different from RAZORPAY_KEY_SECRET');
+  }
   if (env.REQUIRE_EMAIL_VERIFICATION !== undefined && !['true', 'false'].includes(String(env.REQUIRE_EMAIL_VERIFICATION).trim().toLowerCase())) throw new Error('REQUIRE_EMAIL_VERIFICATION must be true or false');
-  if (env.RAZORPAY_KEY_ID && !String(env.RAZORPAY_KEY_ID).startsWith('rzp_test_')) throw new Error('This project is configured for Razorpay test mode; RAZORPAY_KEY_ID must start with rzp_test_');
   if (env.COOKIE_SAME_SITE && !validSameSiteValues.has(String(env.COOKIE_SAME_SITE).toLowerCase())) throw new Error('COOKIE_SAME_SITE must be strict, lax, or none');
   if (String(env.COOKIE_SAME_SITE || '').toLowerCase() === 'none' && env.NODE_ENV !== 'production') throw new Error('COOKIE_SAME_SITE=none requires production HTTPS; use strict or lax for local development');
   if (env.JWT_SECRET && env.JWT_SECRET.length < 32 && env.NODE_ENV !== 'test') console.warn('Warning: JWT_SECRET should be at least 32 characters.');
