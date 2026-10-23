@@ -13,7 +13,7 @@ function safeErrorRoute(req) {
   return route || 'unmatched';
 }
 
-export function notFound(req, res) { res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` }); }
+export function notFound(req, res) { res.status(404).json({ error: 'Route not found', method: safeLogToken(req.method) || 'UNKNOWN' }); }
 export function errorHandler(err, req, res, _next) {
   if (res.headersSent) return;
   if (err?.name === 'ValidationError') return res.status(400).json({ error: 'Invalid data', details: Object.values(err.errors).map((e) => e.message) });
