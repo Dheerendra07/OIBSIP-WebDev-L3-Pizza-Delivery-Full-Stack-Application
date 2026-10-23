@@ -14,6 +14,8 @@ export const config = {
   requireEmailVerification: String(process.env.REQUIRE_EMAIL_VERIFICATION || 'false').trim().toLowerCase() === 'true',
   clientBaseUrl: (process.env.CLIENT_BASE_URL || 'http://localhost:5173').replace(/\/$/, ''),
   appBaseUrl: (process.env.APP_BASE_URL || 'http://localhost:4000').replace(/\/$/, ''),
+  paymentMode: String(process.env.PAYMENT_MODE || 'test').trim().toLowerCase(),
+  deliveryPinCodes: String(process.env.DELIVERY_PIN_CODES || '').split(',').map((pin) => pin.trim()).filter(Boolean),
   razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
