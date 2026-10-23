@@ -1,7 +1,13 @@
 import { chromium } from 'playwright';
+import { mkdir, writeFile } from 'node:fs/promises';
 
 const webUrl = (process.env.CLIENT_WEB_URL || 'https://pizza-house-api.onrender.com').replace(/\/$/, '');
 const checks = [];
+const viewportWidths = [320, 360, 390, 640, 768, 1024, 1440];
+const responsiveEvidence = {};
+const pageErrors = [];
+const failedRequests = [];
+const artifactDir = 'qa-artifacts';
 let browser;
 
 function pass(label) {
@@ -9,15 +15,49 @@ function pass(label) {
   console.log(`[PASS] ${label}`);
 }
 
+async function captureScreenshot(page, name) {
+  await page.screenshot({ path: `${artifactDir}/${name}`, fullPage: true, animations: 'disabled' });
+  console.log(`[EVIDENCE] ${artifactDir}/${name}`);
+}
+
+async function auditResponsiveState(page, label) {
+  const results = [];
+  for (const width of viewportWidths) {
+    await page.setViewportSize({ width, height: width <= 640 ? 844 : 900 });
+    await page.waitForTimeout(120);
+    const metrics = await page.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body.scrollWidth,
+      rootClientWidth: document.documentElement.clientWidth,
+    }));
+    results.push(metrics);
+    if (metrics.documentWidth > width + 1) {
+      responsiveEvidence[label] = results;
+      throw new Error(`${label} has horizontal document overflow at ${width}px: document is ${metrics.documentWidth}px wide.`);
+    }
+  }
+  responsiveEvidence[label] = results;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(120);
+  pass(`${label} responsive layout: no horizontal document overflow at 320, 360, 390, 640, 768, 1024 and 1440px`);
+}
+
 try {
+  await mkdir(artifactDir, { recursive: true });
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     locale: 'en-IN',
   });
   const page = await context.newPage();
-  const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('requestfailed', (request) => {
+    try {
+      const url = new URL(request.url());
+      failedRequests.push({ url: url.origin + url.pathname, error: request.failure()?.errorText || 'unknown' });
+    } catch { failedRequests.push({ url: 'unparseable-url', error: request.failure()?.errorText || 'unknown' }); }
+  });
 
   // The static site deploys independently from the API/workflow. Wait for the newly
   // deployed bundle marker instead of testing yesterday's live frontend by accident.
@@ -37,9 +77,18 @@ try {
   if (!mobileSignInReady) {
     throw new Error('Hosted frontend did not publish the admin payment-check panel after 12 checks.');
   }
+
+  await captureScreenshot(page, '01-home-mobile.png');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(200);
+  await captureScreenshot(page, '02-home-desktop.png');
+  await auditResponsiveState(page, 'home');
+
   await page.getByRole('button', { name: 'Explore the menu' }).click();
   await page.locator('.pizza-card').first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.getByRole('heading', { name: 'Margherita Classic', exact: true }).waitFor({ state: 'visible' });
+  await captureScreenshot(page, '03-menu-mobile.png');
+  await auditResponsiveState(page, 'menu');
   pass('hosted home and live menu render');
 
   await page.getByRole('button', { name: 'Add Margherita Classic', exact: true }).click();
@@ -49,6 +98,8 @@ try {
   if ((await page.locator('.bag-button b').innerText()).trim() !== '1') {
     throw new Error('Adding a pizza did not update the bag count to one.');
   }
+  await captureScreenshot(page, '04-bag-mobile.png');
+  await auditResponsiveState(page, 'bag');
   pass('menu → bag → delivery form interaction');
 
   await page.getByRole('button', { name: 'Open menu', exact: true }).click();
@@ -56,6 +107,7 @@ try {
   await mobileNav.getByRole('button', { name: 'Sign in', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor({ state: 'visible' });
+  await captureScreenshot(page, '05-sign-in-dialog-mobile.png');
   const loginEmail = dialog.getByLabel('Email address');
   await loginEmail.waitFor({ state: 'visible' });
   if (!(await loginEmail.evaluate((element) => document.activeElement === element))) {
@@ -117,6 +169,8 @@ try {
     await page.locator('.account-button').waitFor({ state: 'visible', timeout: 15_000 });
     await page.locator('.account-button').click();
     await page.getByRole('heading', { name: /Good to see you,/ }).waitFor({ state: 'visible', timeout: 15_000 });
+    await captureScreenshot(page, '06-live-customer-dashboard.png');
+    await auditResponsiveState(page, 'live-customer-dashboard');
 
     const sessionRefreshResponsePromise = page.waitForResponse((response) =>
       new URL(response.url()).pathname === '/api/auth/me' &&
@@ -239,6 +293,8 @@ try {
     await page.locator('.account-button').waitFor({ state: 'visible', timeout: 15_000 });
     await page.locator('.account-button').click();
     await page.getByRole('heading', { name: /Good to see you,.*Browser/i }).waitFor({ state: 'visible', timeout: 15_000 });
+    await captureScreenshot(page, '06-mocked-customer-dashboard.png');
+    await auditResponsiveState(page, 'mocked-customer-dashboard');
     pass('simulated successful customer login updates the UI and stores a secure session cookie');
 
     const sessionRefreshResponsePromise = page.waitForResponse((response) =>
@@ -295,5 +351,23 @@ try {
   console.error('Live browser smoke failed:', error?.stack || error);
   process.exitCode = 1;
 } finally {
+  try {
+    await writeFile(`${artifactDir}/browser-evidence.json`, JSON.stringify({
+      checkedAt: new Date().toISOString(),
+      target: webUrl,
+      checks,
+      responsiveEvidence,
+      pageErrors,
+      failedRequests,
+      successfulLiveCustomerLoginEnabled: Boolean(
+        (process.env.PIZZA_QA_CUSTOMER_EMAIL || '').trim() &&
+        (process.env.PIZZA_QA_CUSTOMER_PASSWORD || '')
+      ),
+      note: 'When live-customer credentials are not configured, successful-login checks use mocked auth endpoints. A mocked session is not proof of successful production authentication.',
+    }, null, 2));
+  } catch (error) {
+    console.error('Could not write browser QA evidence:', error?.message || error);
+    process.exitCode = 1;
+  }
   await browser?.close().catch(() => {});
 }

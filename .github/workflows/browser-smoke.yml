@@ -45,3 +45,12 @@ jobs:
           PIZZA_QA_CUSTOMER_EMAIL: ${{ github.ref == 'refs/heads/main' && secrets.PIZZA_QA_CUSTOMER_EMAIL || '' }}
           PIZZA_QA_CUSTOMER_PASSWORD: ${{ github.ref == 'refs/heads/main' && secrets.PIZZA_QA_CUSTOMER_PASSWORD || '' }}
         run: node scripts/deployed-browser-smoke.mjs
+
+      - name: Upload visual QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pizza-house-browser-qa-${{ github.run_id }}
+          path: qa-artifacts/
+          if-no-files-found: warn
+          retention-days: 7
