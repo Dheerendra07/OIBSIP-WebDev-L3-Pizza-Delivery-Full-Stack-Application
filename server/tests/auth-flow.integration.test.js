@@ -33,6 +33,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   let server;
   let restoreRazorpayClientFactory = () => {};
   let razorpayOrderCreateCalls = 0;
+  const providerPaymentsByOrderId = new Map();
   const mockProviderOrderId = 'order_test_auth_e2e';
   const mockProviderPaymentId = 'pay_test_auth_e2e';
   t.after(async () => {
@@ -51,6 +52,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
         razorpayOrderCreateCalls += 1;
         return { id: mockProviderOrderId, amount, currency };
       },
+      fetchPayments: async (orderId) => providerPaymentsByOrderId.get(orderId) || { items: [] },
     },
     payments: {
       fetch: async (id) => ({
@@ -179,15 +181,29 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     razorpayOrderId: null,
     ...overrides,
   });
-  const [abandonedOrder, recentOrder, providerLinkedOrder, creationInProgressOrder, reservedFixtureOrder] = await Promise.all([
+  const [abandonedOrder, recentOrder, providerLinkedOrder, creationInProgressOrder, reservedFixtureOrder, capturedExpiredOrder, inFlightExpiredOrder] = await Promise.all([
     makeCheckoutFixture('STALE'),
     makeCheckoutFixture('RECENT'),
     makeCheckoutFixture('PROVIDER', { razorpayOrderId: 'order_existing_provider_checkout' }),
     makeCheckoutFixture('CREATING', { paymentOrderCreationInProgress: true }),
-    makeCheckoutFixture('RESERVED', { inventoryReserved: true, stockReservationExpiresAt: new Date(Date.now() - 60_000) }),
+    makeCheckoutFixture('RESERVED_EMPTY', {
+      inventoryReserved: true,
+      stockReservationExpiresAt: new Date(Date.now() - 60_000),
+      razorpayOrderId: 'order_expired_empty',
+    }),
+    makeCheckoutFixture('RESERVED_CAPTURED', {
+      inventoryReserved: true,
+      stockReservationExpiresAt: new Date(Date.now() - 60_000),
+      razorpayOrderId: 'order_expired_captured',
+    }),
+    makeCheckoutFixture('RESERVED_AUTHORIZED', {
+      inventoryReserved: true,
+      stockReservationExpiresAt: new Date(Date.now() - 60_000),
+      razorpayOrderId: 'order_expired_authorized',
+    }),
   ]);
   const staleFixtureTime = new Date(Date.now() - UNRESERVED_CHECKOUT_TTL_MS - 60_000);
-  for (const order of [abandonedOrder, providerLinkedOrder, creationInProgressOrder, reservedFixtureOrder]) {
+  for (const order of [abandonedOrder, providerLinkedOrder, creationInProgressOrder, reservedFixtureOrder, capturedExpiredOrder, inFlightExpiredOrder]) {
     await Order.collection.updateOne(
       { _id: order._id },
       { $set: { createdAt: staleFixtureTime, updatedAt: staleFixtureTime } },
@@ -202,7 +218,48 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal((await Order.findById(creationInProgressOrder.id).lean()).status, 'pending_payment', 'orders marked as creating a payment order must be preserved');
   assert.equal((await Order.findById(reservedFixtureOrder.id).lean()).status, 'pending_payment', 'reserved orders must be handled by reservation reconciliation instead');
   assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, 100, 'unreserved-order cleanup must not modify ingredient stock');
-  await Order.deleteMany({ _id: { $in: [abandonedOrder._id, recentOrder._id, providerLinkedOrder._id, creationInProgressOrder._id, reservedFixtureOrder._id] } });
+
+  // Model three expired provider-linked reservations: no payment, captured payment, and an authorized in-flight payment.
+  // Debit the stock first so the assertions exercise the same invariant as checkout: a reservation holds inventory.
+  for (const _order of [reservedFixtureOrder, capturedExpiredOrder, inFlightExpiredOrder]) {
+    for (const key of fixtureItem.inventoryKeys) {
+      await InventoryItem.updateOne({ key }, { $inc: { stock: -1 } });
+    }
+  }
+  providerPaymentsByOrderId.set('order_expired_empty', { items: [] });
+  providerPaymentsByOrderId.set('order_expired_captured', {
+    items: [{ id: 'pay_expired_captured', order_id: 'order_expired_captured', amount: 27800, currency: 'INR', status: 'captured' }],
+  });
+  providerPaymentsByOrderId.set('order_expired_authorized', {
+    items: [{ id: 'pay_expired_authorized', order_id: 'order_expired_authorized', amount: 27800, currency: 'INR', status: 'authorized' }],
+  });
+
+  const { releaseExpiredReservations } = await import('../src/jobs/stockAlerts.js');
+  const reconciliation = await releaseExpiredReservations(new Date());
+  assert.deepEqual(reconciliation, { released: 1, reconciled: 1, deferred: 1, cancelledUnreserved: 0 });
+  const releasedOrder = await Order.findById(reservedFixtureOrder.id).lean();
+  assert.equal(releasedOrder.status, 'cancelled', 'expired reservations without provider payments should become cancelled');
+  assert.equal(releasedOrder.inventoryReserved, false);
+  assert.equal(releasedOrder.stockReservationExpiresAt, null);
+  assert.equal(releasedOrder.razorpayOrderId, 'order_expired_empty', 'provider order reference must remain for late-capture recovery');
+
+  const recoveredCapture = await Order.findById(capturedExpiredOrder.id).lean();
+  assert.equal(recoveredCapture.status, 'order_received', 'a provider-confirmed late capture should be reconciled instead of cancelled');
+  assert.equal(recoveredCapture.paymentStatus, 'paid');
+  assert.equal(recoveredCapture.razorpayPaymentId, 'pay_expired_captured');
+  assert.equal(recoveredCapture.inventoryReserved, false);
+  assert.equal(recoveredCapture.stockReservationExpiresAt, null);
+
+  const inFlightOrder = await Order.findById(inFlightExpiredOrder.id).lean();
+  assert.equal(inFlightOrder.status, 'pending_payment', 'an authorized payment must retain the reservation');
+  assert.equal(inFlightOrder.paymentStatus, 'pending');
+  assert.equal(inFlightOrder.inventoryReserved, true);
+  assert.equal(inFlightOrder.stockReservationExpiresAt.getTime() <= Date.now(), true);
+  assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, 98, 'only the late-captured order and in-flight payment should continue holding stock');
+
+  // Restore fixture-only inventory debits and remove fixture orders so later tests start from a clean catalog.
+  for (const key of fixtureItem.inventoryKeys) await InventoryItem.updateOne({ key }, { $inc: { stock: 2 } });
+  await Order.deleteMany({ _id: { $in: [abandonedOrder._id, recentOrder._id, providerLinkedOrder._id, creationInProgressOrder._id, reservedFixtureOrder._id, capturedExpiredOrder._id, inFlightExpiredOrder._id] } });
 
   const checkoutRequestKey = 'integration-checkout-request-0001';
   const postCreateOrder = (payload = createOrderPayload) => fetch(`${base}/api/orders`, {
