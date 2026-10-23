@@ -97,5 +97,5 @@ test('HTTP app reports disconnected health and structured not-found responses wi
 
   const missing = await fetch(`${origin}/api/not-a-real-route`);
   assert.equal(missing.status, 404);
-  assert.deepEqual(await missing.json(), { error: 'Route not found: GET /api/not-a-real-route' });
+  assert.deepEqual(await missing.json(), { error: 'Route not found', method: 'GET' });
 });
