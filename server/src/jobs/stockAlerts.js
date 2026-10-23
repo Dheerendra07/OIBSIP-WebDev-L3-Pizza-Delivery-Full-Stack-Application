@@ -9,6 +9,7 @@ import { getRazorpayClient } from '../services/payments.js';
 import { inventoryRequirements } from '../utils/catalog.js';
 import { classifyOrderPayments } from '../utils/paymentReconciliation.js';
 import { classifyCapturedPayment } from '../utils/paymentWebhook.js';
+import { getSafeRazorpayDiagnostics } from '../utils/paymentProviderErrors.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
 
 export async function scanLowStock() {
@@ -83,7 +84,11 @@ export async function releaseExpiredReservations(now = new Date()) {
       if (!razorpay) { try { razorpay = getRazorpayClient(); } catch { deferred += 1; continue; } }
       let payments;
       try { payments = await razorpay.orders.fetchPayments(candidate.razorpayOrderId); }
-      catch (error) { console.warn('[reservation scan] Could not verify provider status; hold preserved:', error.message); deferred += 1; continue; }
+      catch (error) {
+        console.warn('[reservation scan] Could not verify provider status; hold preserved.', getSafeRazorpayDiagnostics(error));
+        deferred += 1;
+        continue;
+      }
       const assessment = classifyOrderPayments(payments?.items, { orderId: candidate.razorpayOrderId, amountPaise: candidate.total * 100 });
       if (assessment.state === 'captured') captured = assessment.payment;
       else if (assessment.state === 'mismatch') {
