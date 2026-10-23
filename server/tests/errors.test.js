@@ -40,7 +40,6 @@ test('production 5xx logs omit raw exception text and tokenized URL paths', () =
     const serializedLogs = JSON.stringify(emitted);
     assert.equal(serializedLogs.includes(privateErrorText), false);
     assert.equal(serializedLogs.includes(privatePathToken), false);
-    assert.equal(serializedLogs.includes('/api/auth/reset-password/'), false);
     assert.equal(serializedLogs.includes('/api/auth/reset-password/:token'), true);
     assert.equal(serializedLogs.includes('UPSTREAM_ERROR'), true);
     assert.equal(serializedLogs.includes('500'), true);
