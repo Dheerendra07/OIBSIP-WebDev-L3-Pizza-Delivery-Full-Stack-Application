@@ -46,6 +46,12 @@ Open the existing `pizza-house-api` Web Service. Keep the existing service and i
 1. Visit `https://pizza-house-api.onrender.com/api/health`; expect HTTP 200, `status: "ok"`, and `dependencies.database: "connected"`.
 2. Visit `https://pizza-house-api.onrender.com`; expect the Pizza House customer interface, not the API JSON landing page.
 3. Check the GitHub **Deployed smoke checks** and **Pizza House Browser Smoke** runs. The checks validate health/database readiness, populated catalog, origin/credentials headers, auth route guards, the built API URL, and the real-browser menu/cart/sign-in interactions.
+4. To enable a successful production-browser session check, create or use a **dedicated verified QA customer account** (not an admin account) and add these two GitHub Actions repository secrets under **Settings → Secrets and variables → Actions**:
+   - `PIZZA_QA_CUSTOMER_EMAIL`
+   - `PIZZA_QA_CUSTOMER_PASSWORD`
+
+   Never put these values in source code, logs, screenshots, issues, or chat. The browser workflow only passes the secrets to a run on `main`; if both secrets are set, it verifies customer login, `Secure`/`HttpOnly`/`SameSite=Lax` cookie attributes, `/api/auth/me` after a full-page reload, and logout/session invalidation. It does not create an account, place an order, or initiate a payment. If neither secret is set, this optional section is reported as skipped; the basic browser smoke still runs.
+5. Manually create a test account only after confirming email-verification and email-delivery settings. Then check signup, login, refresh, logout, order creation and Razorpay Test Mode checkout separately. Passing smoke tests does **not** prove outbound email, Razorpay webhook delivery, payment capture or refund flow.
 4. Manually create a test account only after confirming email-verification and email-delivery settings. Then check signup, login, refresh, logout, order creation and Razorpay Test Mode checkout separately. Passing smoke tests does **not** prove the user's credentials, outbound email, Razorpay webhook delivery, payment capture or refund flow.
 
 If Render rejects the build or the service doesn't start, use its deployment logs and restore the previous service settings before changing database/provider settings. Do not change authentication secrets just to troubleshoot a cookie.
