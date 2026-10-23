@@ -385,9 +385,8 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(finalCustomerHistory.status, 200);
   assert.equal((await finalCustomerHistory.json()).orders[0].status, 'delivered', 'customer history should reflect admin fulfillment updates');
 
-  // Provider order creation can fail after the database reservation is committed.
-  // Verify the compensating transaction releases stock, leaves the unpaid order
-  // recoverable, and allows a retry without double-reserving ingredients.
+  // Provider rejects the configured Test Mode credential pair after the database reservation is committed.
+  // Verify the safe 502 diagnosis, stock-release compensation, and same-order retry recovery.
   const failedProviderCheckout = await fetch(`${base}/api/orders`, {
     method: 'POST',
     headers: { ...headers, Cookie: cookie, 'Idempotency-Key': 'integration-payment-failure-recovery-0001' },
@@ -399,7 +398,12 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
 
   const restoreFailingProvider = setRazorpayClientFactoryForIntegrationTests(() => ({
     orders: {
-      create: async () => { throw new Error('synthetic provider outage'); },
+      create: async () => {
+        throw Object.assign(new Error('private provider response text must not reach the browser'), {
+          statusCode: 401,
+          error: { code: 'BAD_REQUEST_ERROR', description: 'credentials rejected; must not be exposed' },
+        });
+      },
     },
   }));
   try {
@@ -408,8 +412,11 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
       headers: { ...headers, Cookie: cookie },
       body: JSON.stringify({ orderId: failedProviderOrder.id }),
     });
-    assert.equal(failedPaymentSetup.status, 502, 'provider outage should surface as a retryable upstream checkout error');
-    assert.equal((await failedPaymentSetup.json()).error, 'Razorpay could not create the checkout order. No payment was started; please retry later.');
+    assert.equal(failedPaymentSetup.status, 502, 'provider authentication failure is an upstream error, not a customer-session 401');
+    assert.equal(
+      (await failedPaymentSetup.json()).error,
+      'Razorpay rejected the configured Test Mode credentials. Check that RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are the matching Test Mode pair. No payment was started.',
+    );
 
     const releasedOrder = await Order.findById(failedProviderOrder.id).lean();
     assert.equal(releasedOrder.status, 'pending_payment', 'the customer can retry checkout on the same order');
