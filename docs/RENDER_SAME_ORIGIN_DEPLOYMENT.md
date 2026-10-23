@@ -42,7 +42,7 @@ Open the existing `pizza-house-api` Web Service. Keep the existing service and i
 - The production frontend calls the relative `/api` path on the same hostname instead of making credentialed cross-site requests.
 - `HttpOnly` session cookies and Socket.IO connections are first-party/same-origin.
 - `CLIENT_ORIGIN` allows the canonical site, and verification/reset links return to that same site.
-- The existing standalone static site can remain available during verification, but the canonical app should be opened at `https://pizza-house-api.onrender.com`.
+- The old standalone static site may remain deployed, but it is not canonical and will lose API access after `CLIENT_ORIGIN` is switched. Open the app at `https://pizza-house-api.onrender.com`.
 
 ## Verification after deployment
 
