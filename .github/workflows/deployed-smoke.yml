@@ -26,7 +26,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          # Full history is required for git log path filtering to find the latest backend-runtime commit.
+          # Full history lets the smoke check verify deployed-commit ancestry and runtime diffs.
           fetch-depth: 0
 
       - name: Set up Node.js
@@ -42,7 +42,7 @@ jobs:
         env:
           API_BASE_URL: https://pizza-house-api.onrender.com
           CLIENT_WEB_URL: https://pizza-house-api.onrender.com
-          GITHUB_SHA: ${{ github.sha }}
+          TESTED_COMMIT_SHA: ${{ github.sha }}
         run: |
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
@@ -93,7 +93,7 @@ jobs:
             assert.equal(health.body?.status, 'ok');
             assert.equal(health.body?.dependencies?.database, 'connected', 'database readiness must be explicit');
             const deployedCommit = health.body?.version;
-            const testedCommit = process.env.GITHUB_SHA;
+            const testedCommit = process.env.TESTED_COMMIT_SHA;
             assert.match(deployedCommit || '', /^[a-f0-9]{40}$/i, 'API health must expose the deployed Git commit SHA');
             const ancestry = spawnSync('git', ['merge-base', '--is-ancestor', deployedCommit, testedCommit], { stdio: 'ignore' });
             assert.equal(ancestry.status, 0, `deployed commit ${deployedCommit} must be present in the tested Git history`);
