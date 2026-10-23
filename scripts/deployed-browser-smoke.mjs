@@ -107,7 +107,8 @@ try {
       throw new Error(`Configured QA customer login returned HTTP ${qaLoginResponse.status()}; expected 200.`);
     }
 
-    const rawSetCookie = qaLoginResponse.headers()['set-cookie'] || '';
+        const qaLoginHeaders = await qaLoginResponse.allHeaders();
+    const rawSetCookie = qaLoginHeaders['set-cookie'] || '';
     const setCookie = Array.isArray(rawSetCookie) ? rawSetCookie.join('; ') : String(rawSetCookie);
     for (const [label, pattern] of [
       ['HttpOnly', /\bHttpOnly\b/i],
@@ -224,7 +225,8 @@ try {
     if (simulatedLoginResponse.status() !== 200) {
       throw new Error('Simulated successful customer login returned HTTP ' + simulatedLoginResponse.status() + '; expected 200.');
     }
-    const simulatedCookie = simulatedLoginResponse.headers()['set-cookie'] || '';
+        const simulatedLoginHeaders = await simulatedLoginResponse.allHeaders();
+    const simulatedCookie = simulatedLoginHeaders['set-cookie'] || '';
     for (const [label, pattern] of [
       ['HttpOnly', /\bHttpOnly\b/i],
       ['Secure', /\bSecure\b/i],
