@@ -8,6 +8,7 @@ import { buildOrderItems, calculateOrderTotals, validateDeliveryDetails } from '
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { getRazorpayClient, verifyRazorpaySignature } from '../services/payments.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
+import { mapRazorpayOrderCreationError } from '../utils/paymentProviderErrors.js';
 
 const isRequestObjectId = (value) => typeof value === 'string' && mongoose.isObjectIdOrHexString(value);
 
@@ -184,7 +185,12 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
       });
     } finally { await releaseSession.endSession(); }
     publishAdminRefresh();
-    throw error;
+    const mappedError = mapRazorpayOrderCreationError(error);
+    console.error('[razorpay create-order failed]', mappedError.diagnostics);
+    throw Object.assign(new Error(mappedError.message), {
+      statusCode: mappedError.statusCode,
+      code: mappedError.code,
+    });
   }
 });
 
