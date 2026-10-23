@@ -331,6 +331,43 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(razorpayOrderCreateCalls, 1);
   assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, 98);
 
+  // A failed attempt is nonterminal: keep the pending order and stock hold so a later retry can capture.
+  const failedAttemptBody = JSON.stringify({
+    event: 'payment.failed',
+    payload: {
+      payment: {
+        entity: {
+          id: 'pay_test_failed_attempt',
+          order_id: mockProviderOrderId,
+          amount: 52700,
+          currency: 'INR',
+          status: 'failed',
+          created_at: Math.floor(Date.now() / 1000),
+        },
+      },
+    },
+  });
+  const failedAttemptSignature = crypto.createHmac('sha256', env.RAZORPAY_WEBHOOK_SECRET)
+    .update(failedAttemptBody)
+    .digest('hex');
+  const failedAttemptResponse = await fetch(`${base}/api/payments/webhook`, {
+    method: 'POST',
+    headers: {
+      Origin: webOrigin,
+      'Content-Type': 'application/json',
+      'X-Razorpay-Signature': failedAttemptSignature,
+      'X-Razorpay-Event-Id': 'integration-payment-failed-nonterminal-1',
+    },
+    body: failedAttemptBody,
+  });
+  assert.equal(failedAttemptResponse.status, 200);
+  assert.equal((await failedAttemptResponse.json()).status, 'ignored');
+  const afterFailedAttempt = await Order.findById(createdOrder.id).lean();
+  assert.equal(afterFailedAttempt.status, 'pending_payment', 'a failed attempt must not cancel a still-retryable order');
+  assert.equal(afterFailedAttempt.paymentStatus, 'pending');
+  assert.equal(afterFailedAttempt.inventoryReserved, true, 'a failed attempt alone must not release the stock hold');
+  assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, 98);
+
   // Simulate the browser's successful Razorpay callback and validate server-side capture status.
   const paymentSignature = crypto.createHmac('sha256', env.RAZORPAY_KEY_SECRET)
     .update(`${mockProviderOrderId}|${mockProviderPaymentId}`)
