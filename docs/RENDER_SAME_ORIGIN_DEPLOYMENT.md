@@ -9,11 +9,7 @@ The repository can serve the built Vite frontend from the Express API service. U
 Open the existing `pizza-house-api` Web Service. Keep the existing service and its database/provider credentials. Do not create another database, rotate secrets, or paste credentials into chat.
 
 1. In **Settings**, set **Root Directory** to the repository root (blank, not `server`).
-2. Set **Build Command** to:
-
-   ```sh
-   npm ci --include=dev && npm --prefix server ci --omit=dev && npm --prefix client ci --include=dev && npm --prefix client run build
-   ```
+2. Keep the existing **Build Command** (currently `npm ci && npm --prefix server ci`). The server package now has an opt-in postinstall hook: when `BUILD_CLIENT_ON_SERVER_INSTALL=true`, it installs the client build dependencies and runs the production Vite build. This lets the existing Render service build both API and UI without changing its service command. The hook is a no-op in normal local/CI installs unless explicitly enabled.
 
 3. Keep **Start Command** as:
 
@@ -25,8 +21,9 @@ Open the existing `pizza-house-api` Web Service. Keep the existing service and i
 
    | Variable | Value |
    |---|---|
+   | `BUILD_CLIENT_ON_SERVER_INSTALL` | `true` |
    | `VITE_API_BASE_URL` | `/api` |
-   | `CLIENT_ORIGIN` | `https://pizza-house-api.onrender.com` |
+   | `CLIENT_ORIGIN` | `https://pizza-house-api.onrender.com,https://pizza-house-web-n75h.onrender.com` |
    | `CLIENT_BASE_URL` | `https://pizza-house-api.onrender.com` |
    | `APP_BASE_URL` | `https://pizza-house-api.onrender.com` |
    | `COOKIE_SAME_SITE` | `lax` |
@@ -42,7 +39,7 @@ Open the existing `pizza-house-api` Web Service. Keep the existing service and i
 - The production frontend calls the relative `/api` path on the same hostname instead of making credentialed cross-site requests.
 - `HttpOnly` session cookies and Socket.IO connections are first-party/same-origin.
 - `CLIENT_ORIGIN` allows the canonical site, and verification/reset links return to that same site.
-- The old standalone static site may remain deployed, but it is not canonical and will lose API access after `CLIENT_ORIGIN` is switched. Open the app at `https://pizza-house-api.onrender.com`.
+- The old static hostname is retained in the CORS allowlist for transition/rollback compatibility. The canonical app is `https://pizza-house-api.onrender.com`, where UI, API and Socket.IO share one origin.
 
 ## Verification after deployment
 
