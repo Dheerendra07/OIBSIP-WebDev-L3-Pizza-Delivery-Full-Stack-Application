@@ -19,6 +19,7 @@ Pizza House is a MERN full-stack internship project for custom pizza ordering, s
 - Incoming-order queue, paid-order transition validation and operations summary.
 - Customer issue queue with reference IDs, review/resolution states and customer-visible case updates.
 - Payment-review queue for captured payments that cannot safely proceed to fulfillment.
+- Admin-only Razorpay Test Mode connection check in the dashboard. It verifies the deployed API key pair through a read-only request and displays only a safe connection state; no order, payment or refund is created. This does not verify webhook delivery, which must be tested separately.
 - Guarded full-refund action for eligible payment-review orders. Refund requests use an idempotency key; uncertain/failed results remain recoverable, and inventory is released only after a confirmed full refund. Multiple-capture cases require manual reconciliation.
 
 ### Payment and inventory safety
