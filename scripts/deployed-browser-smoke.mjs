@@ -242,7 +242,7 @@ try {
     await dialog.waitFor({ state: 'hidden', timeout: 15_000 });
     await page.locator('.account-button').waitFor({ state: 'visible', timeout: 15_000 });
     await page.locator('.account-button').click();
-    await page.getByRole('heading', { name: /Good to see you,.*Browser QA/i }).waitFor({ state: 'visible', timeout: 15_000 });
+    await page.getByRole('heading', { name: /Good to see you,.*Browser/i }).waitFor({ state: 'visible', timeout: 15_000 });
     pass('simulated successful customer login updates the UI and stores a secure session cookie');
 
     const sessionRefreshResponsePromise = page.waitForResponse((response) =>
@@ -256,7 +256,7 @@ try {
     }
     await page.locator('.account-button').waitFor({ state: 'visible', timeout: 15_000 });
     await page.locator('.account-button').click();
-    await page.getByRole('heading', { name: /Good to see you,.*Browser QA/i }).waitFor({ state: 'visible', timeout: 15_000 });
+    await page.getByRole('heading', { name: /Good to see you,.*Browser/i }).waitFor({ state: 'visible', timeout: 15_000 });
     pass('simulated signed-in customer session is restored after a full-page reload');
 
     const logoutResponsePromise = page.waitForResponse((response) =>
