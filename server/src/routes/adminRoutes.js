@@ -2,13 +2,14 @@ import { Router } from 'express';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import {
   summary, listInventory, updateInventory, listOrders, listPaymentReviews,
-  updateOrderStatus, refundPaymentReview,
+  updateOrderStatus, refundPaymentReview, checkPaymentProvider,
 } from '../controllers/adminController.js';
 import { listAdminIssues, updateIssue } from '../controllers/issueController.js';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
 router.get('/summary', summary);
+router.get('/payment-provider-check', checkPaymentProvider);
 router.get('/inventory', listInventory);
 router.patch('/inventory/:key', updateInventory);
 router.get('/orders', listOrders);
