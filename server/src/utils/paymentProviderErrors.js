@@ -21,6 +21,7 @@ export function mapRazorpayOrderCreationError(error) {
 
   return {
     statusCode: 502,
+    safeToExpose: true,
     code: credentialsRejected ? 'RAZORPAY_TEST_CREDENTIALS_REJECTED' : 'RAZORPAY_ORDER_CREATION_FAILED',
     message: credentialsRejected
       ? 'Razorpay rejected the configured Test Mode credentials. Check that RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are the matching Test Mode pair. No payment was started.'
