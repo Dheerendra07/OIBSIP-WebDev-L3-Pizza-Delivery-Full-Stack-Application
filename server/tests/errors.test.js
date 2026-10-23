@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { errorHandler } from '../src/middleware/errors.js';
+import { errorHandler, notFound } from '../src/middleware/errors.js';
 
 function responseRecorder() {
   return {
@@ -74,4 +74,20 @@ test('production may expose only explicitly approved short safe 5xx messages', (
     if (priorNodeEnv === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = priorNodeEnv;
   }
+});
+
+
+test('404 responses do not echo tokenized URL paths', () => {
+  const privatePathToken = 'verification-token-must-not-be-reflected';
+  const req = {
+    method: 'GET',
+    path: `/api/auth/verify-email/${privatePathToken}`,
+  };
+  const res = responseRecorder();
+
+  notFound(req, res);
+
+  assert.equal(res.statusCode, 404);
+  assert.deepEqual(res.body, { error: 'Route not found', method: 'GET' });
+  assert.equal(JSON.stringify(res.body).includes(privatePathToken), false);
 });
