@@ -209,7 +209,7 @@ try {
   // quantity controls. Audit it in both themes instead of assuming home styles
   // prove every product surface is readable.
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.getByRole('button', { name: 'Build your own', exact: true }).click();
+  await page.locator('.main-nav').getByRole('button', { name: 'Build your own', exact: true }).click();
   await page.getByRole('heading', { name: /The art of your slice/i }).waitFor({ state: 'visible', timeout: 15_000 });
   await page.locator('.builder-summary').waitFor({ state: 'visible', timeout: 15_000 });
   await page.getByRole('heading', { name: 'Your masterpiece.' }).waitFor({ state: 'visible' });
@@ -250,7 +250,7 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
-  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.locator('.main-nav').getByRole('button', { name: 'Home', exact: true }).click();
   await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 15_000 });
 
   const initialTheme = await page.evaluate(() => ({
