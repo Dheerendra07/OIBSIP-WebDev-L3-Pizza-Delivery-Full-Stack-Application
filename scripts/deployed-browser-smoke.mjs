@@ -122,7 +122,7 @@ try {
   // Wait for the actual visual release, not only older UI markers. This prevents
   // a green smoke run against a previous Render instance while a deploy is rolling out.
   let mobileSignInReady = false;
-  let premiumVisualState = { variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0 };
+  let premiumVisualState = { variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0 };
   for (let attempt = 1; attempt <= 20; attempt += 1) {
     await page.goto(webUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 30_000 });
@@ -146,6 +146,14 @@ try {
         const image = card.querySelector('.pizza-card-photo');
         return Boolean(image && image.complete && image.naturalWidth > 0 && card.classList.contains('has-photo'));
       }).length;
+      const loadedPhotoSources = cards
+        .filter((card) => {
+          const image = card.querySelector('.pizza-card-photo');
+          return Boolean(image && image.complete && image.naturalWidth > 0 && card.classList.contains('has-photo'));
+        })
+        .map((card) => card.querySelector('.pizza-card-photo')?.currentSrc || '')
+        .filter(Boolean);
+      const uniquePhotoCount = new Set(loadedPhotoSources).size;
       const interactiveCardCount = cards.filter((card) =>
         card.querySelector('.pizza-card-quantity') &&
         card.querySelector('.pizza-card-price strong') &&
@@ -166,14 +174,16 @@ try {
         footerColor: footer ? getComputedStyle(footer).backgroundColor : '',
         premiumCardCount: cards.length,
         loadedPhotoCount,
+        uniquePhotoCount,
         interactiveCardCount,
         ingredientCardCount,
       };
-    }).catch(() => ({ variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0 }));
+    }).catch(() => ({ variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0 }));
 
     if (releaseMarkersReady &&
         premiumVisualState.premiumCardCount >= 3 &&
         premiumVisualState.loadedPhotoCount >= 3 &&
+        premiumVisualState.uniquePhotoCount >= 3 &&
         premiumVisualState.interactiveCardCount >= 3 &&
         premiumVisualState.ingredientCardCount >= premiumVisualState.premiumCardCount &&
         premiumVisualState.variantCount >= 3 &&
@@ -187,6 +197,7 @@ try {
       '[WAIT] waiting for premium photo-card release (' + attempt + '/20; cards=' +
       premiumVisualState.premiumCardCount + '; loadedPhotos=' + premiumVisualState.loadedPhotoCount +
       '; interactive=' + premiumVisualState.interactiveCardCount +
+      '; uniquePhotos=' + premiumVisualState.uniquePhotoCount +
       '; ingredientCards=' + premiumVisualState.ingredientCardCount + '; variants=' +
       premiumVisualState.variantCount + '; CTA=' + premiumVisualState.primaryColor +
       '; footer=' + premiumVisualState.footerColor + ')',
@@ -194,9 +205,9 @@ try {
     await page.waitForTimeout(5_000);
   }
   if (!mobileSignInReady) {
-    throw new Error('Hosted site did not publish three photo-loaded premium cards with working controls plus the navy/red visual release after 20 checks: ' + JSON.stringify(premiumVisualState));
+    throw new Error('Hosted site did not publish three premium cards with distinct loaded photos, live ingredients and working controls after 20 checks: ' + JSON.stringify(premiumVisualState));
   }
-  pass('production publishes three distinct premium photo cards with all three food photos loaded');
+  pass('production publishes three premium cards with three distinct loaded food-photo sources');
   pass('premium cards expose working quantity, catalog-price, subtotal and cart controls');
   pass('every premium card shows real ingredient names instead of the fallback label');
   pass('primary CTA uses tomato red and the footer uses the navy brand surface');
