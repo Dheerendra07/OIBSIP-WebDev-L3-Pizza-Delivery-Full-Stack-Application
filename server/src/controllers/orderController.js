@@ -9,6 +9,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { getRazorpayClient, verifyRazorpaySignature } from '../services/payments.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
 import { mapRazorpayOrderCreationError } from '../utils/paymentProviderErrors.js';
+import { config } from '../config/env.js';
 
 const isRequestObjectId = (value) => typeof value === 'string' && mongoose.isObjectIdOrHexString(value);
 
@@ -23,6 +24,7 @@ function publicOrder(order) {
     total: order.total,
     status: order.status,
     paymentStatus: order.paymentStatus,
+    paymentMode: order.paymentMode || 'test',
   };
 }
 
@@ -74,6 +76,7 @@ export const createOrder = asyncHandler(async (req, res) => {
       subtotal,
       deliveryFee,
       total,
+      paymentMode: config.paymentMode,
       ...(checkoutRequestId ? {
         checkoutRequestId,
         checkoutRequestFingerprint: requestFingerprint,
@@ -97,13 +100,13 @@ export const createOrder = asyncHandler(async (req, res) => {
 });
 export const myOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(50).lean();
-  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, deliveryDetails: o.deliveryDetails, createdAt: o.createdAt, updatedAt: o.updatedAt })) });
+  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentMode: o.paymentMode || 'test', paymentReviewRequired: o.paymentReviewRequired, deliveryDetails: o.deliveryDetails, createdAt: o.createdAt, updatedAt: o.updatedAt })) });
 });
 export const getOrder = asyncHandler(async (req, res) => {
   if (!isRequestObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order identifier' });
   const filter = { _id: req.params.id }; if (req.user.role !== 'admin') filter.user = req.user._id;
   const order = await Order.findOne(filter).lean(); if (!order) return res.status(404).json({ error: 'Order not found' });
-  res.json({ order: { id: order._id, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, deliveryFee: order.deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus, paymentReviewRequired: order.paymentReviewRequired, deliveryDetails: order.deliveryDetails, createdAt: order.createdAt, updatedAt: order.updatedAt } });
+  res.json({ order: { id: order._id, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, deliveryFee: order.deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus, paymentMode: order.paymentMode || 'test', paymentReviewRequired: order.paymentReviewRequired, deliveryDetails: order.deliveryDetails, createdAt: order.createdAt, updatedAt: order.updatedAt } });
 });
 
 
@@ -128,6 +131,9 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
   if (!isRequestObjectId(req.body?.orderId)) return res.status(400).json({ error: 'A valid order ID is required' });
   const order = await Order.findOne({ _id: req.body.orderId, user: req.user._id });
   if (!order) return res.status(404).json({ error: 'Order not found' });
+  if ((order.paymentMode || 'test') !== config.paymentMode) {
+    return res.status(409).json({ error: `This order was created in ${order.paymentMode || 'test'} mode. Start a new order for ${config.paymentMode} mode checkout.` });
+  }
   if (order.paymentStatus === 'paid') return res.status(409).json({ error: 'This order is already paid' });
   if (order.status !== 'pending_payment') return res.status(409).json({ error: 'This order is not awaiting payment' });
   try {
@@ -185,7 +191,7 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
       });
     } finally { await releaseSession.endSession(); }
     publishAdminRefresh();
-    const mappedError = mapRazorpayOrderCreationError(error);
+    const mappedError = mapRazorpayOrderCreationError(error, config.paymentMode);
     console.error('[razorpay create-order failed]', mappedError.diagnostics);
     throw Object.assign(new Error(mappedError.message), {
       statusCode: mappedError.statusCode,
@@ -211,6 +217,9 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 
   const initial = await Order.findOne({ _id: orderId, user: req.user._id });
   if (!initial) return res.status(404).json({ error: 'Order not found' });
+  if ((initial.paymentMode || 'test') !== config.paymentMode) {
+    return res.status(409).json({ error: `This order belongs to ${initial.paymentMode || 'test'} mode. Do not reuse its payment details in ${config.paymentMode} mode.` });
+  }
   if (initial.razorpayOrderId !== razorpayOrderId ||
       !verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, signature)) {
     return res.status(400).json({ error: 'Payment signature verification failed' });

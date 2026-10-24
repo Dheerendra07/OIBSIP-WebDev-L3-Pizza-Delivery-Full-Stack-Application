@@ -5,6 +5,7 @@ import PaymentWebhookReceipt from '../models/PaymentWebhookReceipt.js';
 import { getRazorpayClient, createRazorpayRefund } from './payments.js';
 import { inventoryRequirements } from '../utils/catalog.js';
 import { createFullRefundIdempotencyKey, classifyRefundWebhook, classifyRefundCaptureSet } from '../utils/paymentRefund.js';
+import { config } from '../config/env.js';
 import { publishAdminRefresh, publishOrderUpdate } from './realtime.js';
 
 function httpError(statusCode, message) {
@@ -130,6 +131,9 @@ export async function requestFullPaymentReviewRefund(orderId, paymentId, adminUs
 
   let order = await Order.findById(orderId).lean();
   if (!order) throw httpError(404, 'Order not found');
+  if ((order.paymentMode || 'test') !== config.paymentMode) {
+    throw httpError(409, `This order belongs to ${order.paymentMode || 'test'} mode. Do not issue a refund using ${config.paymentMode} mode credentials.`);
+  }
   if (order.status !== 'payment_review' || !order.paymentReviewRequired || order.paymentStatus !== 'paid') {
     throw httpError(409, 'Only a captured payment held for manual review can be refunded here');
   }

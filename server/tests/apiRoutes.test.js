@@ -42,6 +42,15 @@ test('API base path returns a helpful JSON response', async () => {
   assert.equal(body.health, '/api/health');
 });
 
+test('public configuration exposes only the configured payment mode', async () => {
+  const response = await fetch(`${baseUrl}/api/config`);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const body = await response.json();
+  assert.equal(body.paymentMode, 'test');
+  assert.equal(JSON.stringify(body).includes('RAZORPAY_KEY_SECRET'), false);
+});
+
 test('health endpoint reports degraded when MongoDB is disconnected', async () => {
   const response = await fetch(`${baseUrl}/api/health`);
   assert.equal(response.status, 503);

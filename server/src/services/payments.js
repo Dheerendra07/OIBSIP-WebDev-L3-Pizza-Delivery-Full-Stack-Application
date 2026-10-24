@@ -20,15 +20,15 @@ export function setRazorpayClientFactoryForIntegrationTests(factory) {
 
 export function getRazorpayClient() {
   if (integrationTestClientFactory) return integrationTestClientFactory();
-  if (!config.razorpayKeyId || !config.razorpayKeySecret) { const error = new Error('Razorpay test keys are not configured on the server'); error.statusCode = 503; throw error; }
+  if (!config.razorpayKeyId || !config.razorpayKeySecret) { const error = new Error('Razorpay API credentials are not configured on the server'); error.statusCode = 503; throw error; }
   return new Razorpay({ key_id: config.razorpayKeyId, key_secret: config.razorpayKeySecret });
 }
 
 /**
- * Verify the deployed Test Mode API credentials with a read-only provider call.
+ * Verify the configured Razorpay payment mode with a read-only provider call.
  * The result never exposes provider order data or credential values.
  */
-export async function checkRazorpayTestModeConnection() {
+export async function checkRazorpayConnection() {
   const client = getRazorpayClient();
   let response;
   try {
@@ -39,7 +39,7 @@ export async function checkRazorpayTestModeConnection() {
   if (!response || !Array.isArray(response.items)) {
     throw Object.assign(new Error('Razorpay returned an unexpected response'), { statusCode: 502 });
   }
-  return { checkedAt: new Date().toISOString() };
+  return { checkedAt: new Date().toISOString(), mode: config.paymentMode };
 }
 
 

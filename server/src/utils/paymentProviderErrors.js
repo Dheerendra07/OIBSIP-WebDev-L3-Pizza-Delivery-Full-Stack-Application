@@ -21,16 +21,17 @@ export function getSafeRazorpayDiagnostics(error) {
  * Provider 401/403 responses are not customer-authentication failures and must
  * never be returned as HTTP 401 to the browser.
  */
-export function mapRazorpayOrderCreationError(error) {
+export function mapRazorpayOrderCreationError(error, mode = 'test') {
   const diagnostics = getSafeRazorpayDiagnostics(error);
   const credentialsRejected = diagnostics.upstreamStatus === 401 || diagnostics.upstreamStatus === 403;
+  const modeLabel = mode === 'live' ? 'Live Mode' : 'Test Mode';
 
   return {
     statusCode: 502,
     safeToExpose: true,
     code: credentialsRejected ? 'RAZORPAY_TEST_CREDENTIALS_REJECTED' : 'RAZORPAY_ORDER_CREATION_FAILED',
     message: credentialsRejected
-      ? 'Razorpay rejected the configured Test Mode credentials. Check that RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are the matching Test Mode pair. No payment was started.'
+      ? `Razorpay rejected the configured ${modeLabel} credentials. Check that RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are the matching ${modeLabel} pair. No payment was started.`
       : 'Razorpay could not create the checkout order. No payment was started; please retry later.',
     diagnostics,
   };

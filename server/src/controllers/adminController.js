@@ -3,16 +3,17 @@ import Order from '../models/Order.js';
 import User from '../models/User.js';
 import PaymentWebhookReceipt from '../models/PaymentWebhookReceipt.js';
 import { requestFullPaymentReviewRefund } from '../services/refunds.js';
-import { checkRazorpayTestModeConnection } from '../services/payments.js';
+import { checkRazorpayConnection } from '../services/payments.js';
+import { config } from '../config/env.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validateOrderStatusTransition } from '../utils/orderRules.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
 
 export const summary = asyncHandler(async (_req, res) => {
   const [ordersTotal, paidOrders, revenue, pendingOrders, usersTotal, lowStock] = await Promise.all([
-    Order.countDocuments(), Order.countDocuments({ paymentStatus: 'paid' }),
-    Order.aggregate([{ $match: { paymentStatus: 'paid' } }, { $group: { _id: null, amount: { $sum: '$total' } } }]),
-    Order.countDocuments({ status: { $in: ['order_received', 'in_kitchen', 'sent_to_delivery'] } }),
+    Order.countDocuments(), Order.countDocuments({ paymentStatus: 'paid', paymentMode: 'live' }),
+    Order.aggregate([{ $match: { paymentStatus: 'paid', paymentMode: 'live' } }, { $group: { _id: null, amount: { $sum: '$total' } } }]),
+    Order.countDocuments({ paymentMode: 'live', status: { $in: ['order_received', 'in_kitchen', 'sent_to_delivery'] } }),
     User.countDocuments({ role: 'user' }), InventoryItem.countDocuments({ $expr: { $lte: ['$stock', '$lowStockThreshold'] } }),
   ]);
   res.json({ summary: { ordersTotal, paidOrders, revenue: revenue[0]?.amount || 0, pendingOrders, usersTotal, lowStock } });
@@ -31,13 +32,16 @@ export const updateInventory = asyncHandler(async (req, res) => {
 });
 export const listOrders = asyncHandler(async (_req, res) => {
   const orders = await Order.find().sort({ createdAt: -1 }).limit(200).populate('user', 'name email').lean();
-  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, user: o.user, items: o.items, deliveryDetails: o.deliveryDetails, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, paymentReviewReason: o.paymentReviewReason, refundStatus: o.refundStatus, createdAt: o.createdAt })) });
+  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, user: o.user, items: o.items, deliveryDetails: o.deliveryDetails, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, paymentReviewReason: o.paymentReviewReason, refundStatus: o.refundStatus, paymentMode: o.paymentMode || 'test', createdAt: o.createdAt })) });
 });
 export const updateOrderStatus = asyncHandler(async (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const { status } = body;
   if (typeof status !== 'string' || !status.trim()) return res.status(400).json({ error: 'A valid order status is required' });
   const order = await Order.findById(req.params.id); if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (config.nodeEnv === 'production' && (config.paymentMode !== 'live' || (order.paymentMode || 'test') !== 'live')) {
+    return res.status(409).json({ error: 'Real fulfillment is blocked unless the app and this order both use verified Live Mode payments.' });
+  }
   const transition = validateOrderStatusTransition(order, status);
   if (!transition.allowed) return res.status(transition.statusCode).json({ error: transition.message });
   order.status = status; await order.save();
@@ -88,21 +92,21 @@ export const refundPaymentReview = asyncHandler(async (req, res) => {
 export const checkPaymentProvider = asyncHandler(async (_req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
-    const result = await checkRazorpayTestModeConnection();
+    const result = await checkRazorpayConnection();
     return res.json({
       status: 'connected',
-      mode: 'test',
+      mode: result.mode,
       checkedAt: result.checkedAt,
-      message: 'Razorpay Test Mode API access verified with a read-only request.',
+      message: `Razorpay ${result.mode === 'live' ? 'Live' : 'Test'} Mode API access verified with a read-only request.`,
     });
   } catch (error) {
     const notConfigured = error?.statusCode === 503;
     return res.status(notConfigured ? 503 : 502).json({
       status: 'unavailable',
-      mode: 'test',
+      mode: config.paymentMode,
       error: notConfigured
-        ? 'Razorpay Test Mode credentials are not configured on the server.'
-        : 'Razorpay Test Mode connection could not be confirmed. Check the key pair or provider availability.',
+        ? 'Razorpay API credentials are not configured on the server.'
+        : `Razorpay ${config.paymentMode === 'live' ? 'Live' : 'Test'} Mode connection could not be confirmed. Check the key pair or provider availability.`,
     });
   }
 });
