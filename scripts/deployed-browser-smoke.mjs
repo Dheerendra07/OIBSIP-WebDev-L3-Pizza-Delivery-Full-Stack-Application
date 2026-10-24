@@ -43,6 +43,37 @@ async function auditResponsiveState(page, label) {
   pass(`${label} responsive layout: no horizontal document overflow at 320, 360, 390, 640, 768, 1024 and 1440px`);
 }
 
+async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreenshot }) {
+  const currentTheme = await page.evaluate(() => document.documentElement.dataset.theme);
+  if (currentTheme !== 'light') {
+    await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  }
+  await page.locator('.dashboard-metrics > div').first().waitFor({ state: 'visible', timeout: 15_000 });
+  await page.waitForFunction(() =>
+    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundColor === 'rgb(255, 255, 255)',
+  );
+  await captureScreenshot(page, lightScreenshot);
+  await auditResponsiveState(page, `${prefix}-light`);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
+  await page.waitForFunction(() => (
+    document.documentElement.dataset.theme === 'dark' &&
+    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundColor === 'rgb(16, 31, 44)'
+  ), null, { timeout: 5000 });
+  pass(`${prefix} dashboard surfaces use the premium night palette`);
+  await captureScreenshot(page, nightScreenshot);
+  await auditResponsiveState(page, `${prefix}-night`);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await page.waitForFunction(() => (
+    document.documentElement.dataset.theme === 'light' &&
+    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundColor === 'rgb(255, 255, 255)'
+  ), null, { timeout: 5000 });
+}
+
 try {
   await mkdir(artifactDir, { recursive: true });
   browser = await chromium.launch({ headless: true });
@@ -283,6 +314,22 @@ try {
   pass('opening sign-in clears stale cart toast before showing the dialog');
   await auditResponsiveState(page, 'sign-in-dialog');
   await captureScreenshot(page, '05-sign-in-dialog-mobile.png');
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden', timeout: 10_000 });
+  await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await dialog.waitFor({ state: 'visible', timeout: 10_000 });
+  const authNightState = await dialog.locator('.auth-modal').evaluate((el) => ({
+    background: getComputedStyle(el).backgroundColor,
+    heading: getComputedStyle(el.querySelector('h2')).color,
+  }));
+  if (authNightState.background !== 'rgb(16, 31, 44)' || authNightState.heading !== 'rgb(244, 247, 249)') {
+    throw new Error('Night-mode sign-in dialog lost its contrast palette: ' + JSON.stringify(authNightState));
+  }
+  pass('sign-in dialog keeps high-contrast text and surfaces in night mode');
+  await captureScreenshot(page, '13-sign-in-dialog-night-mobile.png');
+  await auditResponsiveState(page, 'sign-in-dialog-night');
   const loginEmail = dialog.getByLabel('Email address');
   await loginEmail.waitFor({ state: 'visible' });
   if (!(await loginEmail.evaluate((element) => document.activeElement === element))) {
@@ -350,8 +397,11 @@ try {
     await page.locator('.account-button').click();
     await page.getByRole('heading', { name: /Good to see you,/ }).waitFor({ state: 'visible', timeout: 15_000 });
     await page.locator('.toast').waitFor({ state: 'hidden', timeout: 6_000 }).catch(() => {});
-    await captureScreenshot(page, '06-live-customer-dashboard.png');
-    await auditResponsiveState(page, 'live-customer-dashboard');
+    await auditDashboardThemes(page, {
+      prefix: 'live-customer-dashboard',
+      lightScreenshot: '06-live-customer-dashboard.png',
+      nightScreenshot: '14-live-customer-dashboard-night.png',
+    });
 
     const sessionRefreshResponsePromise = page.waitForResponse((response) =>
       new URL(response.url()).pathname === '/api/auth/me' &&
@@ -475,8 +525,11 @@ try {
     await page.locator('.account-button').click();
     await page.getByRole('heading', { name: /Good to see you,.*Browser/i }).waitFor({ state: 'visible', timeout: 15_000 });
     await page.locator('.toast').waitFor({ state: 'hidden', timeout: 6_000 }).catch(() => {});
-    await captureScreenshot(page, '06-mocked-customer-dashboard.png');
-    await auditResponsiveState(page, 'mocked-customer-dashboard');
+    await auditDashboardThemes(page, {
+      prefix: 'mocked-customer-dashboard',
+      lightScreenshot: '06-mocked-customer-dashboard.png',
+      nightScreenshot: '14-mocked-customer-dashboard-night.png',
+    });
     pass('simulated successful customer login updates the UI and stores a secure session cookie');
 
     const sessionRefreshResponsePromise = page.waitForResponse((response) =>
