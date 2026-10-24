@@ -1023,3 +1023,9 @@ html[data-theme="dark"] .order-delivery-details b{color:#f6f8fa}
 html[data-theme="dark"] .order-delivery-details small{color:#a8bac5}
 html[data-theme="dark"] .provider-check-message.connected{color:#8dd9a1}
 html[data-theme="dark"] .provider-check-message.error{color:#ff9588}
+
+
+/* The nav-only sign-in action belongs to the collapsed mobile menu only. */
+@media(min-width:801px){
+  .main-nav .mobile-auth-link{display:none!important}
+}
