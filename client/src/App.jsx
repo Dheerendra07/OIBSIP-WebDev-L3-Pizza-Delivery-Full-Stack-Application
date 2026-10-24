@@ -511,7 +511,7 @@ export default function App() {
             onError: () => notify("We couldn't confirm sign-out. Check your connection and try again.", 'error'),
         });
     };
-    const addFeatured = (pizza) => { const existing = cart.find(x => x.cartKey === `featured:${pizza.id}`); setCart(existing ? cart.map(x => x.cartKey === existing.cartKey ? { ...x, quantity: Math.min(10, x.quantity + 1) } : x) : [...cart, { cartKey: `featured:${pizza.id}`, type: 'featured', pizzaId: pizza.id, name: pizza.name, emoji: pizza.emoji, unitPrice: pizza.price, quantity: 1, ingredients: pizza.ingredients }]); notify(`${pizza.name} added to your bag`); };
+    const addFeatured = (pizza, requestedQuantity = 1) => { const quantity = Math.max(1, Math.min(10, Number(requestedQuantity) || 1)); const existing = cart.find(x => x.cartKey === `featured:${pizza.id}`); setCart(existing ? cart.map(x => x.cartKey === existing.cartKey ? { ...x, quantity: Math.min(10, x.quantity + quantity) } : x) : [...cart, { cartKey: `featured:${pizza.id}`, type: 'featured', pizzaId: pizza.id, name: pizza.name, emoji: pizza.emoji, unitPrice: pizza.price, quantity, ingredients: pizza.ingredients }]); notify(`${quantity} × ${pizza.name} added to your bag`); };
     const addCustom = () => { const selected = [catalog.bases.find(x => x.id === builder.base), catalog.sauces.find(x => x.id === builder.sauce), catalog.cheeses.find(x => x.id === builder.cheese), ...builder.vegetables.map(id => catalog.vegetables.find(x => x.id === id))]; if (selected.some(x => x?.available === false)) {
         notify('One of those ingredients is out of stock. Update your recipe and try again.', 'error');
         return;
@@ -1003,10 +1003,10 @@ export default function App() {
     {sessionStatus === 'unavailable' && !user && <div className="section-wrap session-check-warning"><InlineDataWarning message="We couldn't verify your existing sign-in session. You may still be signed in; retry the check or sign in again." onRetry={() => void refreshMe()}/></div>}
     {page === 'home' && <><section className="hero section-wrap"><div className="hero-copy"><div className="eyebrow"><span className="eyebrow-dot"/> NOT YOUR AVERAGE PIZZA NIGHT</div><h1>Happiness is<br />a <em>perfect slice.</em></h1><p className="hero-description">Thoughtfully made dough. Ingredients that shine. And that first bite you’ll think about tomorrow.</p><div className="hero-actions"><button className="button button-dark" onClick={() => navigate('menu')}>Explore the menu <ArrowRight size={17}/></button><button className="text-link" onClick={() => navigate('builder')}>Make it yours <ArrowUpRight size={16}/></button></div><div className="hero-proof"><div className="avatar-stack"><span>🍅</span><span>🧀</span><span>🌿</span></div><div><div className="stars">✳ <span>Made for your cravings</span></div><small>Choose your ingredients, make it yours</small></div><div className="proof-divider"/><div><strong>5<span>+</span></strong><small>base & sauce choices</small></div></div></div><div className="hero-art"><div className="hero-halo"/><div className="hero-ring ring-one"/><div className="hero-ring ring-two"/><div className="hero-pizza"><PizzaArtwork variant="tomato" className="hero-pizza-artwork" /><div className="pizza-stamp">MADE FRESH<br />JUST FOR YOU</div></div><div className="floating-note note-top"><span>✳</span><div><strong>Fresh daily</strong><small>Never frozen dough</small></div></div><div className="floating-note note-bottom"><span className="note-leaf">♧</span><div><strong>Your kind of pizza</strong><small>Built exactly your way</small></div></div><span className="art-spark spark-one">✳</span><span className="art-spark spark-two">✦</span></div></section>
       <section className="promise-strip"><div><span className="promise-icon"><Leaf size={20}/></span><div><b>Good ingredients</b><small>Nothing to hide</small></div></div><div><span className="promise-icon"><Flame size={20}/></span><div><b>Hot from our oven</b><small>Made when you order</small></div></div><div><span className="promise-icon"><Truck size={20}/></span><div><b>At your door</b><small>With love, not late</small></div></div><div><span className="promise-icon"><BadgeCheck size={20}/></span><div><b>Easy & secure</b><small>Checkout you can trust</small></div></div></section>
-      <section className="section-wrap menu-preview"><div className="section-heading"><div><div className="eyebrow">THE CROWD PLEASERS</div><h2>Love at first <em>bite.</em></h2><p>The ones everyone talks about on the way home.</p></div><button className="text-link" onClick={() => navigate('menu')}>The full menu <ArrowRight size={16}/></button></div>{catalogStatus === 'loading' ? <PizzaGridSkeleton count={3}/> : catalogStatus === 'error' ? <CatalogUnavailable onRetry={refreshCatalog} message={catalogError}/> : featured.length ? <div className="pizza-grid">{featured.slice(0, 3).map((pizza, i) => <PizzaCard key={pizza.id} pizza={pizza} index={i} onAdd={() => addFeatured(pizza)} onCustomize={() => navigate('builder')}/>)}</div> : <CatalogEmpty onRetry={refreshCatalog} />}<div className="custom-callout"><div className="callout-icon">✳</div><div><span>THE CHEF IS YOU</span><h3>Have it your way.</h3><p>Choose your crust, sauce, cheese and all the good stuff.</p></div><button className="button button-light" onClick={() => navigate('builder')}>Build my pizza <ArrowRight size={17}/></button><div className="callout-watermark">🍕</div></div></section>
+      <section className="section-wrap menu-preview"><div className="section-heading"><div><div className="eyebrow">THE CROWD PLEASERS</div><h2>Love at first <em>bite.</em></h2><p>The ones everyone talks about on the way home.</p></div><button className="text-link" onClick={() => navigate('menu')}>The full menu <ArrowRight size={16}/></button></div>{catalogStatus === 'loading' ? <PizzaGridSkeleton count={3}/> : catalogStatus === 'error' ? <CatalogUnavailable onRetry={refreshCatalog} message={catalogError}/> : featured.length ? <div className="pizza-grid">{featured.slice(0, 3).map((pizza, i) => <PizzaCard key={pizza.id} pizza={pizza} index={i} onAdd={(quantity) => addFeatured(pizza, quantity)} onCustomize={() => navigate('builder')}/>)}</div> : <CatalogEmpty onRetry={refreshCatalog} />}<div className="custom-callout"><div className="callout-icon">✳</div><div><span>THE CHEF IS YOU</span><h3>Have it your way.</h3><p>Choose your crust, sauce, cheese and all the good stuff.</p></div><button className="button button-light" onClick={() => navigate('builder')}>Build my pizza <ArrowRight size={17}/></button><div className="callout-watermark">🍕</div></div></section>
       <section className="last-word"><span className="last-word-mark">“</span><p>There’s no such thing as<br />a bad day with <em>good pizza.</em></p><span className="last-word-caption">A LITTLE HOUSE WISDOM</span></section></>}
 
-    {page === 'menu' && <section className="section-wrap page-section"><div className="page-intro"><div className="eyebrow">PICK YOUR HAPPY</div><h1>Every slice has<br /><em>a story.</em></h1><p>Choose a classic or get creative. Your cravings, your rules.</p></div>{catalogStatus === 'loading' ? <PizzaGridSkeleton count={6} full /> : catalogStatus === 'error' ? <CatalogUnavailable onRetry={refreshCatalog} message={catalogError}/> : <><div className="filter-row"><div className="filter-label"><SlidersHorizontal size={16}/> Find your flavour</div>{['All', 'BESTSELLER', 'FRESH PICK', 'SPICY', 'PLANT-BASED'].map(f => <button className={`filter-chip ${filter === f ? 'selected' : ''}`} key={f} onClick={() => setFilter(f)}>{f === 'All' ? 'Everything' : f}</button>)}</div>{filteredPizzas.length ? <div className="pizza-grid full-grid">{filteredPizzas.map((pizza, i) => <PizzaCard key={pizza.id} pizza={pizza} index={i} onAdd={() => addFeatured(pizza)} onCustomize={() => navigate('builder')}/>)}</div> : <CatalogEmpty onRetry={filter === 'All' ? refreshCatalog : () => setFilter('All')} emptyFilter={filter !== 'All'}/>}<div className="menu-bottom"><span>Can’t find your perfect slice?</span><button className="text-link" onClick={() => navigate('builder')}>Dream one up <ArrowRight size={16}/></button></div></>}</section>}
+    {page === 'menu' && <section className="section-wrap page-section"><div className="page-intro"><div className="eyebrow">PICK YOUR HAPPY</div><h1>Every slice has<br /><em>a story.</em></h1><p>Choose a classic or get creative. Your cravings, your rules.</p></div>{catalogStatus === 'loading' ? <PizzaGridSkeleton count={6} full /> : catalogStatus === 'error' ? <CatalogUnavailable onRetry={refreshCatalog} message={catalogError}/> : <><div className="filter-row"><div className="filter-label"><SlidersHorizontal size={16}/> Find your flavour</div>{['All', 'BESTSELLER', 'FRESH PICK', 'SPICY', 'PLANT-BASED'].map(f => <button className={`filter-chip ${filter === f ? 'selected' : ''}`} key={f} onClick={() => setFilter(f)}>{f === 'All' ? 'Everything' : f}</button>)}</div>{filteredPizzas.length ? <div className="pizza-grid full-grid">{filteredPizzas.map((pizza, i) => <PizzaCard key={pizza.id} pizza={pizza} index={i} onAdd={(quantity) => addFeatured(pizza, quantity)} onCustomize={() => navigate('builder')}/>)}</div> : <CatalogEmpty onRetry={filter === 'All' ? refreshCatalog : () => setFilter('All')} emptyFilter={filter !== 'All'}/>}<div className="menu-bottom"><span>Can’t find your perfect slice?</span><button className="text-link" onClick={() => navigate('builder')}>Dream one up <ArrowRight size={16}/></button></div></>}</section>}
 
     {page === 'builder' && <section className="section-wrap page-section"><div className="page-intro compact"><div className="eyebrow">YOUR PIZZA. YOUR RULES.</div><h1>The art of <em>your slice.</em></h1><p>Four little choices. One very personal pizza.</p></div>{catalogStatus === 'loading' ? <BuilderSkeleton/> : catalogStatus === 'error' ? <CatalogUnavailable onRetry={refreshCatalog} message={catalogError}/> : <div className="builder-layout"><div className="builder-steps"><BuilderGroup step="01" title="Start with the base" subtitle="The foundation of every good thing" options={catalog.bases} value={builder.base} onChange={v => setBuilder(p => ({ ...p, base: v }))}/><BuilderGroup step="02" title="Pick your sauce" subtitle="Set the mood" options={catalog.sauces} value={builder.sauce} onChange={v => setBuilder(p => ({ ...p, sauce: v }))}/><BuilderGroup step="03" title="Make it cheesy" subtitle="The good stuff" options={catalog.cheeses} value={builder.cheese} onChange={v => setBuilder(p => ({ ...p, cheese: v }))}/><div className="builder-group"><div className="builder-step"><span>04</span><div><h3>Top it your way</h3><p>Pick up to five. Go wild.</p></div><b>{builder.vegetables.length}/5</b></div><div className="veg-grid">{catalog.vegetables.map(v => <button key={v.id} disabled={v.available === false && !builder.vegetables.includes(v.id)} aria-pressed={builder.vegetables.includes(v.id)} className={`veg-option ${builder.vegetables.includes(v.id) ? 'chosen' : ''}`} onClick={() => setBuilder(p => ({ ...p, vegetables: p.vegetables.includes(v.id) ? p.vegetables.filter(x => x !== v.id) : p.vegetables.length < 5 ? [...p.vegetables, v.id] : p.vegetables }))}><span className="veg-check">{builder.vegetables.includes(v.id) ? '✓' : '+'}</span><span>{v.name}</span><small>+{currency(v.price)}</small></button>)}</div></div></div><aside className="builder-summary"><div className={`summary-picture summary-picture--${getPizzaArtworkVariant({ name: 'Your creation', sauce: builder.sauce, cheese: builder.cheese, vegetables: builder.vegetables }, 0)}`}><PizzaArtwork variant={getPizzaArtworkVariant({ name: 'Your creation', sauce: builder.sauce, cheese: builder.cheese, vegetables: builder.vegetables }, 0)} className="summary-pizza-artwork" /><span className="summary-badge">YOUR CREATION</span></div><div className="summary-body"><div className="eyebrow">LOOKS LIKE LOVE</div><h2>Your masterpiece.</h2><p className="summary-subtitle">Made just the way you like it.</p><div className="summary-ingredients"><Ingredient label="Base" value={catalog.bases.find(x => x.id === builder.base)?.name}/><Ingredient label="Sauce" value={catalog.sauces.find(x => x.id === builder.sauce)?.name}/><Ingredient label="Cheese" value={catalog.cheeses.find(x => x.id === builder.cheese)?.name}/><Ingredient label="Toppings" value={builder.vegetables.map(id => catalog.vegetables.find(x => x.id === id)?.name).filter(Boolean).join(', ') || 'No extras'}/></div><div className="summary-qty"><span>Quantity</span><div className="quantity-stepper"><IconButton label="Decrease quantity" onClick={() => setBuilder(p => ({ ...p, quantity: Math.max(1, p.quantity - 1) }))}><Minus size={14}/></IconButton><b>{builder.quantity}</b><IconButton label="Increase quantity" onClick={() => setBuilder(p => ({ ...p, quantity: Math.min(10, p.quantity + 1) }))}><Plus size={14}/></IconButton></div></div><div className="summary-total"><span>Your pizza</span><strong>{currency(builderPrice * builder.quantity)}</strong></div><button className="button button-dark full-button" onClick={addCustom}>Add to my bag <ArrowRight size={17}/></button><small className="summary-footnote"><ShieldCheck size={14}/> Freshly made. Secure checkout.</small></div></aside></div>}</section>}
 
@@ -1173,23 +1173,117 @@ function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', fea
     </section>;
 }
 
+// Licensed food photography is served from Pexels/Unsplash; the in-repo vector art remains a resilient fallback.
+const PIZZA_CARD_PHOTOS = {
+  mushroom: {
+    src: 'https://images.pexels.com/photos/4394619/pexels-photo-4394619.jpeg?auto=compress&cs=tinysrgb&w=1280',
+    alt: 'Freshly baked mushroom pizza with herbs',
+  },
+  pepperoni: {
+    src: 'https://images.pexels.com/photos/6488931/pexels-photo-6488931.jpeg?auto=compress&cs=tinysrgb&w=1280',
+    alt: 'Golden pepperoni pizza with melted cheese',
+  },
+  classic: {
+    src: 'https://images.unsplash.com/photo-1594007654729-407eedc4be65?auto=format&fit=crop&w=1280&q=85',
+    alt: 'Freshly baked pizza with tomato, cheese and basil',
+  },
+  rustic: {
+    src: 'https://images.pexels.com/photos/31450870/pexels-photo-31450870.jpeg?auto=compress&cs=tinysrgb&w=1280',
+    alt: 'Rustic pizza finished with fresh basil',
+  },
+};
+
+function getPizzaCardPhoto(pizza, index) {
+  const ingredientNames = Array.isArray(pizza?.ingredients)
+    ? pizza.ingredients.map((item) => typeof item === 'string' ? item : item?.name || item?.label || item?.title || '').join(' ')
+    : '';
+  const searchable = `${pizza?.name || ''} ${ingredientNames}`.toLowerCase();
+  if (/(mushroom|fung|pollo|chicken)/.test(searchable)) return PIZZA_CARD_PHOTOS.mushroom;
+  if (/(pepperoni|salami|sausage|jalape|chili|chilli|spicy|hot)/.test(searchable)) return PIZZA_CARD_PHOTOS.pepperoni;
+  if (/(margherita|tomato|basil|veggie|vegetable|garden|olive|corn|spinach|plant-based)/.test(searchable)) return PIZZA_CARD_PHOTOS.classic;
+  return [PIZZA_CARD_PHOTOS.classic, PIZZA_CARD_PHOTOS.rustic, PIZZA_CARD_PHOTOS.mushroom, PIZZA_CARD_PHOTOS.pepperoni][index % 4];
+}
+
 function PizzaCard({ pizza, index, onAdd, onCustomize }) {
   const variant = getPizzaArtworkVariant(pizza, index);
-  return <article className={`pizza-card ${variant} card-${index}`}>
+  const [cardQuantity, setCardQuantity] = useState(1);
+  const [photoLoaded, setPhotoLoaded] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photo = getPizzaCardPhoto(pizza, index);
+  const ingredients = Array.isArray(pizza.ingredients)
+    ? pizza.ingredients.map((item) => typeof item === 'string' ? item : item?.name || item?.label || item?.title || '').filter(Boolean)
+    : [];
+  const unitPrice = Number(pizza.price);
+  const hasPrice = Number.isFinite(unitPrice) && unitPrice >= 0;
+  const unavailable = pizza.available === false || !hasPrice;
+  const selectedTotal = hasPrice ? currency(unitPrice * cardQuantity) : '—';
+
+  return <article className={`pizza-card ${variant} card-${index} ${photoLoaded ? 'has-photo' : ''}`} data-pizza-card data-pizza-id={pizza.id}>
     <div className="pizza-card-art">
-      <span className="pizza-label">{pizza.tag}</span>
       <PizzaArtwork variant={variant} className={`pizza-card-artwork pizza-card-artwork--${variant}`} />
+      {!photoFailed && <img
+        className="pizza-card-photo"
+        src={photo.src}
+        alt={photo.alt}
+        loading={index < 3 ? 'eager' : 'lazy'}
+        fetchPriority={index < 3 ? 'high' : 'auto'}
+        decoding="async"
+        onLoad={() => setPhotoLoaded(true)}
+        onError={() => { setPhotoFailed(true); setPhotoLoaded(false); }}
+      />}
+      <span className="pizza-card-photo-scrim" aria-hidden="true"/>
+      <span className="pizza-label">{pizza.tag || 'HOUSE FAVOURITE'}</span>
+      <span className={`pizza-card-availability ${unavailable ? 'is-unavailable' : 'is-available'}`}>
+        <span aria-hidden="true"/> {pizza.available === false ? 'Sold out' : !hasPrice ? 'Price unavailable' : 'Made fresh'}
+      </span>
       <span className="pizza-card-number">0{index + 1}</span>
     </div>
     <div className="pizza-card-body">
-      <div><h3>{pizza.name}</h3><p>{pizza.description}</p></div>
-      <div className="pizza-card-bottom">
-        <strong>{currency(pizza.price)}</strong>
-        <button className="add-button" onClick={onAdd} disabled={pizza.available === false} aria-label={pizza.available === false ? `${pizza.name} sold out` : `Add ${pizza.name}`}>
-          <Plus size={17}/><span>{pizza.available === false ? 'Sold out' : 'Add'}</span>
-        </button>
+      <div className="pizza-card-copy">
+        <div className="pizza-card-kicker"><span>THE HOUSE MENU</span><span className="pizza-card-kicker-dot" aria-hidden="true">✦</span><span>MADE TO ORDER</span></div>
+        <h3>{pizza.name}</h3>
+        <p>{pizza.description}</p>
       </div>
-      <button className="customize-link" onClick={onCustomize}>Make something similar <ArrowUpRight size={14}/></button>
+
+      <div className="pizza-card-ingredients" aria-label={`Ingredients for ${pizza.name}`}>
+        {ingredients.length ? ingredients.slice(0, 4).map((ingredient, ingredientIndex) =>
+          <span className="pizza-ingredient-chip" key={`${pizza.id}-ingredient-${ingredientIndex}`}>{ingredient}</span>
+        ) : <span className="pizza-ingredient-chip">House recipe</span>}
+        {ingredients.length > 4 && <span className="pizza-ingredient-chip ingredient-more">+{ingredients.length - 4} more</span>}
+      </div>
+
+      <div className="pizza-card-selection">
+        <div className="pizza-card-quantity-wrap">
+          <span className="pizza-card-control-label">QUANTITY</span>
+          <div className="pizza-card-quantity" role="group" aria-label={`Quantity for ${pizza.name}`}>
+            <button type="button" aria-label={`Decrease ${pizza.name} quantity`} disabled={unavailable || cardQuantity <= 1} onClick={() => setCardQuantity(value => Math.max(1, value - 1))}><Minus size={15}/></button>
+            <span aria-live="polite" aria-atomic="true">{cardQuantity}</span>
+            <button type="button" aria-label={`Increase ${pizza.name} quantity`} disabled={unavailable || cardQuantity >= 10} onClick={() => setCardQuantity(value => Math.min(10, value + 1))}><Plus size={15}/></button>
+          </div>
+        </div>
+        <div className="pizza-card-price">
+          <span className="pizza-card-control-label">PRICE PER PIZZA</span>
+          <strong>{hasPrice ? currency(unitPrice) : 'Unavailable'}</strong>
+          <small>Menu price</small>
+        </div>
+        <div className="pizza-card-total">
+          <span className="pizza-card-control-label">YOUR SUBTOTAL</span>
+          <strong>{selectedTotal}</strong>
+          <small>{cardQuantity} {cardQuantity === 1 ? 'pizza' : 'pizzas'}</small>
+        </div>
+      </div>
+
+      <div className="pizza-card-actions">
+        <button className="add-button" type="button" onClick={() => { onAdd?.(cardQuantity); setCardQuantity(1); }} disabled={unavailable} aria-label={unavailable ? (pizza.available === false ? `${pizza.name} sold out` : `${pizza.name} price unavailable`) : `Add ${pizza.name}`}>
+          <ShoppingBag size={17}/><span>{pizza.available === false ? 'Sold out' : !hasPrice ? 'Price unavailable' : 'Add to bag'}</span><ArrowUpRight size={15}/>
+        </button>
+        <button className="customize-link" type="button" onClick={onCustomize}>Make something similar <ArrowUpRight size={14}/></button>
+      </div>
+
+      <div className="pizza-card-assurance">
+        <span><CheckCircle2 size={13} aria-hidden="true"/> Live menu price</span>
+        <span><ChefHat size={13} aria-hidden="true"/> Freshly prepared</span>
+      </div>
     </div>
   </article>;
 }
