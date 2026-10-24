@@ -8,6 +8,9 @@ on:
       - 'server/src/**'
       - 'server/tests/**'
       - 'client/src/**'
+      - 'client/index.html'
+      - 'client/public/**'
+      - 'scripts/deployed-browser-smoke.mjs'
       - 'client/package.json'
   workflow_dispatch:
 
