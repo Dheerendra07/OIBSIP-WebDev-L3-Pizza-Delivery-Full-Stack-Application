@@ -363,3 +363,389 @@
 .pizza-card-artwork{max-width:none}
 @media(max-width:760px){.hero-pizza-artwork{width:108%;height:108%;left:-4%;top:-4%}}
 @media(prefers-reduced-motion:reduce){.pizza-card-artwork{transition:none}.pizza-card:hover .pizza-card-artwork{transform:rotate(-8deg)}}
+
+
+/* --------------------------------------------------------------------------
+   Pizza House visual refresh — stronger contrast, clear action hierarchy,
+   distinct food palettes, and consistent surfaces across every customer page.
+   -------------------------------------------------------------------------- */
+:root{
+  --canvas:#f5f8fb;
+  --surface:#ffffff;
+  --surface-raised:#ffffff;
+  --text-primary:#172d3d;
+  --text-secondary:#627485;
+  --border:#dce5eb;
+  --brand:#e44732;
+  --brand-hover:#c93426;
+  --success:#24764d;
+  --warning:#9a610e;
+  --danger:#bd302d;
+  --info:#315f9f;
+  --focus:#2563eb;
+  --skeleton-base:#e7edf2;
+  --skeleton-highlight:#f6f8fa;
+  --radius-card:16px;
+  --ink:#172d3d;
+  --muted:#627485;
+  --line:#dce5eb;
+  --paper:#f5f8fb;
+  --orange:#e44732;
+  --green:#24764d;
+  --serif:"Playfair Display",Georgia,serif;
+}
+body{background:var(--canvas);color:var(--ink)}
+button,input,textarea,select{font-family:"DM Sans",sans-serif}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #2f6feb;outline-offset:3px}
+.announcement{background:#132b3b;color:#f8fbfd;border-bottom:1px solid #284355}
+.announcement svg{color:#ff8f78}
+.site-header{min-height:78px;background:rgba(255,255,255,.94);border-bottom:1px solid #dfe7ed;box-shadow:0 5px 24px rgba(20,43,59,.045);padding-inline:max(24px,calc((100% - 1200px)/2))}
+.brand-mark,.auth-brand-mark{background:var(--brand);box-shadow:0 5px 13px rgba(228,71,50,.18)}
+.brand-name{color:#172d3d}
+.brand-name>span,.footer-brand .brand-name>span{color:var(--brand)}
+.brand-name small{color:#687b89}
+.main-nav{gap:6px}
+.main-nav button{font-size:13px;padding:10px 12px;border-radius:10px;transition:background .16s ease,color .16s ease}
+.main-nav button.active{color:var(--brand);background:#fff0ed}
+.main-nav button:hover{color:var(--brand);background:#fff5f2}
+.bag-button,.account-button,.sign-in{font-size:13px}
+.bag-button{padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:#fff}
+.bag-button b{background:#fce4df;color:#b83225}
+.account-button{border-left:0;padding:9px 11px;border-radius:10px;background:#eef3f6}
+.sign-in{background:var(--ink);border-radius:10px;padding:12px 16px;box-shadow:0 4px 12px rgba(23,45,61,.12)}
+.sign-in:hover{background:#25495f}
+.icon-button{width:38px;height:38px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--ink);transition:background .16s ease,border-color .16s ease,color .16s ease}
+.icon-button:hover:not(:disabled){background:#fff0ed;border-color:#ffcfc5;color:var(--brand)}
+.button{min-height:48px;border-radius:11px;padding:0 19px;font-size:13px;font-weight:700;letter-spacing:-.01em;gap:10px;transition:transform .16s ease,background .16s ease,box-shadow .16s ease,border-color .16s ease}
+.button:hover:not(:disabled){transform:translateY(-1px)}
+.button-dark{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 7px 15px rgba(228,71,50,.16)}
+.button-dark:hover:not(:disabled){background:var(--brand-hover);border-color:var(--brand-hover);box-shadow:0 9px 19px rgba(201,52,38,.22)}
+.button-light{background:#fff;color:var(--ink);border:1px solid #d7e1e8;box-shadow:0 2px 4px rgba(23,45,61,.04)}
+.button-light:hover:not(:disabled){background:#f5f8fa;border-color:#b8c9d4}
+.text-link,.customize-link{color:#4b6373;font-size:12px;font-weight:700;text-underline-offset:4px}
+.text-link:hover,.customize-link:hover{color:var(--brand)}
+.hero{min-height:555px;padding-top:38px;padding-bottom:40px}
+.hero h1,.page-intro h1,.page-section>h1,.dashboard-top h1,.admin-heading h1{color:#172d3d}
+.hero h1 em,.section-heading h2 em,.page-intro h1 em,.page-section>h1 em,.dashboard-top h1 em,.admin-heading h1 em,.last-word em{color:var(--brand)}
+.hero-description{color:#5e7180}
+.hero-halo{background:#fbe6e1;box-shadow:0 0 0 24px rgba(251,230,225,.58),0 0 0 50px rgba(251,230,225,.3)}
+.hero-ring{border-color:#edc7bd}
+.floating-note{border-color:#e2eaf0;box-shadow:0 14px 34px rgba(23,45,61,.09);border-radius:12px}
+.floating-note>span{background:#fff0ed;color:var(--brand)}
+.promise-strip{background:#edf3f7;border-color:#dce5eb}
+.promise-icon{background:#fff;border-color:#d5e0e7;color:var(--brand)}
+.menu-preview{padding-top:78px;padding-bottom:54px}
+.section-heading{margin-bottom:27px}
+.section-heading h2{color:#172d3d}
+.pizza-grid{gap:22px}
+.pizza-card{border:1px solid #dfe7ed;border-radius:17px;background:#fff;box-shadow:0 6px 19px rgba(21,46,62,.035);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.pizza-card:hover{transform:translateY(-5px);border-color:#c8d8e2;box-shadow:0 18px 34px rgba(21,46,62,.11)}
+.pizza-card-art{height:220px;background:#eef3f6}
+.pizza-card.tomato .pizza-card-art{background:radial-gradient(circle at 50% 44%,#fff3e8 0,#fbe3d5 62%,#f5d7c9 100%)}
+.pizza-card.green .pizza-card-art{background:radial-gradient(circle at 50% 44%,#f5f9eb 0,#e7f0df 62%,#d9e8d1 100%)}
+.pizza-card.orange .pizza-card-art{background:radial-gradient(circle at 50% 44%,#fff2e6 0,#ffe1d3 62%,#f8cdbd 100%)}
+.pizza-card.cream .pizza-card-art{background:radial-gradient(circle at 50% 44%,#fffdf7 0,#f0f0e7 62%,#dfe7e5 100%)}
+.pizza-card-artwork{left:7%;top:0;width:86%;height:100%;filter:drop-shadow(0 14px 13px rgba(24,45,61,.18));transform:rotate(-7deg);transition:transform .28s cubic-bezier(.2,.7,.2,1)}
+.pizza-card.tomato .pizza-card-number{color:#c43d2b}
+.pizza-card.green .pizza-card-number{color:#557e44}
+.pizza-card.orange .pizza-card-number{color:#cf552f}
+.pizza-card.cream .pizza-card-number{color:#75817a}
+.pizza-label{top:13px;left:13px;padding:7px 9px;border-radius:7px;background:rgba(255,255,255,.92);border:1px solid rgba(221,231,237,.9);color:#344e5e;font-size:9px;letter-spacing:.08em}
+.pizza-card-body{display:flex;flex-direction:column;gap:10px;min-height:184px;padding:19px}
+.pizza-card-body h3{font-size:20px;line-height:1.25;color:#172d3d;letter-spacing:-.02em}
+.pizza-card-body p{font-size:12px;line-height:1.65;color:#667988;min-height:40px}
+.pizza-card-bottom{margin-top:auto;padding-top:4px}
+.pizza-card-bottom strong{font-size:20px;color:#172d3d;letter-spacing:-.03em}
+.add-button{min-height:40px;padding:0 12px;border:1px solid #ffd1c7;border-radius:10px;background:#fff0ed;color:#b93629;font-size:12px;font-weight:700;transition:background .16s ease,border-color .16s ease,transform .16s ease}
+.add-button svg{color:var(--brand)}
+.add-button:hover:not(:disabled){background:var(--brand);border-color:var(--brand);color:#fff;transform:translateY(-1px)}
+.add-button:hover:not(:disabled) svg{color:#fff}
+.customize-link{font-size:11px;margin-top:5px;padding:5px 0}
+.custom-callout{background:linear-gradient(115deg,#132b3b 0%,#1c4053 100%);border:1px solid #2a4c60;border-radius:18px;padding:30px 32px;box-shadow:0 15px 30px rgba(19,43,59,.14)}
+.custom-callout .callout-icon{border-color:#7595a6;color:#ff9a83;background:rgba(255,255,255,.06)}
+.custom-callout>div:nth-child(2)>span{color:#ffad9b}
+.custom-callout h3{color:#fff;font-size:28px}
+.custom-callout p{color:#cfdae2}
+.custom-callout .button-light{background:#fff;color:#172d3d;border-color:#fff}
+.callout-watermark{opacity:.045}
+.last-word{background:#eaf1f5;border-top:1px solid #dce5eb}
+.last-word-mark{color:var(--brand)}
+.site-footer{background:#102737;color:#f4f8fa;padding-top:38px}
+.footer-main{padding-bottom:32px}
+.footer-brand .brand-mark{background:var(--brand)}
+.footer-brand .brand-name{color:#fff}
+.footer-brand .brand-name small{color:#b6c7d1}
+.footer-main p{color:#c0ced6}
+.back-top{border-color:#496374;border-radius:10px;min-height:42px}
+.back-top:hover{background:rgba(255,255,255,.08);border-color:#809cab}
+.footer-bottom{border-color:#344d5e;color:#b7c6cf}
+.page-section{padding-top:62px;padding-bottom:88px}
+.page-intro{margin-bottom:34px}
+.page-intro h1{font-size:clamp(42px,4.3vw,58px);letter-spacing:-.045em}
+.page-intro p,.section-heading p{font-size:13px;line-height:1.75;color:#667988}
+.filter-row{gap:9px;margin-bottom:23px}
+.filter-label{font-size:12px;color:#2e4859}
+.filter-chip{min-height:40px;padding:0 15px;border:1px solid #d6e1e8;border-radius:999px;background:#fff;color:#526979;font-size:11px;letter-spacing:.01em;box-shadow:0 2px 5px rgba(23,45,61,.025);transition:background .16s ease,border-color .16s ease,color .16s ease}
+.filter-chip:hover{border-color:#f1a89b;color:var(--brand)}
+.filter-chip.selected{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 5px 12px rgba(228,71,50,.17)}
+.full-grid{gap:22px}
+.menu-bottom{color:#607485}
+.menu-bottom .text-link{font-size:12px}
+.builder-layout{gap:30px}
+.builder-steps{border-top-color:#dce5eb}
+.builder-group{padding:23px 0;border-bottom-color:#dce5eb}
+.builder-step>span{width:34px;height:34px;border-color:#ffd0c7;background:#fff0ed;color:var(--brand);font-family:"DM Sans",sans-serif;font-weight:800}
+.builder-step h3{font-size:21px;color:#172d3d}
+.builder-step p{font-size:12px;color:#71818e;line-height:1.6}
+.option-list,.veg-grid{gap:10px}
+.builder-option,.veg-option{min-height:54px;padding:12px 13px;gap:10px;border:1px solid #dce5eb;border-radius:12px;background:#fff;color:#3c5667;font-size:12px;transition:background .16s ease,border-color .16s ease,box-shadow .16s ease}
+.builder-option:hover:not(:disabled),.veg-option:hover:not(:disabled){border-color:#f1a79a;background:#fff9f7}
+.builder-option.chosen{border-color:var(--brand);background:#fff0ed;box-shadow:0 0 0 2px rgba(228,71,50,.07);color:#172d3d}
+.builder-option small,.veg-option small{font-size:11px;color:#607584}
+.radio-dot{width:16px;height:16px;border-color:#9eb0bc}
+.chosen .radio-dot{border-color:var(--brand)}
+.veg-check{width:20px;height:20px;border-radius:6px;border-color:#c8d6de;background:#f5f8fa}
+.veg-option.chosen{border-color:#7aa46e;background:#f0f8ed}
+.chosen .veg-check{background:#34794e;border-color:#34794e}
+.builder-summary{border:1px solid #dce5eb;border-radius:20px;background:#fff;box-shadow:0 15px 38px rgba(23,45,61,.08)}
+.summary-picture{height:220px;background:radial-gradient(circle at 50% 42%,#fff 0,#f4f8fa 68%,#e7eff3 100%);font-size:0}
+.summary-picture--green{background:radial-gradient(circle at 50% 42%,#fff 0,#f0f6e8 68%,#ddebd4 100%)}
+.summary-picture--orange{background:radial-gradient(circle at 50% 42%,#fff 0,#fff0e7 68%,#f9d4c6 100%)}
+.summary-picture--cream{background:radial-gradient(circle at 50% 42%,#fff 0,#f1f2eb 68%,#e0e9e6 100%)}
+.summary-pizza-artwork{width:min(78%,230px);height:100%;max-width:none;filter:drop-shadow(0 13px 12px rgba(23,45,61,.18))}
+.summary-badge{background:#fff;color:#526979;border:1px solid #dce5eb;border-radius:7px;letter-spacing:.07em}
+.summary-body{padding:24px}
+.summary-body h2,.order-summary h2,.empty-state h2{color:#172d3d}
+.summary-body h2{font-size:28px}
+.summary-subtitle{font-size:12px;line-height:1.6;color:#6b7f8d}
+.summary-ingredients{border-top-color:#e1e9ee}
+.ingredient-row{padding:13px 0;border-bottom-color:#e1e9ee;font-size:12px}
+.ingredient-row span{color:#6b7f8d}
+.ingredient-row b{font-size:12px;line-height:1.5;color:#203a4b}
+.summary-qty,.summary-total{font-size:12px}
+.summary-total strong{font-size:26px;color:#172d3d}
+.summary-footnote{font-size:11px;color:#637987}
+.quantity-stepper{gap:12px}
+.cart-layout{gap:28px}
+.cart-lines{border-top-color:#dce5eb}
+.cart-line{gap:18px;padding:22px 0;border-bottom-color:#dce5eb}
+.cart-line-art{width:88px;height:88px;display:grid;place-items:center;border-radius:15px;background:#f0f4f6;font-size:0;overflow:hidden}
+.cart-line-art--tomato{background:#fbe3d5}
+.cart-line-art--green{background:#e7f0df}
+.cart-line-art--orange{background:#ffe1d3}
+.cart-line-art--cream{background:#e7edeb}
+.cart-line-artwork{width:105%;height:105%;max-width:none;filter:drop-shadow(0 4px 5px rgba(23,45,61,.16))}
+.cart-line-info h3{font-size:20px;line-height:1.3;color:#172d3d}
+.cart-line-info p{font-size:12px;line-height:1.55;color:#687c8a}
+.cart-line-price{font-size:15px;color:#172d3d}
+.cart-line-price button{font-size:11px;color:#b83225;text-decoration:none;padding:7px 0}
+.cart-line-price button:hover{text-decoration:underline}
+.delivery-details-panel,.order-summary{border:1px solid #dce5eb;border-radius:18px;background:#fff;box-shadow:0 9px 24px rgba(23,45,61,.045)}
+.delivery-details-panel{padding:24px}
+.delivery-details-heading h2{font-size:28px;line-height:1.2;letter-spacing:-.025em;color:#172d3d}
+.delivery-details-heading p{font-size:13px;line-height:1.7;color:#687c8a}
+.field{gap:8px;font-size:12px;color:#334e60}
+.field-input{min-height:48px;border:1px solid #cbd8e0;border-radius:10px;background:#fff;padding-inline:13px;color:#70818c;transition:border-color .15s ease,box-shadow .15s ease}
+.field-input:focus-within{border-color:#5c8cac;box-shadow:0 0 0 3px rgba(54,121,163,.12);outline:0}
+.field-input input{font-size:13px;color:#172d3d}
+.field-input input::placeholder{color:#9aa8b2}
+.order-summary{padding:24px}
+.order-summary h2{font-size:27px;margin-bottom:21px}
+.price-row{font-size:13px;line-height:1.5}
+.price-row span{color:#687c8a}
+.price-row.final span{font-size:14px}
+.price-row.final b{font-size:27px;color:#172d3d}
+.free-delivery-hint{font-size:11px;border-radius:9px;background:#edf7ef;color:#2a6c45;line-height:1.5;padding:10px 12px}
+.summary-divider{border-color:#dce5eb}
+.budget-guard{border-color:#dce5eb;border-radius:12px;background:#f7fafc}
+.budget-guard-input{border-radius:9px;border-color:#cbd8e0}
+.budget-guard-feedback.over-budget,.budget-clear{color:#b83225}
+.terms-note{font-size:11px;line-height:1.6;color:#6b7f8d}
+.empty-state,.catalog-state-card{border:1px solid #dce5eb;border-radius:18px;background:#fff;box-shadow:0 10px 26px rgba(23,45,61,.045)}
+.empty-state{padding:46px 28px}
+.empty-art,.catalog-state-icon{background:#fff0ed;color:var(--brand)}
+.dashboard-metrics>div,.admin-metric{border:1px solid #dce5eb;border-radius:15px;background:#fff;box-shadow:0 5px 15px rgba(23,45,61,.035)}
+.dashboard-metrics span,.admin-metric span{font-size:11px;color:#627889;letter-spacing:.08em}
+.dashboard-metrics strong,.admin-metric strong{color:#172d3d}
+.dashboard-metrics small{font-size:11px;color:#687c8a}
+.dashboard-heading h2{color:#172d3d}
+.order-card,.admin-panel,.issue-case-card,.issue-case-skeleton{border-color:#dce5eb;border-radius:15px;background:#fff;box-shadow:0 5px 17px rgba(23,45,61,.035)}
+.order-card h3,.issue-case-head h3{color:#172d3d}
+.order-card p,.issue-case-meta{color:#687c8a}
+.order-timeline:before{background:#dce5eb}
+.timeline-icon{border-color:#dce5eb;background:#fff}
+.timeline-step.current .timeline-icon{background:var(--brand);border-color:var(--brand)}
+.timeline-step.complete .timeline-icon{background:#e7f4e9;border-color:#c8e4cf;color:#25734a}
+.status-pill.paid{background:#e8f5eb;color:#216b42}
+.status-pill.waiting{background:#fff2dc;color:#8d5b0c}
+.status-pill{font-size:10px;padding:7px 10px;border-radius:999px}
+.admin-panel{padding:24px}
+.panel-heading h2{color:#172d3d}
+.panel-heading p{font-size:12px;line-height:1.6;color:#687c8a}
+.inventory-row{border-top-color:#e0e8ed;font-size:12px}
+.inventory-row input,.issue-field select,.issue-field textarea{border-color:#cbd8e0;border-radius:9px;background:#fff;color:#172d3d}
+.inventory-row input{padding:9px 10px;font-size:12px}
+.inventory-state{font-size:11px;color:#506a79}
+.inventory-state button{border:0;background:var(--brand);color:#fff;border-radius:8px;padding:8px 11px;font-size:11px}
+.inventory-state button:hover{background:var(--brand-hover)}
+.issue-status-card{border-radius:12px;background:#fff}
+.issue-status-under_review{background:#fff8ec}
+.issue-status-resolved{background:#f1f8f0}
+.issue-field{font-size:12px;color:#334e60}
+.issue-form-footnote,.issue-note-hint{font-size:11px;line-height:1.6}
+.auth-modal{background:#fff;border:1px solid #dce5eb;border-radius:22px;padding:36px;box-shadow:0 28px 90px rgba(11,32,46,.28)}
+.auth-modal h2{color:#172d3d;letter-spacing:-.035em}
+.auth-modal>p{font-size:13px;line-height:1.7;color:#687c8a}
+.auth-switch,.auth-switch button{font-size:12px}
+.auth-switch button{color:var(--brand)}
+.auth-privacy{font-size:10px;color:#627889}
+.toast{border-color:#dce5eb;border-radius:13px;box-shadow:0 15px 40px rgba(23,45,61,.14);font-size:13px}
+.toast>svg{color:#24764d}
+.toast.error>svg{color:#bd302d}
+.payment-retry-panel{border-color:#f3c3b8;border-radius:13px;background:#fff5f2}
+.payment-provider-panel .button{min-height:44px}
+.provider-check-message.connected{color:#24764d}
+.provider-check-message.error{color:#bd302d}
+.session-check-warning{padding-top:12px;padding-bottom:0}
+.button.small-button,.small-button{min-height:40px;padding-inline:13px;border-radius:9px;font-size:11px}
+.logout-button{border-color:#dce5eb;background:#fff}
+.order-admin-actions{border-color:#dce5eb}
+.issue-report-modal .auth-brand-mark{background:#fff0ed;color:var(--brand)}
+.skeleton-line{background:linear-gradient(90deg,#e8eef2 25%,#f6f8fa 50%,#e8eef2 75%);background-size:200% 100%}
+@media(max-width:800px){
+  .site-header{padding-inline:20px;min-height:74px}
+  .main-nav{gap:4px}
+  .hero{gap:20px;min-height:520px}
+  .hero-copy{padding-left:4px}
+  .hero-art{height:420px}
+  .pizza-grid{gap:16px}
+  .pizza-card-art{height:200px}
+  .pizza-card-body{padding:16px;min-height:186px}
+  .builder-layout,.cart-layout{gap:22px}
+  .summary-picture{height:180px}
+  .delivery-details-panel,.order-summary,.admin-panel{padding:20px}
+}
+@media(max-width:520px){
+  .announcement{height:32px;padding-inline:14px;font-size:8px}
+  .site-header{min-height:70px;padding:0 14px;gap:9px}
+  .brand{min-width:0}
+  .brand-mark{width:34px;height:34px;font-size:21px}
+  .brand-name{font-size:17px}
+  .brand-name small{font-size:6px}
+  .header-actions{gap:7px}
+  .bag-button{min-height:40px;padding:8px;gap:5px}
+  .bag-button span{font-size:11px}
+  .bag-button b{width:19px;height:19px}
+  .mobile-toggle{width:40px;height:40px}
+  .main-nav.open{top:70px;background:#fff;border-bottom:1px solid #dce5eb;box-shadow:0 12px 24px rgba(23,45,61,.09);padding:10px 14px 14px}
+  .main-nav.open button{min-height:42px;padding-inline:12px;font-size:13px}
+  .section-wrap{padding-inline:18px}
+  .hero{padding-top:25px;padding-bottom:24px;gap:10px}
+  .hero h1{font-size:clamp(43px,12vw,53px);margin-top:18px}
+  .hero-description{font-size:13px;line-height:1.75}
+  .hero-actions{gap:11px;flex-wrap:wrap}
+  .hero-actions .button{min-height:46px}
+  .hero-proof{gap:9px;margin-top:24px;flex-wrap:wrap}
+  .hero-proof small{font-size:10px}
+  .hero-art{height:315px;min-width:0}
+  .hero-halo{width:220px;height:220px;box-shadow:0 0 0 15px rgba(251,230,225,.55),0 0 0 31px rgba(251,230,225,.28)}
+  .hero-ring.ring-one{width:300px;height:190px}
+  .hero-ring.ring-two{width:230px;height:305px}
+  .hero-pizza{width:218px;height:218px}
+  .hero-pizza-artwork{width:112%;height:112%;left:-6%;top:-6%}
+  .note-top{right:-1px;top:15px}
+  .note-bottom{left:-1px;bottom:10px}
+  .floating-note{padding:7px 9px;gap:7px}
+  .floating-note>span{width:26px;height:26px;font-size:15px}
+  .floating-note strong{font-size:9px}
+  .floating-note small{font-size:8px}
+  .promise-strip{display:grid;grid-template-columns:1fr 1fr;gap:15px;padding:17px 18px}
+  .promise-strip>div{gap:8px}
+  .promise-icon{width:35px;height:35px;flex:none}
+  .promise-strip b{font-size:10px}
+  .promise-strip small{font-size:9px;line-height:1.35}
+  .menu-preview{padding-top:48px;padding-bottom:38px}
+  .section-heading{align-items:flex-start;flex-direction:column;gap:8px}
+  .section-heading h2{font-size:36px}
+  .pizza-grid,.full-grid{grid-template-columns:1fr;gap:16px}
+  .pizza-card{display:grid;grid-template-columns:minmax(112px,39%) minmax(0,1fr);align-items:stretch}
+  .pizza-card-art,.full-grid .pizza-card-art{height:auto;min-height:205px}
+  .pizza-card-artwork{left:0;top:8%;width:100%;height:85%}
+  .pizza-label{top:9px;left:8px;font-size:7px;padding:5px 6px;letter-spacing:.04em;max-width:calc(100% - 16px)}
+  .pizza-card-number{font-size:30px;right:8px;bottom:3px}
+  .pizza-card-body{min-height:205px;padding:15px 13px;gap:7px}
+  .pizza-card-body h3{font-size:17px}
+  .pizza-card-body p{font-size:11px;min-height:0;line-height:1.5}
+  .pizza-card-bottom{align-items:flex-end;gap:8px}
+  .pizza-card-bottom strong{font-size:18px}
+  .add-button{min-height:39px;padding-inline:10px;font-size:11px;gap:5px}
+  .customize-link{font-size:10px;line-height:1.35}
+  .custom-callout{margin-top:26px;padding:22px 18px;display:grid;grid-template-columns:42px minmax(0,1fr);gap:12px}
+  .callout-icon{width:40px;height:40px}
+  .custom-callout h3{font-size:24px}
+  .custom-callout p{font-size:12px;line-height:1.55}
+  .custom-callout .button{grid-column:1/-1;width:100%}
+  .callout-watermark{right:-8px;font-size:95px}
+  .last-word{padding:50px 18px}
+  .last-word p{font-size:30px}
+  .site-footer{padding:27px 18px 0}
+  .footer-main{gap:18px;flex-wrap:wrap;padding-bottom:22px}
+  .footer-main p{flex-basis:100%;font-size:15px}
+  .back-top{margin-left:0}
+  .footer-bottom{align-items:flex-start;flex-direction:column;font-size:10px;line-height:1.6}
+  .page-section{padding-top:43px;padding-bottom:55px}
+  .page-intro{margin-bottom:26px}
+  .page-intro h1,.page-intro.compact h1{font-size:clamp(37px,10vw,45px);line-height:1.08}
+  .page-intro p{font-size:12px}
+  .filter-row{gap:7px;margin-bottom:18px}
+  .filter-label{width:100%;margin:0 0 5px;font-size:12px}
+  .filter-chip{min-height:38px;padding-inline:12px;font-size:10px}
+  .builder-layout,.cart-layout{grid-template-columns:1fr;gap:22px}
+  .builder-summary{order:-1}
+  .summary-picture{height:176px}
+  .summary-pizza-artwork{width:176px}
+  .summary-body{padding:19px}
+  .builder-group{padding:19px 0}
+  .builder-step h3{font-size:19px}
+  .builder-step p{font-size:11px}
+  .option-list,.veg-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .builder-option,.veg-option{min-height:54px;padding:9px 8px;gap:7px;font-size:10px}
+  .builder-option small,.veg-option small{font-size:9px;white-space:normal}
+  .cart-layout{margin-top:20px}
+  .cart-line{gap:10px;align-items:flex-start;padding:16px 0}
+  .cart-line-art{width:64px;height:64px;border-radius:12px;flex:none}
+  .cart-line-info h3{font-size:16px;margin:4px 0 5px}
+  .cart-line-info p{font-size:10px;line-height:1.45;margin-bottom:10px}
+  .cart-line-price{font-size:12px}
+  .cart-line-price button{font-size:10px}
+  .delivery-details-panel,.order-summary{padding:17px;border-radius:15px}
+  .delivery-details-heading h2{font-size:24px}
+  .delivery-details-heading p{font-size:12px}
+  .field{font-size:12px}
+  .field-input{min-height:47px}
+  .field-input input{font-size:13px}
+  .price-row{font-size:12px}
+  .price-row.final b{font-size:25px}
+  .dashboard-top,.admin-heading{align-items:flex-start;flex-direction:column}
+  .dashboard-top h1,.admin-heading h1{font-size:36px}
+  .dashboard-metrics,.admin-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:24px}
+  .dashboard-metrics>div,.admin-metric{padding:15px}
+  .dashboard-metrics strong,.admin-metric strong{font-size:27px}
+  .dashboard-metrics span,.admin-metric span{font-size:9px;line-height:1.4}
+  .admin-panel{padding:16px}
+  .inventory-row{grid-template-columns:minmax(0,1fr) 58px 58px;gap:8px;padding:10px 2px;font-size:10px}
+  .inventory-row.inventory-header{display:none}
+  .inventory-row>div:last-child{grid-column:1/-1}
+  .inventory-state button{font-size:10px;padding:7px 10px}
+  .order-card{padding:15px}
+  .order-card-top{gap:10px}
+  .order-timeline{margin-top:20px}
+  .timeline-step small{font-size:10px}
+  .auth-modal{padding:30px 21px 22px;border-radius:18px}
+  .auth-modal h2{font-size:28px}
+  .modal-backdrop{padding:12px}
+  .toast{bottom:12px;width:calc(100% - 24px);font-size:12px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
