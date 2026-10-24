@@ -60,9 +60,11 @@ async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreen
   await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
   await page.waitForFunction(() => (
     document.documentElement.dataset.theme === 'dark' &&
-    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundColor === 'rgb(16, 31, 44)'
+    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundColor === 'rgb(16, 31, 44)' &&
+    getComputedStyle(document.querySelector('.dashboard-top .button-light')).backgroundColor === 'rgb(255, 98, 71)' &&
+    getComputedStyle(document.querySelector('.dashboard-top .button-light')).color === 'rgb(255, 255, 255)'
   ), null, { timeout: 5000 });
-  pass(`${prefix} dashboard surfaces use the premium night palette`);
+  pass(`${prefix} dashboard surfaces and primary order CTA use the premium night palette`);
   await captureScreenshot(page, nightScreenshot);
   await auditResponsiveState(page, `${prefix}-night`);
 
