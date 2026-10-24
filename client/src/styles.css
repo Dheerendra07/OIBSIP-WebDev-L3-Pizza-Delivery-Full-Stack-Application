@@ -1686,7 +1686,7 @@ html[data-theme="dark"] .pizza-card-assurance svg{color:#72d3a0}
   font-weight:750;
 }
 .pizza-detail-breadcrumb button:hover{color:var(--brand,#de503d)}
-.breadcrumb-back-icon{transform:rotate(45deg)}
+.breadcrumb-back-icon{transform:rotate(180deg)}
 .pizza-detail-breadcrumb>span:last-child{color:var(--text-primary,#282522);font-weight:800}
 .pizza-detail-layout{
   display:grid;
