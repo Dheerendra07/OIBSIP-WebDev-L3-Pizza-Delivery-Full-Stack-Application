@@ -259,6 +259,62 @@ try {
     throw new Error('The premium card subtotal did not restore after returning to quantity one.');
   }
   pass('premium card quantity controls update the subtotal and restore the original price');
+
+  // Opening a live card must navigate to the richer recipe/detail page.
+  await firstPremiumCard.locator('.pizza-card-view-button').click();
+  const detailPage = page.locator('[data-pizza-detail]');
+  await detailPage.waitFor({ state: 'visible', timeout: 10_000 });
+  if (await detailPage.getAttribute('data-pizza-id') !== firstPizzaId) {
+    throw new Error('The card opened a detail page for the wrong pizza.');
+  }
+  await page.locator('.pizza-detail-media.has-photo').waitFor({ state: 'visible', timeout: 15_000 });
+  const detailData = await detailPage.evaluate((root) => ({
+    name: root.querySelector('h1')?.textContent?.trim() || '',
+    quantity: root.querySelector('.pizza-detail-quantity-wrap .pizza-card-quantity > span')?.textContent?.trim() || '',
+    price: root.querySelector('.pizza-detail-price-line strong')?.textContent?.trim() || '',
+    subtotal: root.querySelector('.pizza-detail-subtotal strong')?.textContent?.trim() || '',
+    imageLoaded: Boolean(root.querySelector('.pizza-detail-photo')?.naturalWidth > 0),
+    ingredientLabels: [...root.querySelectorAll('.pizza-detail-ingredient')].map((el) => el.textContent.trim()),
+  }));
+  if (detailData.name !== firstLivePizza.name || detailData.quantity !== '1' ||
+      detailData.price !== initialCardPricing.price || detailData.subtotal !== initialCardPricing.price ||
+      !detailData.imageLoaded ||
+      !expectedIngredientLabels.every((label) => detailData.ingredientLabels.includes(label))) {
+    throw new Error('Pizza detail page does not match the live catalog card: ' + JSON.stringify({ detailData, expectedIngredientLabels, initialCardPricing }));
+  }
+  pass('tapping a featured photo opens the correct product detail with live recipe, photo and price');
+
+  await detailPage.locator('.pizza-detail-quantity-wrap button[aria-label^="Increase "]').click();
+  await page.waitForFunction(() => {
+    const root = document.querySelector('[data-pizza-detail]');
+    return root?.querySelector('.pizza-detail-quantity-wrap .pizza-card-quantity > span')?.textContent?.trim() === '2';
+  }, null, { timeout: 5_000 });
+  const detailDoubleSubtotal = await detailPage.locator('.pizza-detail-subtotal strong').innerText();
+  if (detailDoubleSubtotal === initialCardPricing.subtotal) {
+    throw new Error('Detail-page quantity did not update its subtotal.');
+  }
+  await detailPage.locator('.pizza-detail-quantity-wrap button[aria-label^="Decrease "]').click();
+  await page.waitForFunction(() => {
+    const root = document.querySelector('[data-pizza-detail]');
+    return root?.querySelector('.pizza-detail-quantity-wrap .pizza-card-quantity > span')?.textContent?.trim() === '1';
+  }, null, { timeout: 5_000 });
+  if (await detailPage.locator('.pizza-detail-subtotal strong').innerText() !== initialCardPricing.subtotal) {
+    throw new Error('Detail-page subtotal did not restore after returning quantity to one.');
+  }
+  pass('detail-page quantity selector updates and restores the selected subtotal');
+  await captureScreenshot(page, '17-pizza-detail-mobile.png');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(150);
+  await captureScreenshot(page, '18-pizza-detail-desktop.png');
+  await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark', null, { timeout: 5_000 });
+  await captureScreenshot(page, '19-pizza-detail-night-desktop.png');
+  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light', null, { timeout: 5_000 });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await detailPage.locator('.pizza-detail-breadcrumb').getByRole('button', { name: 'Back to home', exact: true }).click();
+  await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 10_000 });
+  pass('detail-page Light/Night Mode toggles and back navigation work');
   pass('home featured cards wait for live catalog before visual capture');
   await captureScreenshot(page, '01-home-mobile.png');
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -268,27 +324,30 @@ try {
   }
   pass('desktop header shows only one sign-in action');
   await captureScreenshot(page, '02-home-desktop.png');
-  const homeEndcap = page.locator('[data-page-endcap="home"]');
-  await homeEndcap.waitFor({ state: 'visible', timeout: 15_000 });
-  const liveCatalogResponse = await page.request.get(`${webUrl}/api/catalog`, { timeout: 10_000 });
-  if (!liveCatalogResponse.ok()) throw new Error('The live catalog endpoint did not load for the home lower-page check.');
-  const liveCatalogBody = await liveCatalogResponse.json();
-  const liveFeaturedCount = Array.isArray(liveCatalogBody?.featuredPizzas) ? liveCatalogBody.featuredPizzas.length : -1;
-  const endcapLight = await homeEndcap.evaluate((el) => ({
-    itemCount: el.querySelectorAll('.page-endcap-item').length,
-    featuredCount: Number(el.dataset.featuredCount),
-    headingColor: getComputedStyle(el.querySelector('.page-endcap-main h2')).color,
-    cardColor: getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor,
+  const builderPromo = page.locator('[data-home-builder-promo]');
+  await builderPromo.waitFor({ state: 'visible', timeout: 10_000 });
+  const builderPromoState = await builderPromo.evaluate((el) => ({
+    title: el.querySelector('h3')?.textContent?.trim() || '',
+    body: el.querySelector('p')?.textContent?.trim() || '',
+    button: el.querySelector('button')?.textContent?.trim() || '',
+    proofCount: el.querySelectorAll('.custom-callout-proof span').length,
   }));
-  if (endcapLight.itemCount !== 3 || endcapLight.featuredCount !== liveFeaturedCount ||
-      endcapLight.headingColor !== 'rgb(23, 45, 61)' || endcapLight.cardColor !== 'rgba(255, 255, 255, 0.72)') {
-    throw new Error('Home lower-page cards did not reflect live catalog data or the light palette: ' + JSON.stringify({ endcapLight, liveFeaturedCount }));
+  if (!builderPromoState.title.includes('pizza made around your cravings') ||
+      !builderPromoState.body.includes('See your recipe and price') ||
+      !builderPromoState.button.includes('Create your pizza') ||
+      builderPromoState.proofCount !== 2 ||
+      await page.locator('[data-page-endcap="home"], .last-word, .callout-watermark').count() !== 0) {
+    throw new Error('Home lower section still contains decorative filler or is missing the useful builder CTA: ' + JSON.stringify(builderPromoState));
   }
   const footerNavCount = await page.locator('.footer-nav button').count();
   if (footerNavCount < 4) throw new Error('Footer is missing expected navigation shortcuts.');
-  pass('home lower-page helper cards reflect the live catalog and use the light palette');
+  if (await page.locator('.footer-brand .brand-name small').innerText() !== 'PIZZA · MADE TO ORDER') {
+    throw new Error('Footer brand tagline is not the useful product-led label.');
+  }
+  pass('home lower section uses a direct builder CTA with live ingredient and pricing value');
+  pass('generic home quote/endcap filler is removed and footer copy is product-led');
   pass('shared footer provides working navigation shortcuts');
-  await captureScreenshot(page, '15-home-endcap-light-desktop.png');
+  await captureScreenshot(page, '15-home-builder-promo-light-desktop.png');
   await auditResponsiveState(page, 'home');
 
   // The custom builder has its own option cards, recipe preview, pricing and
