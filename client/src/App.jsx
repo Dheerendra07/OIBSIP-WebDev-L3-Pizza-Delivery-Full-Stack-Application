@@ -1210,15 +1210,23 @@ function getPizzaCardIngredientLabels(pizza, catalog) {
 }
 
 function getPizzaCardPhoto(pizza, index) {
+  const name = String(pizza?.name || '').toLowerCase();
+  // Keep the four featured recipes visually distinct instead of reusing the
+  // tomato-pizza photo for every vegetarian recipe.
+  if (name.includes('margherita')) return PIZZA_CARD_PHOTOS.classic;
+  if (name.includes('garden party')) return PIZZA_CARD_PHOTOS.rustic;
+  if (name.includes('firecracker')) return PIZZA_CARD_PHOTOS.pepperoni;
+  if (name.includes('white garden')) return PIZZA_CARD_PHOTOS.mushroom;
+
   const recipe = pizza?.ingredients;
   const ingredientNames = recipe && typeof recipe === 'object'
     ? Object.entries(recipe).flatMap(([key, value]) => [key, ...(Array.isArray(value) ? value : [value])])
         .filter((value) => typeof value === 'string').join(' ')
     : '';
-  const searchable = `${pizza?.name || ''} ${ingredientNames}`.toLowerCase();
+  const searchable = `${name} ${ingredientNames}`;
   if (/(mushroom|fung|pollo|chicken)/.test(searchable)) return PIZZA_CARD_PHOTOS.mushroom;
   if (/(pepperoni|salami|sausage|jalape|chili|chilli|spicy|hot)/.test(searchable)) return PIZZA_CARD_PHOTOS.pepperoni;
-  if (/(margherita|tomato|basil|veggie|vegetable|garden|olive|corn|spinach|plant-based)/.test(searchable)) return PIZZA_CARD_PHOTOS.classic;
+  if (/(garden|veggie|vegetable|olive|corn|spinach|plant-based)/.test(searchable)) return PIZZA_CARD_PHOTOS.rustic;
   return [PIZZA_CARD_PHOTOS.classic, PIZZA_CARD_PHOTOS.rustic, PIZZA_CARD_PHOTOS.mushroom, PIZZA_CARD_PHOTOS.pepperoni][index % 4];
 }
 
