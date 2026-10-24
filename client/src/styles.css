@@ -988,3 +988,28 @@ html[data-theme="dark"] .main-nav.open button.active{background:#253544;color:#f
 @media(prefers-reduced-motion:reduce){
   html[data-theme="dark"] *,html[data-theme="dark"] *::before,html[data-theme="dark"] *::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
 }
+
+
+/* Compact, accessible day/night control in the shared header. */
+.theme-toggle{
+  width:40px;
+  height:40px;
+  flex:0 0 40px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid #ffd5cb;
+  border-radius:11px;
+  background:#fff2ee;
+  color:#c83c2a;
+  box-shadow:0 3px 10px rgba(23,45,61,.045);
+  transition:background .18s ease,border-color .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease;
+}
+.theme-toggle:hover{background:#ffe6df;border-color:#f2a99a;transform:translateY(-1px);box-shadow:0 7px 16px rgba(228,71,50,.12)}
+.theme-toggle:active{transform:translateY(0)}
+.theme-toggle[aria-pressed="true"]{background:#172d3d;color:#ffd27a;border-color:#304b5c}
+.theme-toggle[aria-pressed="true"]:hover{background:#254659;border-color:#52768b;color:#ffdfa0}
+.theme-toggle svg{flex:none}
+@media(max-width:520px){
+  .theme-toggle{width:38px;height:38px;flex-basis:38px;border-radius:10px}
+}
