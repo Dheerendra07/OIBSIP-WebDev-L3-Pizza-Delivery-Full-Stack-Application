@@ -1193,10 +1193,23 @@ const PIZZA_CARD_PHOTOS = {
   },
 };
 
+function getPizzaIngredientNames(ingredients) {
+  const asName = (item) => {
+    if (typeof item === 'string' || typeof item === 'number') return String(item).trim();
+    if (item && typeof item === 'object') return String(item.name || item.label || item.title || '').trim();
+    return '';
+  };
+  if (Array.isArray(ingredients)) return ingredients.map(asName).filter(Boolean);
+  if (!ingredients || typeof ingredients !== 'object') return [];
+  // The featured-pizza API stores ingredients as { base, sauce, cheese, vegetables }.
+  return ['base', 'sauce', 'cheese', 'vegetables']
+    .flatMap((key) => Array.isArray(ingredients[key]) ? ingredients[key] : [ingredients[key]])
+    .map(asName)
+    .filter(Boolean);
+}
+
 function getPizzaCardPhoto(pizza, index) {
-  const ingredientNames = Array.isArray(pizza?.ingredients)
-    ? pizza.ingredients.map((item) => typeof item === 'string' ? item : item?.name || item?.label || item?.title || '').join(' ')
-    : '';
+  const ingredientNames = getPizzaIngredientNames(pizza?.ingredients).join(' ');
   const searchable = `${pizza?.name || ''} ${ingredientNames}`.toLowerCase();
   if (/(mushroom|fung|pollo|chicken)/.test(searchable)) return PIZZA_CARD_PHOTOS.mushroom;
   if (/(pepperoni|salami|sausage|jalape|chili|chilli|spicy|hot)/.test(searchable)) return PIZZA_CARD_PHOTOS.pepperoni;
@@ -1210,9 +1223,7 @@ function PizzaCard({ pizza, index, onAdd, onCustomize }) {
   const [photoLoaded, setPhotoLoaded] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
   const photo = getPizzaCardPhoto(pizza, index);
-  const ingredients = Array.isArray(pizza.ingredients)
-    ? pizza.ingredients.map((item) => typeof item === 'string' ? item : item?.name || item?.label || item?.title || '').filter(Boolean)
-    : [];
+  const ingredients = getPizzaIngredientNames(pizza.ingredients);
   const unitPrice = Number(pizza.price);
   const hasPrice = pizza.price !== null && pizza.price !== undefined && pizza.price !== '' && Number.isFinite(unitPrice) && unitPrice >= 0;
   const unavailable = pizza.available === false || !hasPrice;
