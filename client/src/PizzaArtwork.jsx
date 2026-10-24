@@ -32,6 +32,41 @@ const VARIANTS = {
   },
 };
 
+const PALETTES = {
+  tomato: {
+    crust: ['#f7d39b', '#e7b16b', '#b87336'],
+    cheese: ['#fff0ba', '#f0ca66', '#dda847'],
+    outerRing: '#edc06e',
+    cheeseRim: '#f7dc8b',
+    tomato: ['#f47751', '#d94d31', '#ad3024'],
+    pepperoni: ['#d95c3e', '#a83225', '#76251d'],
+  },
+  green: {
+    crust: ['#e9d2a5', '#d1ab70', '#a87542'],
+    cheese: ['#f9e7a8', '#e0d78a', '#bdc17a'],
+    outerRing: '#d8d99a',
+    cheeseRim: '#e7e4a9',
+    tomato: ['#ef8660', '#d65a3d', '#9e3629'],
+    pepperoni: ['#cd6948', '#963e2b', '#6a3025'],
+  },
+  orange: {
+    crust: ['#e8b887', '#cf884e', '#8f4b27'],
+    cheese: ['#f8ce83', '#eea34f', '#c95c2e'],
+    outerRing: '#ef9c43',
+    cheeseRim: '#f4c26a',
+    tomato: ['#f36b42', '#d73b27', '#9f241b'],
+    pepperoni: ['#d95037', '#a1261c', '#681f18'],
+  },
+  cream: {
+    crust: ['#e2d1ad', '#c6ab7e', '#92704d'],
+    cheese: ['#fff9e7', '#f1e3c4', '#cebe9c'],
+    outerRing: '#d8c8a8',
+    cheeseRim: '#eee0be',
+    tomato: ['#f18b69', '#d96a4a', '#a34531'],
+    pepperoni: ['#bd6d54', '#8f4435', '#5f3028'],
+  },
+};
+
 const CRUST_MARKS = [
   [111, 45, 4], [158, 39, 3], [197, 58, 4], [225, 91, 3],
   [231, 143, 4], [213, 188, 3], [185, 222, 4], [139, 237, 3],
@@ -43,31 +78,32 @@ function PizzaArtwork({ variant = 'tomato', className = '' }) {
   const rawId = useId();
   const id = rawId.replace(/:/g, '');
   const toppings = VARIANTS[variant] || VARIANTS.tomato;
+  const palette = PALETTES[variant] || PALETTES.tomato;
   const cssClass = ['pizza-artwork', className].filter(Boolean).join(' ');
 
   return (
     <svg className={cssClass} viewBox="0 0 270 270" aria-hidden="true" focusable="false">
       <defs>
         <radialGradient id={id + '-crust'} cx="34%" cy="25%" r="78%">
-          <stop offset="0%" stopColor="#f8d99a" />
-          <stop offset="57%" stopColor="#eab968" />
-          <stop offset="84%" stopColor="#d4964c" />
-          <stop offset="100%" stopColor="#b97436" />
+          <stop offset="0%" stopColor={palette.crust[0]} />
+          <stop offset="57%" stopColor={palette.crust[1]} />
+          <stop offset="84%" stopColor={palette.crust[2]} />
+          <stop offset="100%" stopColor={palette.crust[2]} />
         </radialGradient>
         <radialGradient id={id + '-cheese'} cx="38%" cy="30%" r="75%">
-          <stop offset="0%" stopColor="#ffe8a1" />
-          <stop offset="68%" stopColor="#f5d26f" />
-          <stop offset="100%" stopColor="#e9b650" />
+          <stop offset="0%" stopColor={palette.cheese[0]} />
+          <stop offset="68%" stopColor={palette.cheese[1]} />
+          <stop offset="100%" stopColor={palette.cheese[2]} />
         </radialGradient>
         <radialGradient id={id + '-tomato'} cx="32%" cy="28%" r="75%">
-          <stop offset="0%" stopColor="#f47751" />
-          <stop offset="62%" stopColor="#d94d31" />
-          <stop offset="100%" stopColor="#ad3024" />
+          <stop offset="0%" stopColor={palette.tomato[0]} />
+          <stop offset="62%" stopColor={palette.tomato[1]} />
+          <stop offset="100%" stopColor={palette.tomato[2]} />
         </radialGradient>
         <radialGradient id={id + '-pepperoni'} cx="35%" cy="25%" r="75%">
-          <stop offset="0%" stopColor="#d95c3e" />
-          <stop offset="75%" stopColor="#a83225" />
-          <stop offset="100%" stopColor="#76251d" />
+          <stop offset="0%" stopColor={palette.pepperoni[0]} />
+          <stop offset="75%" stopColor={palette.pepperoni[1]} />
+          <stop offset="100%" stopColor={palette.pepperoni[2]} />
         </radialGradient>
         <clipPath id={id + '-surface'}>
           <circle cx="135" cy="132" r="96" />
@@ -76,8 +112,8 @@ function PizzaArtwork({ variant = 'tomato', className = '' }) {
 
       <ellipse cx="138" cy="150" rx="106" ry="106" fill="#4f2c1b" opacity=".13" />
       <circle cx="135" cy="132" r="111" fill={'url(#' + id + '-crust)'} stroke="#b8793d" strokeWidth="2.5" />
-      <circle cx="135" cy="132" r="101" fill="#edc06e" opacity=".8" />
-      <circle cx="135" cy="132" r="96" fill={'url(#' + id + '-cheese)'} stroke="#f7dc8b" strokeWidth="1.5" />
+      <circle cx="135" cy="132" r="101" fill={palette.outerRing} opacity=".8" />
+      <circle cx="135" cy="132" r="96" fill={'url(#' + id + '-cheese)'} stroke={palette.cheeseRim} strokeWidth="1.5" />
 
       {CRUST_MARKS.map(([x, y, r], index) => (
         <g key={'crust-' + index}>
@@ -151,7 +187,7 @@ function PizzaArtwork({ variant = 'tomato', className = '' }) {
 
         <path d="M73 105 Q96 73 124 76" fill="none" stroke="#fff1c4" strokeWidth="3" strokeLinecap="round" opacity=".26" />
       </g>
-      <circle cx="135" cy="132" r="96" fill="none" stroke="#e7b95c" strokeWidth="1.5" opacity=".7" />
+      <circle cx="135" cy="132" r="96" fill="none" stroke={palette.cheeseRim} strokeWidth="1.5" opacity=".7" />
     </svg>
   );
 }
