@@ -463,21 +463,26 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   const adminQueue = (await adminQueueResponse.json()).orders;
   assert.ok(adminQueue.some((order) => String(order.id) === String(createdOrder.id)), 'admin queue should contain the customer order');
 
-  // Admin fulfillment must follow the legal paid-order transition sequence.
-  for (const status of ['in_kitchen', 'sent_to_delivery', 'delivered']) {
-    const update = await fetch(`${base}/api/admin/orders/${createdOrder.id}/status`, {
-      method: 'PATCH',
-      headers: { ...headers, Cookie: adminCookie },
-      body: JSON.stringify({ status }),
-    });
-    assert.equal(update.status, 200, `admin should be able to move paid order to ${status}`);
-    assert.equal((await update.json()).order.status, status);
-  }
+  // A Test Mode payment is useful for validating checkout, but it must never authorize
+  // real kitchen/delivery fulfilment in production. Assert the controller blocks the
+  // transition and leaves the paid order in its initial state.
+  const testModeFulfillment = await fetch(`${base}/api/admin/orders/${createdOrder.id}/status`, {
+    method: 'PATCH',
+    headers: { ...headers, Cookie: adminCookie },
+    body: JSON.stringify({ status: 'in_kitchen' }),
+  });
+  assert.equal(testModeFulfillment.status, 409, 'a Test Mode order must not enter real fulfilment');
+  const testModeFulfillmentBody = await testModeFulfillment.json();
+  assert.match(testModeFulfillmentBody.error || '', /Real fulfillment is blocked/i);
+  const unchangedPaidOrder = await Order.findById(createdOrder.id).lean();
+  assert.equal(unchangedPaidOrder.status, 'order_received', 'blocked fulfilment must not mutate the order');
+  assert.equal(unchangedPaidOrder.paymentStatus, 'paid', 'the payment verification result must remain intact');
+
   const finalCustomerHistory = await fetch(`${base}/api/orders/my`, {
     headers: { Origin: webOrigin, Cookie: cookie },
   });
   assert.equal(finalCustomerHistory.status, 200);
-  assert.equal((await finalCustomerHistory.json()).orders[0].status, 'delivered', 'customer history should reflect admin fulfillment updates');
+  assert.equal((await finalCustomerHistory.json()).orders[0].status, 'order_received', 'customer history must retain the paid, unfulfilled Test Mode order');
 
   // Provider rejects the configured Test Mode credential pair after the database reservation is committed.
   // Verify the safe 502 diagnosis, stock-release compensation, and same-order retry recovery.
