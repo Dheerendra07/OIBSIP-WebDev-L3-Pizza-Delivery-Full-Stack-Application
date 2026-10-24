@@ -1013,3 +1013,13 @@ html[data-theme="dark"] .main-nav.open button.active{background:#253544;color:#f
 @media(max-width:520px){
   .theme-toggle{width:38px;height:38px;flex-basis:38px;border-radius:10px}
 }
+
+/* Night-mode readability for operational messages and delivery metadata. */
+html[data-theme="dark"] .pending-message{color:#ffd18a;border-top-color:#2b4353}
+html[data-theme="dark"] .inventory-header{color:#a8bcc8;border-color:#2b4353}
+html[data-theme="dark"] .payment-review-actions small,html[data-theme="dark"] .refund-status-note{color:#ffb6a4}
+html[data-theme="dark"] .order-delivery-details{background:#142633;border-left-color:#ff765b;color:#e1ebf0}
+html[data-theme="dark"] .order-delivery-details b{color:#f6f8fa}
+html[data-theme="dark"] .order-delivery-details small{color:#a8bac5}
+html[data-theme="dark"] .provider-check-message.connected{color:#8dd9a1}
+html[data-theme="dark"] .provider-check-message.error{color:#ff9588}
