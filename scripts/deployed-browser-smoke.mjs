@@ -318,7 +318,8 @@ try {
   await dialog.waitFor({ state: 'hidden', timeout: 10_000 });
   await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+  await page.locator('.main-nav.open').getByRole('button', { name: 'Sign in', exact: true }).click();
   await dialog.waitFor({ state: 'visible', timeout: 10_000 });
   const authNightState = await dialog.locator('.auth-modal').evaluate((el) => ({
     background: getComputedStyle(el).backgroundColor,
