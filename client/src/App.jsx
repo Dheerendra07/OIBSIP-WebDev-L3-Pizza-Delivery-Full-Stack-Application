@@ -1055,24 +1055,6 @@ export default function App() {
 }
 function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', featuredCount = 0, ordersCount = 0, ordersStatus = 'idle', paymentMode = 'unknown', onRefresh }) {
     const content = {
-        home: {
-            eyebrow: 'A LITTLE MORE PIZZA JOY',
-            title: catalogStatus === 'ready' ? 'Your next slice is closer than you think.' : 'Find your next favourite.',
-            description: catalogStatus === 'ready'
-                ? `${featuredCount} house favourites are loaded from the live menu. Check the recipe, current price and availability before adding a pizza to your bag.`
-                : catalogStatus === 'error'
-                    ? 'The live menu needs a refresh before prices and availability can be confirmed. You can still explore the pizza builder.'
-                    : 'The live menu is loading. Prices and availability are confirmed before checkout, not guessed from demo data.',
-            primary: 'Explore the live menu',
-            secondary: 'Build your own',
-            primaryTarget: 'menu',
-            secondaryTarget: 'builder',
-            items: [
-                { icon: ChefHat, title: catalogStatus === 'ready' ? `${featuredCount} live house favourites` : catalogStatus === 'error' ? 'Refresh the live menu' : 'Live menu loading', detail: catalogStatus === 'ready' ? 'The recipe cards above are populated from the connected catalog.' : catalogStatus === 'error' ? 'Retry the menu to load current prices and item availability.' : 'Current recipe details appear as soon as the catalog responds.' },
-                { icon: ShoppingBag, title: cartCount ? `${cartCount} item${cartCount === 1 ? '' : 's'} in your bag` : 'Your bag, whenever you are ready', detail: cartCount ? 'Your selected items stay in your bag while you check the delivery details.' : 'Add a house favourite or start with your own base, sauce, cheese and toppings.' },
-                { icon: ShieldCheck, title: paymentMode === 'test' ? 'Protected test checkout' : paymentMode === 'live' ? 'Server-verified checkout' : 'Checkout checks first', detail: paymentMode === 'test' ? 'Razorpay Test Mode only; test payments do not charge real money.' : paymentMode === 'live' ? 'The server verifies payment status before an order is treated as paid.' : 'Checkout stays guarded until the configured payment mode is confirmed.' },
-            ],
-        },
         menu: {
             eyebrow: 'A BETTER KIND OF PIZZA NIGHT',
             title: 'Good pizza, no guesswork.',
