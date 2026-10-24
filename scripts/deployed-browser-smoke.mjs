@@ -72,6 +72,10 @@ async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreen
     document.documentElement.dataset.theme === 'light' &&
     getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundColor === 'rgb(255, 255, 255)'
   ), null, { timeout: 5000 });
+  // The following logout/session checks deliberately exercise mobile navigation;
+  // leave the browser at the same 390px viewport used by the rest of this smoke.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(120);
 }
 
 try {
