@@ -50,6 +50,12 @@ async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreen
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
   }
   await page.locator('.dashboard-metrics > div').first().waitFor({ state: 'visible', timeout: 15_000 });
+  const dashboardEndcap = page.locator('[data-page-endcap="dashboard"]');
+  await dashboardEndcap.waitFor({ state: 'visible', timeout: 15_000 });
+  if (await dashboardEndcap.locator('.page-endcap-item').count() !== 3) {
+    throw new Error('Customer dashboard must show all three contextual lower-page support cards.');
+  }
+  pass('customer dashboard includes contextual support and next-step cards below order history');
   await page.waitForFunction(() =>
     getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundColor === 'rgb(255, 255, 255)',
   );
@@ -193,7 +199,12 @@ try {
   if (builderLight.background !== 'rgb(255, 255, 255)') {
     throw new Error('The builder preview did not keep its light-mode surface: ' + JSON.stringify(builderLight));
   }
-  pass('custom pizza builder renders readable recipe and price summary in light mode');
+  const builderEndcapLight = page.locator('[data-page-endcap="builder"]');
+  await builderEndcapLight.waitFor({ state: 'visible', timeout: 15_000 });
+  if ((await builderEndcapLight.locator('.page-endcap-item').count()) !== 3) {
+    throw new Error('Builder must render all three lower-page helper cards in light mode.');
+  }
+  pass('custom pizza builder and its lower-page helper cards render in light mode');
   await captureScreenshot(page, '11-builder-light-desktop.png');
   await auditResponsiveState(page, 'builder');
 
@@ -204,7 +215,14 @@ try {
     getComputedStyle(document.querySelector('.builder-summary')).backgroundColor === 'rgb(16, 30, 43)' &&
     getComputedStyle(document.querySelector('.builder-summary .summary-body h2')).color === 'rgb(243, 246, 248)'
   ), null, { timeout: 5000 });
-  pass('custom builder preview, ingredients and title use the premium night palette');
+  const builderEndcapNight = await page.locator('[data-page-endcap="builder"]').evaluate((el) => ({
+    backgroundImage: getComputedStyle(el).backgroundImage,
+    cardBackground: getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor,
+  }));
+  if (builderEndcapNight.backgroundImage === 'none' || builderEndcapNight.cardBackground !== 'rgb(16, 32, 45)') {
+    throw new Error('Builder lower-page cards are not using the night palette: ' + JSON.stringify(builderEndcapNight));
+  }
+  pass('custom builder and lower-page cards use the premium night palette');
   await captureScreenshot(page, '12-builder-night-desktop.png');
   await auditResponsiveState(page, 'builder-night');
 
@@ -273,10 +291,22 @@ try {
   await page.getByRole('button', { name: 'Explore the menu' }).click();
   await page.locator('.pizza-card').first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.getByRole('heading', { name: 'Margherita Classic', exact: true }).waitFor({ state: 'visible' });
+  const menuEndcap = page.locator('[data-page-endcap="menu"]');
+  await menuEndcap.waitFor({ state: 'visible', timeout: 15_000 });
+  if (await menuEndcap.locator('.page-endcap-item').count() !== 3) {
+    throw new Error('Menu page must show all three live-catalog and checkout helper cards.');
+  }
   await captureScreenshot(page, '03-menu-mobile.png');
   await auditResponsiveState(page, 'menu');
   await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  const menuEndcapNight = await menuEndcap.evaluate((el) => ({
+    cardBackground: getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor,
+    cardText: getComputedStyle(el.querySelector('.page-endcap-item h3')).color,
+  }));
+  if (menuEndcapNight.cardBackground !== 'rgb(16, 32, 45)' || menuEndcapNight.cardText !== 'rgb(237, 243, 246)') {
+    throw new Error('Menu lower-page cards are not readable in night mode: ' + JSON.stringify(menuEndcapNight));
+  }
   await captureScreenshot(page, '09-menu-night-mobile.png');
   await auditResponsiveState(page, 'menu-night');
   await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
@@ -287,6 +317,11 @@ try {
   await page.locator('.bag-button').click();
   await page.getByRole('heading', { name: /Your little bag of joy/i }).waitFor({ state: 'visible' });
   await page.locator('.delivery-details-panel').waitFor({ state: 'visible' });
+  const cartEndcap = page.locator('[data-page-endcap="cart"]');
+  await cartEndcap.waitFor({ state: 'visible', timeout: 15_000 });
+  if (await cartEndcap.locator('.page-endcap-item').count() !== 3) {
+    throw new Error('Bag page must show all three delivery/payment helper cards.');
+  }
   if ((await page.locator('.bag-button b').innerText()).trim() !== '1') {
     throw new Error('Adding a pizza did not update the bag count to one.');
   }
@@ -295,6 +330,8 @@ try {
   await auditResponsiveState(page, 'bag');
   await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  const cartEndcapNight = await cartEndcap.evaluate((el) => getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor);
+  if (cartEndcapNight !== 'rgb(16, 32, 45)') throw new Error('Bag lower-page cards are not using the night theme: ' + cartEndcapNight);
   await captureScreenshot(page, '10-bag-night-mobile.png');
   await auditResponsiveState(page, 'bag-night');
   await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
