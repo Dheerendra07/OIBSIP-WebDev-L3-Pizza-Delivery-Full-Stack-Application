@@ -442,8 +442,8 @@ try {
   }));
   if (homePromoNight.titleColor !== 'rgb(247, 249, 250)' ||
       homePromoNight.iconBackground !== 'rgb(27, 51, 66)' ||
-      homePromoNight.ctaBackground !== 'rgb(255, 121, 95)' ||
-      homePromoNight.ctaColor !== 'rgb(255, 255, 255)' ||
+      homePromoNight.ctaBackground !== 'rgb(255, 209, 122)' ||
+      homePromoNight.ctaColor !== 'rgb(25, 42, 52)' ||
       homePromoNight.proofCount !== 2) {
     throw new Error('Home builder CTA did not switch to the premium night palette: ' + JSON.stringify(homePromoNight));
   }
