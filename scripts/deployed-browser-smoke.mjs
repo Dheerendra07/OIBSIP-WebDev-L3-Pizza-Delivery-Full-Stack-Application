@@ -321,7 +321,7 @@ try {
   await page.getByRole('button', { name: 'Open menu', exact: true }).click();
   await page.locator('.main-nav.open').getByRole('button', { name: 'Sign in', exact: true }).click();
   await dialog.waitFor({ state: 'visible', timeout: 10_000 });
-  const authNightState = await dialog.locator('.auth-modal').evaluate((el) => ({
+  const authNightState = await dialog.evaluate((el) => ({
     background: getComputedStyle(el).backgroundColor,
     heading: getComputedStyle(el.querySelector('h2')).color,
   }));
