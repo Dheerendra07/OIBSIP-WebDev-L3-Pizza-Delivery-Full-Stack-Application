@@ -553,7 +553,224 @@ try {
     await page.getByRole('heading', { name: /Good to see you,.*Browser/i }).waitFor({ state: 'visible', timeout: 15_000 });
     pass('simulated signed-in customer session is restored after a full-page reload');
 
+    // Mock the entire order/payment boundary for a safe browser-only checkout drill.
+    // These routes never reach the live Order database or Razorpay.
+    const qaCheckoutOrderId = '64b000000000000000000099';
+    const qaFeatured = {
+      margherita: {
+        name: 'Margherita Classic',
+        unitPrice: 249,
+        ingredients: { base: 'classic', sauce: 'classic-tomato', cheese: 'mozzarella', vegetables: ['tomato'] },
+      },
+      garden: {
+        name: 'Garden Party',
+        unitPrice: 329,
+        ingredients: { base: 'thin', sauce: 'pesto', cheese: 'mozzarella', vegetables: ['capsicum', 'onion', 'mushroom', 'olive'] },
+      },
+      firecracker: {
+        name: 'Firecracker',
+        unitPrice: 359,
+        ingredients: { base: 'pan', sauce: 'spicy-arrabbiata', cheese: 'cheddar', vegetables: ['jalapeno', 'onion', 'corn'] },
+      },
+      'white-garden': {
+        name: 'White Garden',
+        unitPrice: 379,
+        ingredients: { base: 'whole-wheat', sauce: 'white-garlic', cheese: 'vegan', vegetables: ['mushroom', 'capsicum', 'tomato'] },
+      },
+    };
+    let qaCheckoutOrder = null;
+    let qaOrderCreateCalls = 0;
+    let qaOrderFetchCalls = 0;
+    let qaDeliveryPatchCalls = 0;
+    let qaPaymentCreateCalls = 0;
+    let qaVerifyCalls = 0;
+    const qaPaymentOrderIds = [];
+
+    await page.route('**/api/orders', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue();
+        return;
+      }
+      qaOrderCreateCalls += 1;
+      const body = route.request().postDataJSON();
+      if (!Array.isArray(body?.items) || body.items.length < 1 ||
+          body.items.some((line) => line.type !== 'featured' || !qaFeatured[line.pizzaId])) {
+        await route.fulfill({ status: 400, json: { error: 'Checkout QA expected a supported featured-pizza basket.' } });
+        return;
+      }
+      const items = body.items.map((line) => {
+        const pizza = qaFeatured[line.pizzaId];
+        const quantity = Number(line.quantity);
+        return {
+          name: pizza.name,
+          quantity,
+          unitPrice: pizza.unitPrice,
+          lineTotal: pizza.unitPrice * quantity,
+          ingredients: pizza.ingredients,
+        };
+      });
+      const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+      const deliveryFee = subtotal >= 499 ? 0 : 29;
+      qaCheckoutOrder = {
+        id: qaCheckoutOrderId,
+        orderNumber: 'PH-BROWSER-QA',
+        items,
+        deliveryDetails: body.deliveryDetails,
+        subtotal,
+        deliveryFee,
+        total: subtotal + deliveryFee,
+        status: 'pending_payment',
+        paymentStatus: 'pending',
+        paymentMode: 'test',
+      };
+      await route.fulfill({ status: 201, json: { order: qaCheckoutOrder, reused: false } });
+    });
+
+    await page.route(`**/api/orders/${qaCheckoutOrderId}`, async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.continue();
+        return;
+      }
+      qaOrderFetchCalls += 1;
+      await route.fulfill({ status: 200, json: { order: qaCheckoutOrder } });
+    });
+
+    await page.route(`**/api/orders/${qaCheckoutOrderId}/delivery-details`, async (route) => {
+      if (route.request().method() !== 'PATCH') {
+        await route.continue();
+        return;
+      }
+      qaDeliveryPatchCalls += 1;
+      const body = route.request().postDataJSON();
+      qaCheckoutOrder = { ...qaCheckoutOrder, deliveryDetails: body.deliveryDetails };
+      await route.fulfill({ status: 200, json: { order: qaCheckoutOrder } });
+    });
+
+    await page.route('**/api/payments/create-order', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue();
+        return;
+      }
+      qaPaymentCreateCalls += 1;
+      const body = route.request().postDataJSON();
+      qaPaymentOrderIds.push(body?.orderId);
+      if (body?.orderId !== qaCheckoutOrderId || !qaCheckoutOrder) {
+        await route.fulfill({ status: 400, json: { error: 'Checkout QA order identity mismatch.' } });
+        return;
+      }
+      if (qaPaymentCreateCalls === 1) {
+        await route.fulfill({ status: 503, json: { error: 'QA simulated Razorpay provider outage.' } });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        json: {
+          keyId: 'rzp_test_browser_mock',
+          amount: qaCheckoutOrder.total * 100,
+          currency: 'INR',
+          paymentOrderId: 'order_test_browser_mock',
+          orderNumber: qaCheckoutOrder.orderNumber,
+          orderId: qaCheckoutOrder.id,
+          customer: { name: 'Browser QA Customer', email: 'browser-qa@example.invalid', contact: '9876543210' },
+        },
+      });
+    });
+
+    await page.route('**/api/payments/verify', async (route) => {
+      if (route.request().method() === 'POST') {
+        qaVerifyCalls += 1;
+        await route.fulfill({ status: 500, json: { error: 'Checkout QA must not verify an unsuccessful payment.' } });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.evaluate(() => {
+      window.__qaRazorpayOpenCount = 0;
+      window.__qaRazorpayEvents = {};
+      window.__qaRazorpayConfigs = [];
+      window.Razorpay = function (options) {
+        window.__qaRazorpayConfigs.push({
+          key: options.key,
+          amount: options.amount,
+          currency: options.currency,
+          orderId: options.order_id,
+        });
+        this.on = (eventName, callback) => { window.__qaRazorpayEvents[eventName] = callback; };
+        this.open = () => { window.__qaRazorpayOpenCount += 1; };
+      };
+    });
+
+    await page.locator('.bag-button').click();
+    await page.getByRole('heading', { name: /Where should we send your pizza/i }).waitFor({ state: 'visible' });
+    await page.getByLabel('Recipient name').fill('Browser QA Customer');
+    await page.getByLabel('10-digit mobile number').fill('9876543210');
+    await page.getByLabel('House / street address').fill('42 Model Town Street');
+    await page.getByLabel('City').fill('Meerut');
+    await page.getByLabel('State').fill('Uttar Pradesh');
+    await page.getByLabel('6-digit PIN code').fill('250001');
+    const checkoutButton = page.getByRole('button', { name: 'Checkout securely', exact: true });
+    await checkoutButton.waitFor({ state: 'visible', timeout: 15_000 });
+    if (await checkoutButton.isDisabled()) throw new Error('Mock checkout was disabled despite a signed-in customer, live catalog and valid delivery details.');
+    const bagLineCountBeforeCheckout = await page.locator('.cart-line').count();
+    const totalBeforeCheckout = await page.locator('.price-row.final').innerText();
+
+    const firstOrderCreation = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/orders' && response.request().method() === 'POST',
+    );
+    const firstProviderAttempt = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/payments/create-order' && response.request().method() === 'POST',
+    );
+    await checkoutButton.click();
+    const firstOrderResponse = await firstOrderCreation;
+    const firstPaymentResponse = await firstProviderAttempt;
+    if (firstOrderResponse.status() !== 201 || firstPaymentResponse.status() !== 503) {
+      throw new Error('Checkout QA expected a mocked order followed by a mocked provider outage; received ' +
+        firstOrderResponse.status() + ' and ' + firstPaymentResponse.status() + '.');
+    }
+    await page.getByRole('alert').filter({ hasText: /QA simulated Razorpay provider outage/i })
+      .waitFor({ state: 'visible', timeout: 10_000 });
+    if (await page.locator('.cart-line').count() !== bagLineCountBeforeCheckout ||
+        await page.locator('.price-row.final').innerText() !== totalBeforeCheckout ||
+        qaOrderCreateCalls !== 1 || qaPaymentCreateCalls !== 1 ||
+        await page.evaluate(() => window.__qaRazorpayOpenCount) !== 0) {
+      throw new Error('Provider failure changed the bag/order unexpectedly or opened Razorpay before provider details were ready.');
+    }
+    pass('provider creation failure preserves the basket and leaves checkout safely retryable');
+
+    const retryProviderAttempt = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/payments/create-order' && response.request().method() === 'POST',
+    );
+    await checkoutButton.click();
+    const retryPaymentResponse = await retryProviderAttempt;
+    if (retryPaymentResponse.status() !== 200) {
+      throw new Error('A provider retry for the same pending order did not recover; received HTTP ' + retryPaymentResponse.status() + '.');
+    }
+    await page.waitForFunction(() => window.__qaRazorpayOpenCount === 1, null, { timeout: 5000 });
+    const razorpayConfig = await page.evaluate(() => window.__qaRazorpayConfigs.at(-1));
+    if (qaOrderCreateCalls !== 1 || qaOrderFetchCalls < 1 || qaDeliveryPatchCalls < 1 ||
+        qaPaymentCreateCalls !== 2 || qaPaymentOrderIds.some((id) => id !== qaCheckoutOrderId) ||
+        razorpayConfig?.orderId !== 'order_test_browser_mock') {
+      throw new Error('Retry created a duplicate order or opened the wrong mocked payment order.');
+    }
+    pass('checkout retry reuses the original pending order and opens only the mocked payment provider');
+
+    await page.evaluate(() => {
+      const failed = window.__qaRazorpayEvents['payment.failed'];
+      if (typeof failed !== 'function') throw new Error('Mock Razorpay did not register its payment.failed handler.');
+      failed({ error: { description: 'Browser QA simulated payment failure' } });
+    });
+    await page.getByRole('alert').filter({ hasText: /Payment failed\. You can safely retry the same order/i })
+      .waitFor({ state: 'visible', timeout: 10_000 });
+    if (qaOrderCreateCalls !== 1 || qaPaymentCreateCalls !== 2 || qaVerifyCalls !== 0 ||
+        await page.locator('.cart-line').count() !== bagLineCountBeforeCheckout ||
+        await page.locator('.price-row.final').innerText() !== totalBeforeCheckout) {
+      throw new Error('A failed mock payment triggered verification/duplicate order creation or changed the customer basket.');
+    }
+    pass('payment.failed shows safe-retry guidance without verification or duplicate order creation');
+
     const logoutResponsePromise = page.waitForResponse((response) =>
+
       new URL(response.url()).pathname === '/api/auth/logout' &&
       response.request().method() === 'POST',
     );
