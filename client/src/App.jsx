@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import { api, API_ORIGIN } from './api.js';
 import PizzaArtwork from './PizzaArtwork.jsx';
 import { getPizzaArtworkVariant } from './pizzaArtworkVariant.js';
+import { THEME_STORAGE_KEY, readThemePreference, nextTheme } from './theme.js';
 import { orderMatchesCart, classifyExistingCheckout, buildPendingCheckoutCart } from './checkout.js';
 import { normalizeDeliveryDetails, mergeRestoredDeliveryDetails } from './delivery.js';
 import { normalizeCatalogResponse, canCheckoutWithCatalog } from './catalog.js';
@@ -55,6 +56,16 @@ function Toast({ toast, onClose }) {
 
 function Field({ label, icon: Icon, ...props }) { return <label className="field"><span>{label}</span><div className="field-input">{Icon && <Icon size={17}/>}<input {...props}/></div></label>; }
 export default function App() {
+    const [theme, setTheme] = useState(() => {
+        try { return readThemePreference(window.localStorage); }
+        catch { return 'light'; }
+    });
+    useEffect(() => {
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        try { window.localStorage.setItem(THEME_STORAGE_KEY, theme); } catch { /* The visual theme still works without storage permission. */ }
+    }, [theme]);
+    const toggleTheme = () => setTheme(current => nextTheme(current));
     const [page, setPage] = useState('home');
     const [catalog, setCatalog] = useState(DEFAULT_CATALOG);
     const [featured, setFeatured] = useState(FEATURED);
@@ -983,7 +994,7 @@ export default function App() {
     <div className="announcement"><span><Sparkles size={13}/> A little joy, delivered hot.</span><span className="announcement-right">Freshly made · Always worth the wait</span></div>
     <header className="site-header" data-mobile-auth-focus="dialog-first" data-payment-provider-check="readonly-admin-v1" data-auth-toast-fix="clear-stale-toast-v1"><a className="brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>GOOD FOOD. GOOD MOOD.</small></span></a>
       <nav className={`main-nav ${mobileMenu ? 'open' : ''}`}><button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button><button className={page === 'menu' ? 'active' : ''} onClick={() => navigate('menu')}>Our menu</button><button className={page === 'builder' ? 'active' : ''} onClick={() => navigate('builder')}>Build your own</button>{user && <button className={page === 'dashboard' ? 'active' : ''} onClick={() => navigate(user.role === 'admin' ? 'admin' : 'dashboard')}>{user.role === 'admin' ? 'Admin panel' : 'My orders'}</button>}{!user && <button className="mobile-auth-link" onClick={() => { openAuth('login'); authTriggerRef.current = mobileMenuTriggerRef.current; setMobileMenu(false); }}>Sign in</button>}</nav>
-      <div className="header-actions"><button className="bag-button" onClick={() => navigate('cart')}><ShoppingBag size={18}/><span>Bag</span><b>{cart.reduce((n, x) => n + x.quantity, 0)}</b></button>{user ? <><button className="account-button" onClick={() => navigate(user.role === 'admin' ? 'admin' : 'dashboard')}><CircleUserRound size={17}/><span>{user.name.split(' ')[0]}</span></button><IconButton className="logout-button" label="Sign out" disabled={pending || Boolean(pendingVerification)} onClick={signOut}><LogOut size={17}/></IconButton></> : <button className="sign-in" onClick={() => openAuth('login')}>Sign in <ArrowUpRight size={16}/></button>}<IconButton className="mobile-toggle" label={mobileMenu ? 'Close menu' : 'Open menu'} onClick={event => { if (!mobileMenu) mobileMenuTriggerRef.current = event.currentTarget; setMobileMenu(v => !v); }}>{mobileMenu ? <X size={20}/> : <Menu size={20}/>}</IconButton></div>
+      <div className="header-actions"><button className="bag-button" onClick={() => navigate('cart')}><ShoppingBag size={18}/><span>Bag</span><b>{cart.reduce((n, x) => n + x.quantity, 0)}</b></button><button type="button" className="theme-toggle" data-theme-toggle aria-label={theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'} title={theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'} aria-pressed={theme === 'dark'} onClick={toggleTheme}>{theme === 'light' ? <Moon size={17} aria-hidden="true"/> : <Sun size={17} aria-hidden="true"/>}<span className="sr-only">{theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'}</span></button>{user ? <><button className="account-button" onClick={() => navigate(user.role === 'admin' ? 'admin' : 'dashboard')}><CircleUserRound size={17}/><span>{user.name.split(' ')[0]}</span></button><IconButton className="logout-button" label="Sign out" disabled={pending || Boolean(pendingVerification)} onClick={signOut}><LogOut size={17}/></IconButton></> : <button className="sign-in" onClick={() => openAuth('login')}>Sign in <ArrowUpRight size={16}/></button>}<IconButton className="mobile-toggle" label={mobileMenu ? 'Close menu' : 'Open menu'} onClick={event => { if (!mobileMenu) mobileMenuTriggerRef.current = event.currentTarget; setMobileMenu(v => !v); }}>{mobileMenu ? <X size={20}/> : <Menu size={20}/>}</IconButton></div>
     </header>
 
     <main>
