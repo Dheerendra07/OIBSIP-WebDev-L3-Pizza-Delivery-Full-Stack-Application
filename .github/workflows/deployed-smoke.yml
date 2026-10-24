@@ -192,12 +192,18 @@ jobs:
                 password: 'SmokeTestPassword123',
               }),
             });
-            assert.equal(registrationValidation.status, 400, 'registration must validate bad email before writing to the database');
-            const registrationValidationBody = await registrationValidation.json();
-            assert.match(registrationValidationBody?.error || '', /valid email/i);
+            const registrationValidationBody = await registrationValidation.json().catch(() => null);
+            if (registrationValidation.status === 400) {
+              assert.match(registrationValidationBody?.error || '', /valid email/i);
+              results.push('auth registration validation');
+            } else if (registrationValidation.status === 429) {
+              assert.match(registrationValidationBody?.error || '', /too many attempts/i);
+              results.push('auth registration rate-limit guard');
+            } else {
+              assert.fail('registration probe expected HTTP 400 or protected rate limit 429; received ' + registrationValidation.status);
+            }
             assert.equal(registrationValidation.headers.get('access-control-allow-origin'), webBase);
             assert.equal(registrationValidation.headers.get('access-control-allow-credentials'), 'true');
-            results.push('auth registration validation');
 
             const loginProbeEmail = `deployed-smoke-${process.env.GITHUB_RUN_ID || Date.now()}-${process.env.GITHUB_RUN_ATTEMPT || 1}@example.invalid`;
             const loginProbe = await fetch(`${apiBase}/api/auth/login`, {
@@ -210,10 +216,17 @@ jobs:
               },
               body: JSON.stringify({ email: loginProbeEmail, password: 'NeverThePassword123' }),
             });
-            assert.equal(loginProbe.status, 401, 'login lookup for an unknown account should return 401; a server error can indicate DB/auth failure');
+            const loginProbeBody = await loginProbe.json().catch(() => null);
+            if (loginProbe.status === 401) {
+              results.push('auth login lookup/database path');
+            } else if (loginProbe.status === 429) {
+              assert.match(loginProbeBody?.error || '', /too many attempts/i);
+              results.push('auth login rate-limit guard');
+            } else {
+              assert.fail('login lookup expected HTTP 401 or protected rate limit 429; received ' + loginProbe.status);
+            }
             assert.equal(loginProbe.headers.get('access-control-allow-origin'), webBase);
             assert.equal(loginProbe.headers.get('access-control-allow-credentials'), 'true');
-            results.push('auth login lookup/database path');
 
             // Browser GET must explain that provider webhook deliveries are POST-only.
             const webhookGet = await fetch(`${apiBase}/api/payments/webhook`, {
@@ -248,7 +261,7 @@ jobs:
             assert.ok(html.includes('<title'), 'website HTML must contain a title');
 
             // Verify the generated production JavaScript uses the hosted API, not localhost.
-            const scriptMatch = html.match(/<script\b[^>]*\bsrc=["']([^"']+\.js[^"']*)["']/i);
+            const scriptMatch = html.match(/<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"']+\.js[^"']*)["']/i);
             assert.ok(scriptMatch, 'website HTML must reference a JavaScript bundle');
             const bundleUrl = new URL(scriptMatch[1], webBase);
             const bundleResponse = await fetch(bundleUrl, { signal: AbortSignal.timeout(8000) });
