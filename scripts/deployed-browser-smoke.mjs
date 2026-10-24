@@ -188,12 +188,17 @@ try {
   );
   await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
   const loginResponse = await loginResponsePromise;
-  if (loginResponse.status() !== 401) {
-    throw new Error(`A sign-in probe for a deliberately nonexistent account returned HTTP ${loginResponse.status()}, expected 401.`);
+  if (loginResponse.status() === 401) {
+    await page.getByRole('alert').filter({ hasText: /Email or password is incorrect/i })
+      .waitFor({ state: 'visible', timeout: 10_000 });
+    pass('invalid-credential response reaches the browser accessibly');
+  } else if (loginResponse.status() === 429) {
+    await page.getByRole('alert').filter({ hasText: /Too many attempts\. Please try again later\./i })
+      .waitFor({ state: 'visible', timeout: 10_000 });
+    pass('auth rate-limit response reaches the browser accessibly');
+  } else {
+    throw new Error('A sign-in probe for a deliberately nonexistent account returned HTTP ' + loginResponse.status() + '; expected 401 or the configured auth rate limit 429.');
   }
-  await page.getByRole('alert').filter({ hasText: /Email or password is incorrect/i })
-    .waitFor({ state: 'visible', timeout: 10_000 });
-  pass('live sign-in API error reaches the browser accessibly');
 
   // Inspect signup UI only. Do not create a production account or send an email.
   await dialog.getByRole('button', { name: 'Create an account', exact: true }).click();
