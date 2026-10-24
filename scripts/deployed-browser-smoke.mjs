@@ -122,7 +122,7 @@ try {
   // Wait for the actual visual release, not only older UI markers. This prevents
   // a green smoke run against a previous Render instance while a deploy is rolling out.
   let mobileSignInReady = false;
-  let premiumVisualState = { variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, interactiveCardCount: 0 };
+  let premiumVisualState = { variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0 };
   for (let attempt = 1; attempt <= 20; attempt += 1) {
     await page.goto(webUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 30_000 });
@@ -153,6 +153,11 @@ try {
         card.querySelector('.add-button:not(:disabled)') &&
         card.querySelector('.customize-link'),
       ).length;
+      const ingredientCardCount = cards.filter((card) => {
+        const chips = [...card.querySelectorAll('.pizza-card-ingredients .pizza-ingredient-chip:not(.ingredient-more)')]
+          .map((chip) => chip.textContent.trim());
+        return chips.length > 0 && chips.every((chip) => chip && chip !== 'House recipe');
+      }).length;
       const primary = document.querySelector('.hero .button-dark');
       const footer = document.querySelector('.site-footer');
       return {
@@ -162,13 +167,15 @@ try {
         premiumCardCount: cards.length,
         loadedPhotoCount,
         interactiveCardCount,
+        ingredientCardCount,
       };
-    }).catch(() => ({ variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, interactiveCardCount: 0 }));
+    }).catch(() => ({ variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0 }));
 
     if (releaseMarkersReady &&
         premiumVisualState.premiumCardCount >= 3 &&
         premiumVisualState.loadedPhotoCount >= 3 &&
         premiumVisualState.interactiveCardCount >= 3 &&
+        premiumVisualState.ingredientCardCount >= premiumVisualState.premiumCardCount &&
         premiumVisualState.variantCount >= 3 &&
         premiumVisualState.primaryColor === 'rgb(228, 71, 50)' &&
         premiumVisualState.footerColor === 'rgb(16, 39, 55)') {
@@ -179,7 +186,8 @@ try {
     console.log(
       '[WAIT] waiting for premium photo-card release (' + attempt + '/20; cards=' +
       premiumVisualState.premiumCardCount + '; loadedPhotos=' + premiumVisualState.loadedPhotoCount +
-      '; interactive=' + premiumVisualState.interactiveCardCount + '; variants=' +
+      '; interactive=' + premiumVisualState.interactiveCardCount +
+      '; ingredientCards=' + premiumVisualState.ingredientCardCount + '; variants=' +
       premiumVisualState.variantCount + '; CTA=' + premiumVisualState.primaryColor +
       '; footer=' + premiumVisualState.footerColor + ')',
     );
@@ -190,11 +198,37 @@ try {
   }
   pass('production publishes three distinct premium photo cards with all three food photos loaded');
   pass('premium cards expose working quantity, catalog-price, subtotal and cart controls');
+  pass('every premium card shows real ingredient names instead of the fallback label');
   pass('primary CTA uses tomato red and the footer uses the navy brand surface');
 
   await page.locator('[data-pizza-card-version="premium-photo-v1"]').first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.getByRole('heading', { name: 'Margherita Classic', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
   const firstPremiumCard = page.locator('[data-pizza-card-version="premium-photo-v1"]').first();
+
+  const liveMenuResponse = await page.request.get(`${webUrl}/api/catalog`, { timeout: 10_000 });
+  if (!liveMenuResponse.ok()) throw new Error('The live catalog endpoint failed during ingredient chip verification.');
+  const liveMenu = await liveMenuResponse.json();
+  const firstPizzaId = await firstPremiumCard.getAttribute('data-pizza-id');
+  const firstLivePizza = liveMenu?.featuredPizzas?.find((pizza) => pizza.id === firstPizzaId);
+  if (!firstLivePizza || !liveMenu?.catalog) throw new Error('Could not match the first featured card to the live catalog API.');
+
+  const catalogOptionName = (group, id) => liveMenu.catalog[group]?.find((option) => option.id === id)?.name || '';
+  const recipe = firstLivePizza.ingredients || {};
+  const expectedIngredientLabels = [
+    catalogOptionName('bases', recipe.base),
+    catalogOptionName('sauces', recipe.sauce),
+    catalogOptionName('cheeses', recipe.cheese),
+    ...(Array.isArray(recipe.vegetables) ? recipe.vegetables.map((id) => catalogOptionName('vegetables', id)) : []),
+  ].filter(Boolean).slice(0, 4);
+  const renderedIngredientLabels = (await firstPremiumCard.locator('.pizza-card-ingredients .pizza-ingredient-chip:not(.ingredient-more)').allInnerTexts())
+    .map((label) => label.trim());
+  if (expectedIngredientLabels.length === 0 ||
+      JSON.stringify(renderedIngredientLabels) !== JSON.stringify(expectedIngredientLabels)) {
+    throw new Error('Featured ingredient chips do not match the live API recipe and catalog names: ' +
+      JSON.stringify({ expectedIngredientLabels, renderedIngredientLabels, firstPizzaId }));
+  }
+  pass('featured ingredient chips match the live API recipe IDs and catalog names');
+
   const initialCardPricing = await firstPremiumCard.evaluate((card) => ({
     quantity: card.querySelector('.pizza-card-quantity > span')?.textContent?.trim() || '',
     price: card.querySelector('.pizza-card-price strong')?.textContent?.trim() || '',
