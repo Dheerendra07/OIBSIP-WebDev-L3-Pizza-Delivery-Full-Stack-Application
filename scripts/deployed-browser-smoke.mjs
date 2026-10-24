@@ -141,6 +141,42 @@ try {
   await captureScreenshot(page, '02-home-desktop.png');
   await auditResponsiveState(page, 'home');
 
+  // The custom builder has its own option cards, recipe preview, pricing and
+  // quantity controls. Audit it in both themes instead of assuming home styles
+  // prove every product surface is readable.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole('button', { name: 'Build your own', exact: true }).click();
+  await page.getByRole('heading', { name: /The art of your slice/i }).waitFor({ state: 'visible', timeout: 15_000 });
+  await page.locator('.builder-summary').waitFor({ state: 'visible', timeout: 15_000 });
+  await page.getByRole('heading', { name: 'Your masterpiece.' }).waitFor({ state: 'visible' });
+  const builderLight = await page.locator('.builder-summary').evaluate((el) => ({
+    background: getComputedStyle(el).backgroundColor,
+    heading: getComputedStyle(el.querySelector('.summary-body h2')).color,
+  }));
+  if (builderLight.background !== 'rgb(255, 255, 255)') {
+    throw new Error('The builder preview did not keep its light-mode surface: ' + JSON.stringify(builderLight));
+  }
+  pass('custom pizza builder renders readable recipe and price summary in light mode');
+  await captureScreenshot(page, '11-builder-light-desktop.png');
+  await auditResponsiveState(page, 'builder');
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
+  await page.waitForFunction(() => (
+    document.documentElement.dataset.theme === 'dark' &&
+    getComputedStyle(document.querySelector('.builder-summary')).backgroundColor === 'rgb(16, 30, 43)' &&
+    getComputedStyle(document.querySelector('.builder-summary .summary-body h2')).color === 'rgb(243, 246, 248)'
+  ), null, { timeout: 5000 });
+  pass('custom builder preview, ingredients and title use the premium night palette');
+  await captureScreenshot(page, '12-builder-night-desktop.png');
+  await auditResponsiveState(page, 'builder-night');
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 15_000 });
+
   const initialTheme = await page.evaluate(() => ({
     theme: document.documentElement.dataset.theme,
     stored: window.localStorage.getItem('pizza-house-theme'),
