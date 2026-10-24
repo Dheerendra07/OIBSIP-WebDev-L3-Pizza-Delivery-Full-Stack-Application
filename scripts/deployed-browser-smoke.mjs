@@ -585,6 +585,7 @@ try {
     let qaPaymentCreateCalls = 0;
     let qaVerifyCalls = 0;
     const qaPaymentOrderIds = [];
+    const qaVerifyBodies = [];
 
     await page.route('**/api/orders', async (route) => {
       if (route.request().method() !== 'POST') {
@@ -679,7 +680,15 @@ try {
     await page.route('**/api/payments/verify', async (route) => {
       if (route.request().method() === 'POST') {
         qaVerifyCalls += 1;
-        await route.fulfill({ status: 500, json: { error: 'Checkout QA must not verify an unsuccessful payment.' } });
+        qaVerifyBodies.push(route.request().postDataJSON());
+        if (qaVerifyCalls === 1) {
+          await route.fulfill({ status: 503, json: { error: 'QA simulated temporary verification outage.' } });
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          json: { order: { id: qaCheckoutOrderId, orderNumber: qaCheckoutOrder.orderNumber, status: 'order_received', paymentStatus: 'paid', paymentReviewRequired: false } },
+        });
         return;
       }
       await route.continue();
@@ -695,6 +704,7 @@ try {
           amount: options.amount,
           currency: options.currency,
           orderId: options.order_id,
+          handler: options.handler,
         });
         this.on = (eventName, callback) => { window.__qaRazorpayEvents[eventName] = callback; };
         this.open = () => { window.__qaRazorpayOpenCount += 1; };
@@ -768,6 +778,70 @@ try {
       throw new Error('A failed mock payment triggered verification/duplicate order creation or changed the customer basket.');
     }
     pass('payment.failed shows safe-retry guidance without verification or duplicate order creation');
+
+    // Retrying checkout after a failed attempt must still use the existing order;
+    // then simulate a paid response while verification is temporarily unavailable.
+    const secondCheckoutAttempt = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/payments/create-order' && response.request().method() === 'POST',
+    );
+    await checkoutButton.click();
+    const secondCheckoutResponse = await secondCheckoutAttempt;
+    if (secondCheckoutResponse.status() !== 200) {
+      throw new Error('Retry after payment.failed did not reopen the same mocked checkout; received HTTP ' + secondCheckoutResponse.status() + '.');
+    }
+    await page.waitForFunction(() => window.__qaRazorpayOpenCount === 2, null, { timeout: 5000 });
+    const secondRazorpayConfig = await page.evaluate(() => window.__qaRazorpayConfigs.at(-1));
+    if (qaOrderCreateCalls !== 1 || qaPaymentCreateCalls !== 3 ||
+        qaPaymentOrderIds.some((id) => id !== qaCheckoutOrderId) ||
+        secondRazorpayConfig?.orderId !== 'order_test_browser_mock') {
+      throw new Error('Retry after payment.failed created a second order or changed the provider order ID.');
+    }
+
+    const mockPaidResponse = {
+      razorpay_order_id: 'order_test_browser_mock',
+      razorpay_payment_id: 'pay_test_browser_mock',
+      razorpay_signature: 'a'.repeat(64),
+    };
+    const firstVerificationResponse = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/payments/verify' && response.request().method() === 'POST',
+    );
+    await page.evaluate((response) => {
+      const handler = window.__qaRazorpayConfigs.at(-1)?.handler;
+      if (typeof handler !== 'function') throw new Error('Mock Razorpay did not retain its payment success handler.');
+      handler(response);
+    }, mockPaidResponse);
+    const firstVerification = await firstVerificationResponse;
+    if (firstVerification.status() !== 503 || qaVerifyCalls !== 1) {
+      throw new Error('The simulated paid response did not hit the expected temporary verification outage.');
+    }
+    await page.locator('.payment-retry-panel').waitFor({ state: 'visible', timeout: 10_000 });
+    await page.locator('.payment-retry-panel').getByRole('button', { name: 'Retry payment confirmation', exact: true })
+      .waitFor({ state: 'visible', timeout: 10_000 });
+    await page.getByRole('alert').filter({ hasText: /Payment confirmation is incomplete\. Do not pay again yet/i })
+      .waitFor({ state: 'visible', timeout: 10_000 });
+    if (qaOrderCreateCalls !== 1 || qaPaymentCreateCalls !== 3 ||
+        await page.locator('.cart-line').count() !== bagLineCountBeforeCheckout ||
+        await page.locator('.price-row.final').innerText() !== totalBeforeCheckout) {
+      throw new Error('Verification outage lost the customer basket or caused a duplicate order/payment attempt.');
+    }
+    pass('verification outage persists a same-payment recovery action and explicitly warns not to pay again');
+
+    const retryVerificationResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/payments/verify' && response.request().method() === 'POST',
+    );
+    await page.locator('.payment-retry-panel').getByRole('button', { name: 'Retry payment confirmation', exact: true }).click();
+    const retriedVerification = await retryVerificationResponsePromise;
+    if (retriedVerification.status() !== 200) {
+      throw new Error('Retry payment confirmation did not recover from a transient verification outage; received HTTP ' + retriedVerification.status() + '.');
+    }
+    await page.getByRole('heading', { name: /Good to see you,.*Browser/i }).waitFor({ state: 'visible', timeout: 15_000 });
+    if (qaVerifyCalls !== 2 || JSON.stringify(qaVerifyBodies[0]) !== JSON.stringify(qaVerifyBodies[1]) ||
+        qaOrderCreateCalls !== 1 || qaPaymentCreateCalls !== 3 ||
+        qaVerifyBodies[1]?.orderId !== qaCheckoutOrderId ||
+        qaVerifyBodies[1]?.razorpay_payment_id !== mockPaidResponse.razorpay_payment_id) {
+      throw new Error('Verification retry did not resend the exact same payment confirmation or created a duplicate order/payment.');
+    }
+    pass('payment confirmation retry resends the same payment proof and completes without another charge attempt');
 
     const logoutResponsePromise = page.waitForResponse((response) =>
 
