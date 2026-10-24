@@ -134,6 +134,10 @@ try {
   await captureScreenshot(page, '01-home-mobile.png');
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.waitForTimeout(200);
+  if (await page.locator('.main-nav .mobile-auth-link').isVisible()) {
+    throw new Error('Mobile-only sign-in link must stay hidden in the desktop navigation.');
+  }
+  pass('desktop header shows only one sign-in action');
   await captureScreenshot(page, '02-home-desktop.png');
   await auditResponsiveState(page, 'home');
 
