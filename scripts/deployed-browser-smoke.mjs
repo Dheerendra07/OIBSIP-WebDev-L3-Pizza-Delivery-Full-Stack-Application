@@ -83,6 +83,10 @@ try {
   for (let attempt = 1; attempt <= 20; attempt += 1) {
     await page.goto(webUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 30_000 });
+    // Catalog data is asynchronous. Never infer a missing visual variant while
+    // cards are still loading; wait for at least one live product and the known first item.
+    await page.locator('.pizza-card').first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    await page.getByRole('heading', { name: 'Margherita Classic', exact: true }).waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
 
     const releaseMarkersReady =
       (await page.locator('.mobile-auth-link').count() === 1) &&
