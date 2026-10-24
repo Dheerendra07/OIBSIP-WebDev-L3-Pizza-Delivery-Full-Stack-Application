@@ -1028,6 +1028,7 @@ export default function App() {
     {page === 'dashboard' && <section className="section-wrap page-section"><div className="dashboard-top"><div><div className="eyebrow">YOUR PIZZA DIARY</div><h1>Good to see you, <em>{user?.name?.split(' ')[0] || 'friend'}.</em></h1><p>Every great day deserves a great slice.</p></div><button className="button button-light" onClick={() => navigate('menu')}>Order something lovely <ArrowRight size={16}/></button></div>{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <DashboardMetricSkeleton/> : <div className="dashboard-metrics"><div><span>ORDERS MADE</span><strong>{ordersStatus === 'ready' ? orders.length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'And counting' : 'Not available'}</small></div><div><span>ON THE WAY</span><strong>{ordersStatus === 'ready' ? orders.filter(o => ['order_received', 'in_kitchen', 'sent_to_delivery'].includes(o.status)).length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'Good things incoming' : 'Not available'}</small></div><div><span>YOUR LAST ORDER</span><strong>{ordersStatus === 'ready' && orders[0] ? currency(orders[0].total) : '—'}</strong><small>{ordersStatus === 'ready' ? orders[0]?.orderNumber || 'Your first slice awaits' : 'Not available'}</small></div></div>}<div className="section-heading dashboard-heading"><div><h2>Order <em>updates.</em></h2><p>We’ll keep you in the loop. This list refreshes automatically.</p></div><button className="text-link" onClick={refreshOrders}><RefreshCw size={15}/> Refresh</button></div>{ordersError && ordersStatus === 'ready' && <InlineDataWarning message={ordersError} onRetry={refreshOrders} />}{issuesError && <InlineDataWarning message={issuesError} onRetry={refreshIssues} />}{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <OrderListSkeleton count={2}/> : ordersStatus === 'error' ? <DataUnavailable title="Your orders haven’t loaded" message="We couldn’t confirm your order history. Please retry instead of assuming there are no orders." onRetry={refreshOrders}/> : orders.length ? <div className="orders-list">{orders.map(order => <OrderCard key={order.id} order={order} onReorder={repeatOrder} onResumePayment={resumePendingPayment} pending={pending} issue={issues.find(item => item.orderId === order.id)} onReportIssue={openIssueReport} onRefreshIssues={refreshIssues}/>)}</div> : <div className="empty-state compact-empty"><div className="empty-art">🥡</div><h2>The first one’s always special.</h2><p>Place an order and watch the magic happen here.</p><button className="button button-dark" onClick={() => navigate('menu')}>Explore the menu <ArrowRight size={17}/></button></div>}</section>}
 
     {page === 'admin' && <section className="section-wrap page-section admin-page"><div className="admin-heading"><div><div className="eyebrow">BEHIND THE COUNTER</div><h1>Good food takes <em>good care.</em></h1><p>Live order events refresh the queue. Use Refresh data to recheck inventory and payment status.</p></div><button className="button button-light" onClick={refreshAdmin}><RefreshCw size={16}/> Refresh data</button></div>{!user || user.role !== 'admin' ? <div className="empty-state"><div className="empty-art">🔐</div><h2>Admin access only.</h2><p>Sign in through the separate admin sign-in flow.</p><button className="button button-dark" onClick={() => openAuth('admin')}>Admin sign in <ArrowRight size={16}/></button></div> : (adminStatus === 'loading' || adminStatus === 'idle') ? <AdminPanelsSkeleton/> : adminStatus === 'error' ? <DataUnavailable title="Operations data isn’t available" message="Inventory, order and payment-review data could not be confirmed. Retry to load the live dashboard." onRetry={refreshAdmin}/> : <>{adminError && <InlineDataWarning message={adminError} onRetry={refreshAdmin}/>}<div className="admin-metrics">{[{ label: 'Total orders', value: adminData.summary?.ordersTotal ?? '—', icon: ShoppingBag }, { label: 'Paid orders', value: adminData.summary?.paidOrders ?? '—', icon: BadgeCheck }, { label: 'Revenue', value: currency(adminData.summary?.revenue), icon: ArrowUpRight }, { label: 'Low-stock items', value: adminData.summary?.lowStock ?? '—', icon: Boxes }].map(item => <div className="admin-metric" key={item.label}><span><item.icon size={17}/>{item.label}</span><strong>{item.value}</strong></div>)}</div><div className="admin-panel payment-provider-panel"><div className="panel-heading"><div><h2>Razorpay {paymentMode === 'live' ? 'Live Mode' : paymentMode === 'test' ? 'Test Mode' : 'Payment'} connection</h2><p>Verify the configured API key pair with a read-only request. No order, payment, or refund is created.</p></div><button type="button" className="button button-light small-button" disabled={paymentProviderCheck.status === 'loading'} onClick={checkPaymentProvider}>{paymentProviderCheck.status === 'loading' ? 'Checking…' : 'Check connection'}</button></div><p className={`provider-check-message ${paymentProviderCheck.status}`} role={paymentProviderCheck.status === 'error' ? 'alert' : 'status'} aria-live={paymentProviderCheck.status === 'error' ? 'assertive' : 'polite'}>{paymentProviderCheck.status === 'connected' ? `Connected to Razorpay ${(paymentProviderCheck.mode || paymentMode) === 'live' ? 'Live' : 'Test'} Mode at ${new Date(paymentProviderCheck.checkedAt).toLocaleString()}. Webhook delivery is a separate check.` : paymentProviderCheck.status === 'error' ? paymentProviderCheck.message : paymentProviderCheck.status === 'loading' ? 'Checking the provider with a read-only request…' : 'Not checked yet. This check does not create a payment, charge, order, or refund.'}</p></div><div className="admin-panel"><div className="panel-heading"><div><h2>Inventory room</h2><p>Update stock counts and per-item alert thresholds.</p></div><Boxes size={20}/></div><div className="inventory-table"><div className="inventory-row inventory-header"><span>Item</span><span>In stock</span><span>Alert at</span><span>State</span></div>{adminData.inventory.length ? adminData.inventory.map(item => <InventoryRow key={item.key} item={item} onSave={updateInventory}/>) : <div className="empty-small">No inventory items were returned by the API.</div>}</div></div><div className="admin-panel"><div className="panel-heading"><div><h2>Payment review queue</h2><p>Signed webhook events needing manual reconciliation.</p></div><ShieldCheck size={20}/></div>{adminData.paymentReviews.length ? <div className="payment-review-list">{adminData.paymentReviews.map(event => <article className="payment-review-event" key={event.eventId}><div><strong>{event.eventType}</strong><small>{event.order?.orderNumber || 'Unmatched provider order'} · {new Date(event.receivedAt).toLocaleString()}</small></div><p>{event.reason?.replaceAll('_', ' ') || 'Manual review required'}</p><small>Provider order: {event.providerOrderId || 'not supplied'} · Payment: {event.paymentId || 'not supplied'}</small><small>Event ID: {event.eventId}</small>{event.order?.refundStatus === 'pending' && <p className="refund-status-note">Refund pending with Razorpay. Do not submit another refund.</p>}{event.order?.refundStatus === 'failed' && <p className="refund-status-note">Refund failed or was rejected. Manual provider review is required.</p>}{event.order?.id && event.order.status === 'payment_review' && event.order.paymentReviewRequired && event.order.paymentStatus === 'paid' && event.paymentId === event.order.razorpayPaymentId && event.reason !== 'multiple_captured_payments_for_order' && !adminData.paymentReviews.some(item => item.order?.id === event.order.id && item.paymentId && item.paymentId !== item.order?.razorpayPaymentId) && !['pending', 'processed', 'failed'].includes(event.order.refundStatus || 'none') && <div className="payment-review-actions"><small>{event.order.refundStatus === 'requested' ? 'A retry reuses the same provider idempotency key.' : 'Use only after reviewing the captured-payment exception.'}</small><button type="button" className="button button-light small-button" disabled={pendingRefundOrderId === event.order.id} onClick={() => requestReviewRefund(event)}>{pendingRefundOrderId === event.order.id ? 'Submitting…' : event.order.refundStatus === 'requested' ? 'Retry safely' : 'Issue full refund'}</button></div>}</article>)}</div> : <div className="empty-small">No payment webhook reviews are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Customer issue cases</h2><p>Track missing items, wrong items, quality concerns and delivery delays. Customer messages are visible to the customer.</p></div><MessageCircle size={20}/></div>{adminData.issues.length ? <div className="issue-case-list">{adminData.issues.map(issue => <AdminIssueCard key={issue.id} issue={issue} pending={pendingAdminIssueId === issue.id} onUpdate={updateIssue}/>)}</div> : <div className="empty-small">No customer issue reports are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Incoming orders</h2><p>Move paid orders through the kitchen and delivery.</p></div><ShoppingBag size={20}/></div>{adminData.orders.length ? <div className="orders-list">{adminData.orders.map(order => <OrderCard key={order.id} order={order} admin onStatus={updateStatus}/>)}</div> : <div className="empty-small">No orders have come in yet.</div>}</div></>}</section>}
+    {['menu', 'builder', 'cart', 'dashboard', 'admin'].includes(page) && <PageEndcap page={page} navigate={navigate} cartCount={cart.reduce((n, item) => n + item.quantity, 0)} catalogStatus={catalogStatus} ordersCount={orders.length} ordersStatus={ordersStatus} paymentMode={paymentMode} onRefresh={refreshAdmin}/>}
     </main>
     <footer className="site-footer"><div className="footer-main"><a className="brand footer-brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>GOOD FOOD. GOOD MOOD.</small></span></a><p>Made for the good days.<br />And the days that need a little help.</p><button className="back-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Back to the top <ArrowUpRight size={16}/></button></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Pizza House. Made with a little extra cheese.</span><div><span>Fresh food, honest ingredients</span><span className="footer-dot">·</span><span>Secure payments</span></div></div></footer>
     <Toast toast={toast} onClose={() => setToast(null)}/>
@@ -1036,6 +1037,124 @@ export default function App() {
     {authMode && <div className="modal-backdrop" role="presentation" onMouseDown={e => e.target === e.currentTarget && setAuthMode(null)}><div className="auth-modal" ref={authDialogRef} role="dialog" aria-modal="true" aria-labelledby="auth-title" tabIndex={-1}><IconButton className="modal-close" label="Close dialog" onClick={() => setAuthMode(null)}><X size={19}/></IconButton><div className="auth-brand-mark">P<span>.</span></div><div className="eyebrow">{authMode === 'admin' ? 'TEAM ACCESS' : 'COME ON IN'}</div><h2 id="auth-title">{authMode === 'register' ? 'Make yourself at home.' : authMode === 'forgot' ? 'A fresh start.' : authMode === 'reset' ? 'New password, new slice.' : authMode === 'admin' ? 'Welcome back, team.' : 'Your table is waiting.'}</h2><p>{authMode === 'register' ? 'Create an account to follow every lovely order.' : authMode === 'forgot' ? 'We’ll send a secure reset link if your account exists.' : authMode === 'reset' ? 'Choose a strong new password to get back in.' : authMode === 'admin' ? 'Sign in with your separately provisioned admin account.' : 'Sign in for order updates and a little more pizza joy.'}</p><form onSubmit={submitAuth}>{authMode === 'register' && <Field label="Your name" icon={UserRound} placeholder="How should we call you?" autoComplete="name" required minLength={2} maxLength={80} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/>}{authMode === 'forgot' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={emailOnly} onChange={e => setEmailOnly(e.target.value)}/>}{!['forgot'].includes(authMode) && authMode !== 'reset' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/>}{(authMode === 'login' || authMode === 'register' || authMode === 'admin' || authMode === 'reset') && <Field label={authMode === 'reset' ? 'New password' : 'Password'} icon={LockKeyhole} type="password" placeholder={authMode === 'reset' ? '10+ characters, mixed case and a number' : 'At least 10 characters'} required minLength={10} autoComplete={authMode === 'login' || authMode === 'admin' ? 'current-password' : 'new-password'} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}/>}{authMode === 'login' && <button type="button" className="forgot-link" onClick={() => setAuthMode('forgot')}>Forgot password?</button>}<button disabled={pending} className="button button-dark full-button auth-submit">{pending ? <LoaderCircle size={17} className="spin"/> : authMode === 'reset' ? <LockKeyhole size={17}/> : authMode === 'forgot' ? <Mail size={17}/> : authMode === 'admin' ? <ShieldCheck size={17}/> : authMode === 'register' ? <UserRound size={17}/> : <LogIn size={17}/>} {pending ? 'Please wait…' : authMode === 'register' ? 'Create my account' : authMode === 'forgot' ? 'Send reset link' : authMode === 'reset' ? 'Update password' : authMode === 'admin' ? 'Sign in as admin' : 'Sign in'}</button></form>{authMode === 'login' ? <div className="auth-switch">New around here? <button onClick={() => setAuthMode('register')}>Create an account</button><button className="admin-link" onClick={() => setAuthMode('admin')}>Team sign in</button></div> : authMode === 'register' ? <div className="auth-switch">Already part of the house? <button onClick={() => setAuthMode('login')}>Sign in</button></div> : authMode === 'admin' ? <div className="auth-switch">Customer account? <button onClick={() => setAuthMode('login')}>Customer sign in</button></div> : <div className="auth-switch"><button onClick={() => setAuthMode('login')}>Back to sign in</button></div>}<small className="auth-privacy"><ShieldCheck size={13}/> Your details stay protected. We never store card numbers.</small></div></div>}
   </div>;
 }
+function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', ordersCount = 0, ordersStatus = 'idle', paymentMode = 'unknown', onRefresh }) {
+    const content = {
+        menu: {
+            eyebrow: 'A BETTER KIND OF PIZZA NIGHT',
+            title: 'Good pizza, no guesswork.',
+            description: catalogStatus === 'ready'
+                ? 'Menu prices and availability are connected to the live catalog. Pick a house favourite or build a combination that feels like yours.'
+                : 'Choose your next step. Current prices and availability will be confirmed from the live menu before checkout.',
+            primary: 'Build your own',
+            secondary: 'Open your bag',
+            primaryTarget: 'builder',
+            secondaryTarget: 'cart',
+            items: [
+                { icon: Leaf, title: 'Your kind of flavour', detail: 'Explore house recipes or choose your own base, sauce, cheese and toppings.' },
+                { icon: ShoppingBag, title: 'Live menu details', detail: catalogStatus === 'ready' ? 'The current catalog is loaded for prices and availability.' : 'The menu shows a retry state if live catalog data cannot be confirmed.' },
+                { icon: ShieldCheck, title: 'A clear checkout', detail: 'Review the current order total before starting a payment.' },
+            ],
+        },
+        builder: {
+            eyebrow: 'MADE A LITTLE MORE PERSONAL',
+            title: 'Your taste leads the way.',
+            description: 'Build the recipe you actually want. Ingredient choices and prices come from the menu, and the bag gives you one more chance to review everything.',
+            primary: 'Review my bag',
+            secondary: 'Browse house favourites',
+            primaryTarget: 'cart',
+            secondaryTarget: 'menu',
+            items: [
+                { icon: ChefHat, title: 'Four simple steps', detail: 'Choose a base, sauce, cheese and up to five vegetable toppings.' },
+                { icon: CheckCircle2, title: 'See the full recipe', detail: 'Your selection stays visible in the recipe summary while you customise.' },
+                { icon: ShieldCheck, title: 'Review before paying', detail: 'Checkout verifies the server quote before a payment can begin.' },
+            ],
+        },
+        cart: {
+            eyebrow: 'THE LAST LITTLE CHECK',
+            title: cartCount ? 'One last look before checkout.' : 'Your next favourite starts here.',
+            description: catalogStatus === 'ready'
+                ? 'Your current menu data is loaded. The server checks the quote and availability again when you continue to checkout.'
+                : 'We will not treat demo prices as confirmed. Refresh the live menu before proceeding with checkout.',
+            primary: cartCount ? 'Add another pizza' : 'Find a pizza',
+            secondary: 'Build your own',
+            primaryTarget: 'menu',
+            secondaryTarget: 'builder',
+            items: [
+                { icon: ShoppingBag, title: cartCount ? `${cartCount} item${cartCount === 1 ? '' : 's'} in your bag` : 'Start with a favourite', detail: cartCount ? 'You can adjust quantities or remove an item before checkout.' : 'Add a house recipe or make a custom pizza to get started.' },
+                { icon: Truck, title: 'Delivery details', detail: 'Delivery information is attached to the checkout so the team can fulfil the order.' },
+                { icon: ShieldCheck, title: paymentMode === 'test' ? 'Razorpay Test Mode' : paymentMode === 'live' ? 'Server-verified payment' : 'Payment mode check', detail: paymentMode === 'test' ? 'Test credentials only; this does not charge real money.' : paymentMode === 'live' ? 'The server confirms the provider result before the order is treated as paid.' : 'Checkout remains guarded until the payment mode is confirmed.' },
+            ],
+        },
+        dashboard: {
+            eyebrow: 'YOUR PIZZA DIARY',
+            title: 'Your next slice is only a tap away.',
+            description: ordersStatus === 'ready'
+                ? 'Your order history is loaded. Reorder a previous favourite or open an order to find updates and support options.'
+                : ordersStatus === 'error'
+                    ? 'Your order history could not be confirmed. Retry the history above instead of assuming it is empty.'
+                    : 'Your order history and order updates are loading from your account.',
+            primary: 'Order something lovely',
+            secondary: 'View order updates',
+            primaryTarget: 'menu',
+            secondaryTarget: 'orders',
+            items: [
+                { icon: Clock3, title: 'Order updates', detail: 'Order status is refreshed as updates arrive from the service.' },
+                { icon: RefreshCw, title: 'Reorder a favourite', detail: 'Use Reorder on a past order to rebuild your bag with current prices.' },
+                { icon: MessageCircle, title: 'Need a hand?', detail: 'Open an order and choose Report an issue for missing items or delivery concerns.' },
+            ],
+        },
+        admin: {
+            eyebrow: 'OPERATIONS, WITHOUT THE GUESSWORK',
+            title: 'Keep every handoff clear.',
+            description: 'Use the live operations panels above for inventory, payment review, customer cases and kitchen progress. This shortcut refreshes the current operational data only.',
+            primary: 'Refresh live data',
+            secondary: 'Jump to incoming orders',
+            primaryTarget: 'refresh',
+            secondaryTarget: 'incoming',
+            items: [
+                { icon: Boxes, title: 'Inventory', detail: 'Check stock counts and alert thresholds before changing availability.' },
+                { icon: ShieldCheck, title: 'Payment review', detail: 'Reconcile provider events carefully; do not retry a refund blindly.' },
+                { icon: PackageCheck, title: 'Order handoff', detail: 'Move confirmed orders through the kitchen and delivery status controls.' },
+            ],
+        },
+    }[page];
+
+    if (!content) return null;
+    const goTo = (target) => {
+        if (target === 'refresh') {
+            onRefresh?.();
+            return;
+        }
+        if (target === 'orders') {
+            document.querySelector('.dashboard-heading')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+        if (target === 'incoming') {
+            document.querySelector('.admin-page .admin-panel:last-child')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+        navigate(target);
+    };
+
+    return <section className={`section-wrap page-endcap page-endcap-${page}`} data-page-endcap={page} aria-labelledby={`page-endcap-title-${page}`}>
+        <div className="page-endcap-main">
+            <div className="eyebrow"><Sparkles size={13} aria-hidden="true"/> {content.eyebrow}</div>
+            <h2 id={`page-endcap-title-${page}`}>{content.title}</h2>
+            <p>{content.description}</p>
+            <div className="page-endcap-actions">
+                <button type="button" className="button button-dark" onClick={() => goTo(content.primaryTarget)}>{content.primary} <ArrowRight size={16}/></button>
+                <button type="button" className="page-endcap-secondary" onClick={() => goTo(content.secondaryTarget)}>{content.secondary} <ArrowUpRight size={15}/></button>
+            </div>
+        </div>
+        <div className="page-endcap-benefits">
+            {content.items.map(({ icon: ItemIcon, title, detail }) => <article className="page-endcap-item" key={title}>
+                <span className="page-endcap-item-icon"><ItemIcon size={17} aria-hidden="true"/></span>
+                <div><h3>{title}</h3><p>{detail}</p></div>
+            </article>)}
+        </div>
+    </section>;
+}
+
 function PizzaCard({ pizza, index, onAdd, onCustomize }) {
   const variant = getPizzaArtworkVariant(pizza, index);
   return <article className={`pizza-card ${variant} card-${index}`}>
