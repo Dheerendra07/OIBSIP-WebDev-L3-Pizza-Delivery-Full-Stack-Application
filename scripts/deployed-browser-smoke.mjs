@@ -149,7 +149,13 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.waitForTimeout(180);
   await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
-  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  // The primary CTA animates its background when the root theme token changes.
+  // Wait for the transition to finish so this assertion tests the final palette,
+  // not the first animation frame with the old light-mode color.
+  await page.waitForFunction(() => (
+    document.documentElement.dataset.theme === 'dark' &&
+    getComputedStyle(document.querySelector('.hero .button-dark')).backgroundColor === 'rgb(255, 98, 71)'
+  ), null, { timeout: 5000 });
   const nightState = await page.evaluate(() => ({
     theme: document.documentElement.dataset.theme,
     stored: window.localStorage.getItem('pizza-house-theme'),
