@@ -511,7 +511,7 @@ export default function App() {
             onError: () => notify("We couldn't confirm sign-out. Check your connection and try again.", 'error'),
         });
     };
-    const addFeatured = (pizza, requestedQuantity = 1) => { const quantity = Math.max(1, Math.min(10, Number(requestedQuantity) || 1)); const existing = cart.find(x => x.cartKey === `featured:${pizza.id}`); setCart(existing ? cart.map(x => x.cartKey === existing.cartKey ? { ...x, quantity: Math.min(10, x.quantity + quantity) } : x) : [...cart, { cartKey: `featured:${pizza.id}`, type: 'featured', pizzaId: pizza.id, name: pizza.name, emoji: pizza.emoji, unitPrice: pizza.price, quantity, ingredients: pizza.ingredients }]); notify(`${quantity} × ${pizza.name} added to your bag`); };
+    const addFeatured = (pizza, requestedQuantity = 1) => { const requested = Math.max(1, Math.min(10, Number(requestedQuantity) || 1)); const existing = cart.find(x => x.cartKey === `featured:${pizza.id}`); const quantity = existing ? Math.min(requested, Math.max(0, 10 - Number(existing.quantity || 0))) : requested; if (quantity < 1) { notify(`You can add up to 10 ${pizza.name} in one bag.`, 'error'); return; } setCart(existing ? cart.map(x => x.cartKey === existing.cartKey ? { ...x, quantity: Math.min(10, x.quantity + quantity) } : x) : [...cart, { cartKey: `featured:${pizza.id}`, type: 'featured', pizzaId: pizza.id, name: pizza.name, emoji: pizza.emoji, unitPrice: pizza.price, quantity, ingredients: pizza.ingredients }]); notify(`${quantity} × ${pizza.name} added to your bag`); };
     const addCustom = () => { const selected = [catalog.bases.find(x => x.id === builder.base), catalog.sauces.find(x => x.id === builder.sauce), catalog.cheeses.find(x => x.id === builder.cheese), ...builder.vegetables.map(id => catalog.vegetables.find(x => x.id === id))]; if (selected.some(x => x?.available === false)) {
         notify('One of those ingredients is out of stock. Update your recipe and try again.', 'error');
         return;
@@ -1214,7 +1214,7 @@ function PizzaCard({ pizza, index, onAdd, onCustomize }) {
     ? pizza.ingredients.map((item) => typeof item === 'string' ? item : item?.name || item?.label || item?.title || '').filter(Boolean)
     : [];
   const unitPrice = Number(pizza.price);
-  const hasPrice = Number.isFinite(unitPrice) && unitPrice >= 0;
+  const hasPrice = pizza.price !== null && pizza.price !== undefined && pizza.price !== '' && Number.isFinite(unitPrice) && unitPrice >= 0;
   const unavailable = pizza.available === false || !hasPrice;
   const selectedTotal = hasPrice ? currency(unitPrice * cardQuantity) : '—';
 
