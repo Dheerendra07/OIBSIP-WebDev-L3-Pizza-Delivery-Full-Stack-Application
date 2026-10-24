@@ -92,7 +92,8 @@ try {
       (await page.locator('.mobile-auth-link').count() === 1) &&
       (await page.locator('[data-mobile-auth-focus="dialog-first"]').count() === 1) &&
       (await page.locator('[data-payment-provider-check="readonly-admin-v1"]').count() === 1) &&
-      (await page.locator('[data-auth-toast-fix="clear-stale-toast-v1"]').count() === 1);
+      (await page.locator('[data-auth-toast-fix="clear-stale-toast-v1"]').count() === 1) &&
+      (await page.locator('[data-theme-toggle]').count() === 1);
 
     premiumVisualState = await page.locator('.pizza-card').evaluateAll((cards) => {
       const names = ['tomato', 'green', 'orange', 'cream'];
