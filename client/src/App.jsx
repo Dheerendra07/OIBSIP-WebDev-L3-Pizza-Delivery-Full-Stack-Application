@@ -63,6 +63,8 @@ export default function App() {
     useEffect(() => {
         document.documentElement.dataset.theme = theme;
         document.documentElement.style.colorScheme = theme;
+        const themeColor = document.querySelector('meta[name="theme-color"]');
+        if (themeColor) themeColor.content = theme === 'dark' ? '#07131e' : '#f5f8fb';
         try { window.localStorage.setItem(THEME_STORAGE_KEY, theme); } catch { /* The visual theme still works without storage permission. */ }
     }, [theme]);
     const toggleTheme = () => setTheme(current => nextTheme(current));
