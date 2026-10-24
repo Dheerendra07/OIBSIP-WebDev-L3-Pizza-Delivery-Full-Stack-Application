@@ -1181,3 +1181,58 @@ html[data-theme="dark"] .page-endcap-cart .page-endcap-item:nth-child(3) .page-e
   .page-endcap-secondary{transition:none}
   .page-endcap-secondary:hover{transform:none}
 }
+
+
+/* Useful footer navigation across customer and operations screens. */
+.footer-nav{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:7px 13px;
+  max-width:380px;
+  margin-left:auto;
+}
+.footer-nav-label{
+  flex:0 0 100%;
+  color:#ff9b85;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+}
+.footer-nav button{
+  min-height:32px;
+  padding:4px 0;
+  border:0;
+  background:transparent;
+  color:#c0ced6;
+  font-size:11px;
+  font-weight:600;
+  text-align:left;
+  transition:color .16s ease;
+}
+.footer-nav button:hover{color:#ff9b85}
+.footer-nav button:focus-visible{
+  outline:2px solid #ff9b85;
+  outline-offset:4px;
+  border-radius:3px;
+}
+.page-endcap-home .page-endcap-main h2{max-width:620px}
+.page-endcap-home .page-endcap-item:first-child .page-endcap-item-icon{
+  color:#a63c22;
+  background:#fff0e9;
+  border-color:#f1c6b9;
+}
+html[data-theme="dark"] .page-endcap-home .page-endcap-item:first-child .page-endcap-item-icon{
+  color:#ff9b85;
+  background:#2b2630;
+  border-color:#65463f;
+}
+@media(max-width:800px){
+  .footer-nav{width:100%;max-width:none;margin-left:0;padding-top:12px;border-top:1px solid #344d5e}
+}
+@media(max-width:520px){
+  .footer-nav{gap:6px 14px}
+  .footer-nav button{min-height:34px;font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){.footer-nav button{transition:none}}
