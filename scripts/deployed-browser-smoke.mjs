@@ -76,25 +76,52 @@ try {
     } catch { failedRequests.push({ url: 'unparseable-url', error: request.failure()?.errorText || 'unknown' }); }
   });
 
-  // The static site deploys independently from the API/workflow. Wait for the newly
-  // deployed bundle marker instead of testing yesterday's live frontend by accident.
+  // Wait for the actual visual release, not only older UI markers. This prevents
+  // a green smoke run against a previous Render instance while a deploy is rolling out.
   let mobileSignInReady = false;
+  let premiumVisualState = { variantCount: 0, primaryColor: '', footerColor: '' };
   for (let attempt = 1; attempt <= 20; attempt += 1) {
     await page.goto(webUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 30_000 });
-    if ((await page.locator('.mobile-auth-link').count() === 1) &&
-        (await page.locator('[data-mobile-auth-focus="dialog-first"]').count() === 1) &&
-        (await page.locator('[data-payment-provider-check="readonly-admin-v1"]').count() === 1) &&
-        (await page.locator('[data-auth-toast-fix="clear-stale-toast-v1"]').count() === 1)) {
+
+    const releaseMarkersReady =
+      (await page.locator('.mobile-auth-link').count() === 1) &&
+      (await page.locator('[data-mobile-auth-focus="dialog-first"]').count() === 1) &&
+      (await page.locator('[data-payment-provider-check="readonly-admin-v1"]').count() === 1) &&
+      (await page.locator('[data-auth-toast-fix="clear-stale-toast-v1"]').count() === 1);
+
+    premiumVisualState = await page.locator('.pizza-card').evaluateAll((cards) => {
+      const names = ['tomato', 'green', 'orange', 'cream'];
+      const variants = cards.map((card) => names.find((name) => card.classList.contains(name))).filter(Boolean);
+      const primary = document.querySelector('.hero .button-dark');
+      const footer = document.querySelector('.site-footer');
+      return {
+        variantCount: new Set(variants).size,
+        primaryColor: primary ? getComputedStyle(primary).backgroundColor : '',
+        footerColor: footer ? getComputedStyle(footer).backgroundColor : '',
+      };
+    }).catch(() => ({ variantCount: 0, primaryColor: '', footerColor: '' }));
+
+    if (releaseMarkersReady &&
+        premiumVisualState.variantCount >= 3 &&
+        premiumVisualState.primaryColor === 'rgb(228, 71, 50)' &&
+        premiumVisualState.footerColor === 'rgb(16, 39, 55)') {
       mobileSignInReady = true;
       break;
     }
-    console.log(`[WAIT] hosted frontend has not published the admin payment-check panel yet (${attempt}/20)`);
+
+    console.log(
+      '[WAIT] waiting for current Pizza House visual release (' + attempt + '/20; variants=' +
+      premiumVisualState.variantCount + '; CTA=' + premiumVisualState.primaryColor +
+      '; footer=' + premiumVisualState.footerColor + ')',
+    );
     await page.waitForTimeout(5_000);
   }
   if (!mobileSignInReady) {
-    throw new Error('Hosted frontend did not publish the admin payment-check panel after 20 checks.');
+    throw new Error('Hosted site did not publish the distinct pizza artwork + navy/red visual release after 20 checks: ' + JSON.stringify(premiumVisualState));
   }
+  pass('featured pizza cards render at least three distinct recipe-driven artwork variants');
+  pass('primary CTA uses tomato red and the footer uses the navy brand surface');
 
   await page.locator('.pizza-card').first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.getByRole('heading', { name: 'Margherita Classic', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
