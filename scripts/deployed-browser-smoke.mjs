@@ -182,6 +182,27 @@ try {
   }
   pass('desktop header shows only one sign-in action');
   await captureScreenshot(page, '02-home-desktop.png');
+  const homeEndcap = page.locator('[data-page-endcap="home"]');
+  await homeEndcap.waitFor({ state: 'visible', timeout: 15_000 });
+  const liveCatalogResponse = await page.request.get(`${webUrl}/api/catalog`, { timeout: 10_000 });
+  if (!liveCatalogResponse.ok()) throw new Error('The live catalog endpoint did not load for the home lower-page check.');
+  const liveCatalogBody = await liveCatalogResponse.json();
+  const liveFeaturedCount = Array.isArray(liveCatalogBody?.featuredPizzas) ? liveCatalogBody.featuredPizzas.length : -1;
+  const endcapLight = await homeEndcap.evaluate((el) => ({
+    itemCount: el.querySelectorAll('.page-endcap-item').length,
+    featuredCount: Number(el.dataset.featuredCount),
+    headingColor: getComputedStyle(el.querySelector('.page-endcap-main h2')).color,
+    cardColor: getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor,
+  }));
+  if (endcapLight.itemCount !== 3 || endcapLight.featuredCount !== liveFeaturedCount ||
+      endcapLight.headingColor !== 'rgb(40, 37, 34)' || endcapLight.cardColor !== 'rgb(255, 255, 255)') {
+    throw new Error('Home lower-page cards did not reflect live catalog data or the light palette: ' + JSON.stringify({ endcapLight, liveFeaturedCount }));
+  }
+  const footerNavCount = await page.locator('.footer-nav button').count();
+  if (footerNavCount < 4) throw new Error('Footer is missing expected navigation shortcuts.');
+  pass('home lower-page helper cards reflect the live catalog and use the light palette');
+  pass('shared footer provides working navigation shortcuts');
+  await captureScreenshot(page, '15-home-endcap-light-desktop.png');
   await auditResponsiveState(page, 'home');
 
   // The custom builder has its own option cards, recipe preview, pricing and
@@ -267,6 +288,17 @@ try {
     throw new Error('Night mode did not apply/persist the expected premium palette: ' + JSON.stringify(nightState));
   }
   pass('night mode applies the dark navy palette, warm CTA and matching footer');
+  const homeEndcapNight = await page.locator('[data-page-endcap="home"]').evaluate((el) => ({
+    itemCount: el.querySelectorAll('.page-endcap-item').length,
+    headingColor: getComputedStyle(el.querySelector('.page-endcap-main h2')).color,
+    cardBackground: getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor,
+  }));
+  if (homeEndcapNight.itemCount !== 3 || homeEndcapNight.headingColor !== 'rgb(243, 246, 248)' ||
+      homeEndcapNight.cardBackground !== 'rgb(16, 32, 45)') {
+    throw new Error('Home lower-page helper cards did not switch to the night palette: ' + JSON.stringify(homeEndcapNight));
+  }
+  pass('home lower-page helper cards switch to the premium night palette');
+  await captureScreenshot(page, '16-home-endcap-night-desktop.png');
   await captureScreenshot(page, '07-home-night-desktop.png');
 
   await page.reload({ waitUntil: 'domcontentloaded' });
