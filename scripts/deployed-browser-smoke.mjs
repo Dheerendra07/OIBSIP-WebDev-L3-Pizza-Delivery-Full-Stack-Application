@@ -433,17 +433,22 @@ try {
     throw new Error('Night mode did not apply/persist the expected premium palette: ' + JSON.stringify(nightState));
   }
   pass('night mode applies the dark navy palette, warm CTA and matching footer');
-  const homeEndcapNight = await page.locator('[data-page-endcap="home"]').evaluate((el) => ({
-    itemCount: el.querySelectorAll('.page-endcap-item').length,
-    headingColor: getComputedStyle(el.querySelector('.page-endcap-main h2')).color,
-    cardBackground: getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor,
+  const homePromoNight = await page.locator('[data-home-builder-promo]').evaluate((el) => ({
+    titleColor: getComputedStyle(el.querySelector('h3')).color,
+    iconBackground: getComputedStyle(el.querySelector('.callout-icon')).backgroundColor,
+    ctaBackground: getComputedStyle(el.querySelector('.button-light')).backgroundColor,
+    ctaColor: getComputedStyle(el.querySelector('.button-light')).color,
+    proofCount: el.querySelectorAll('.custom-callout-proof span').length,
   }));
-  if (homeEndcapNight.itemCount !== 3 || homeEndcapNight.headingColor !== 'rgb(243, 246, 248)' ||
-      homeEndcapNight.cardBackground !== 'rgb(16, 32, 45)') {
-    throw new Error('Home lower-page helper cards did not switch to the night palette: ' + JSON.stringify(homeEndcapNight));
+  if (homePromoNight.titleColor !== 'rgb(247, 249, 250)' ||
+      homePromoNight.iconBackground !== 'rgb(27, 51, 66)' ||
+      homePromoNight.ctaBackground !== 'rgb(255, 121, 95)' ||
+      homePromoNight.ctaColor !== 'rgb(255, 255, 255)' ||
+      homePromoNight.proofCount !== 2) {
+    throw new Error('Home builder CTA did not switch to the premium night palette: ' + JSON.stringify(homePromoNight));
   }
-  pass('home lower-page helper cards switch to the premium night palette');
-  await captureScreenshot(page, '16-home-endcap-night-desktop.png');
+  pass('Home builder CTA retains readable copy, clear CTA contrast and recipe-price proofs in Night Mode');
+  await captureScreenshot(page, '16-home-builder-promo-night-desktop.png');
   await captureScreenshot(page, '07-home-night-desktop.png');
 
   await page.reload({ waitUntil: 'domcontentloaded' });
