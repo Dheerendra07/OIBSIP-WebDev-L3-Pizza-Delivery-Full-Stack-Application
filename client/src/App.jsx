@@ -1218,7 +1218,7 @@ function PizzaCard({ pizza, index, onAdd, onCustomize }) {
   const unavailable = pizza.available === false || !hasPrice;
   const selectedTotal = hasPrice ? currency(unitPrice * cardQuantity) : '—';
 
-  return <article className={`pizza-card ${variant} card-${index} ${photoLoaded ? 'has-photo' : ''}`} data-pizza-card data-pizza-id={pizza.id}>
+  return <article className={`pizza-card ${variant} card-${index} ${photoLoaded ? 'has-photo' : ''}`} data-pizza-card data-pizza-card-version="premium-photo-v1" data-pizza-id={pizza.id}>
     <div className="pizza-card-art">
       <PizzaArtwork variant={variant} className={`pizza-card-artwork pizza-card-artwork--${variant}`} />
       {!photoFailed && <img

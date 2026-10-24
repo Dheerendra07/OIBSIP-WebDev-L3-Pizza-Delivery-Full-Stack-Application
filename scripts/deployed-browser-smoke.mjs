@@ -122,7 +122,7 @@ try {
   // Wait for the actual visual release, not only older UI markers. This prevents
   // a green smoke run against a previous Render instance while a deploy is rolling out.
   let mobileSignInReady = false;
-  let premiumVisualState = { variantCount: 0, primaryColor: '', footerColor: '' };
+  let premiumVisualState = { variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, interactiveCardCount: 0 };
   for (let attempt = 1; attempt <= 20; attempt += 1) {
     await page.goto(webUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 30_000 });
@@ -136,21 +136,39 @@ try {
       (await page.locator('[data-mobile-auth-focus="dialog-first"]').count() === 1) &&
       (await page.locator('[data-payment-provider-check="readonly-admin-v1"]').count() === 1) &&
       (await page.locator('[data-auth-toast-fix="clear-stale-toast-v1"]').count() === 1) &&
-      (await page.locator('[data-theme-toggle]').count() === 1);
+      (await page.locator('[data-theme-toggle]').count() === 1) &&
+      (await page.locator('[data-pizza-card-version="premium-photo-v1"]').count() >= 3);
 
-    premiumVisualState = await page.locator('.pizza-card').evaluateAll((cards) => {
+    premiumVisualState = await page.locator('[data-pizza-card-version="premium-photo-v1"]').evaluateAll((cards) => {
       const names = ['tomato', 'green', 'orange', 'cream'];
       const variants = cards.map((card) => names.find((name) => card.classList.contains(name))).filter(Boolean);
+      const loadedPhotoCount = cards.filter((card) => {
+        const image = card.querySelector('.pizza-card-photo');
+        return Boolean(image && image.complete && image.naturalWidth > 0 && card.classList.contains('has-photo'));
+      }).length;
+      const interactiveCardCount = cards.filter((card) =>
+        card.querySelector('.pizza-card-quantity') &&
+        card.querySelector('.pizza-card-price strong') &&
+        card.querySelector('.pizza-card-total strong') &&
+        card.querySelector('.add-button:not(:disabled)') &&
+        card.querySelector('.customize-link'),
+      ).length;
       const primary = document.querySelector('.hero .button-dark');
       const footer = document.querySelector('.site-footer');
       return {
         variantCount: new Set(variants).size,
         primaryColor: primary ? getComputedStyle(primary).backgroundColor : '',
         footerColor: footer ? getComputedStyle(footer).backgroundColor : '',
+        premiumCardCount: cards.length,
+        loadedPhotoCount,
+        interactiveCardCount,
       };
-    }).catch(() => ({ variantCount: 0, primaryColor: '', footerColor: '' }));
+    }).catch(() => ({ variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, interactiveCardCount: 0 }));
 
     if (releaseMarkersReady &&
+        premiumVisualState.premiumCardCount >= 3 &&
+        premiumVisualState.loadedPhotoCount >= 3 &&
+        premiumVisualState.interactiveCardCount >= 3 &&
         premiumVisualState.variantCount >= 3 &&
         premiumVisualState.primaryColor === 'rgb(228, 71, 50)' &&
         premiumVisualState.footerColor === 'rgb(16, 39, 55)') {
@@ -159,20 +177,54 @@ try {
     }
 
     console.log(
-      '[WAIT] waiting for current Pizza House visual release (' + attempt + '/20; variants=' +
+      '[WAIT] waiting for premium photo-card release (' + attempt + '/20; cards=' +
+      premiumVisualState.premiumCardCount + '; loadedPhotos=' + premiumVisualState.loadedPhotoCount +
+      '; interactive=' + premiumVisualState.interactiveCardCount + '; variants=' +
       premiumVisualState.variantCount + '; CTA=' + premiumVisualState.primaryColor +
       '; footer=' + premiumVisualState.footerColor + ')',
     );
     await page.waitForTimeout(5_000);
   }
   if (!mobileSignInReady) {
-    throw new Error('Hosted site did not publish the distinct pizza artwork + navy/red visual release after 20 checks: ' + JSON.stringify(premiumVisualState));
+    throw new Error('Hosted site did not publish three photo-loaded premium cards with working controls plus the navy/red visual release after 20 checks: ' + JSON.stringify(premiumVisualState));
   }
-  pass('featured pizza cards render at least three distinct recipe-driven artwork variants');
+  pass('production publishes three distinct premium photo cards with all three food photos loaded');
+  pass('premium cards expose working quantity, catalog-price, subtotal and cart controls');
   pass('primary CTA uses tomato red and the footer uses the navy brand surface');
 
-  await page.locator('.pizza-card').first().waitFor({ state: 'visible', timeout: 30_000 });
+  await page.locator('[data-pizza-card-version="premium-photo-v1"]').first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.getByRole('heading', { name: 'Margherita Classic', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+  const firstPremiumCard = page.locator('[data-pizza-card-version="premium-photo-v1"]').first();
+  const initialCardPricing = await firstPremiumCard.evaluate((card) => ({
+    quantity: card.querySelector('.pizza-card-quantity > span')?.textContent?.trim() || '',
+    price: card.querySelector('.pizza-card-price strong')?.textContent?.trim() || '',
+    subtotal: card.querySelector('.pizza-card-total strong')?.textContent?.trim() || '',
+    photoLoaded: Boolean(card.querySelector('.pizza-card-photo')?.naturalWidth > 0),
+  }));
+  if (initialCardPricing.quantity !== '1' || !initialCardPricing.price ||
+      initialCardPricing.price === 'Unavailable' || initialCardPricing.subtotal !== initialCardPricing.price ||
+      !initialCardPricing.photoLoaded) {
+    throw new Error('The first premium card did not render an image and a consistent live menu price: ' + JSON.stringify(initialCardPricing));
+  }
+  await firstPremiumCard.locator('button[aria-label^="Increase "]').click();
+  await page.waitForFunction(() => {
+    const card = document.querySelector('[data-pizza-card-version="premium-photo-v1"]');
+    return card?.querySelector('.pizza-card-quantity > span')?.textContent?.trim() === '2';
+  }, null, { timeout: 5_000 });
+  const doubleQuantitySubtotal = await firstPremiumCard.locator('.pizza-card-total strong').innerText();
+  if (doubleQuantitySubtotal === initialCardPricing.subtotal) {
+    throw new Error('The premium card subtotal did not update after increasing quantity: ' + JSON.stringify({ initialCardPricing, doubleQuantitySubtotal }));
+  }
+  await firstPremiumCard.locator('button[aria-label^="Decrease "]').click();
+  await page.waitForFunction(() => {
+    const card = document.querySelector('[data-pizza-card-version="premium-photo-v1"]');
+    return card?.querySelector('.pizza-card-quantity > span')?.textContent?.trim() === '1';
+  }, null, { timeout: 5_000 });
+  const restoredSubtotal = await firstPremiumCard.locator('.pizza-card-total strong').innerText();
+  if (restoredSubtotal !== initialCardPricing.subtotal) {
+    throw new Error('The premium card subtotal did not restore after returning to quantity one.');
+  }
+  pass('premium card quantity controls update the subtotal and restore the original price');
   pass('home featured cards wait for live catalog before visual capture');
   await captureScreenshot(page, '01-home-mobile.png');
   await page.setViewportSize({ width: 1440, height: 900 });
