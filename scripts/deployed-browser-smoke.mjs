@@ -145,6 +145,8 @@ try {
   }
   pass('light theme remains the default on a fresh visit');
 
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(180);
   await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
   const nightState = await page.evaluate(() => ({
