@@ -136,12 +136,68 @@ try {
   await captureScreenshot(page, '02-home-desktop.png');
   await auditResponsiveState(page, 'home');
 
+  const initialTheme = await page.evaluate(() => ({
+    theme: document.documentElement.dataset.theme,
+    stored: window.localStorage.getItem('pizza-house-theme'),
+  }));
+  if (initialTheme.theme !== 'light' || initialTheme.stored !== 'light') {
+    throw new Error('Fresh visits must use the light theme by default; received ' + JSON.stringify(initialTheme));
+  }
+  pass('light theme remains the default on a fresh visit');
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(180);
+  await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  const nightState = await page.evaluate(() => ({
+    theme: document.documentElement.dataset.theme,
+    stored: window.localStorage.getItem('pizza-house-theme'),
+    colorScheme: document.documentElement.style.colorScheme,
+    bodyBackground: getComputedStyle(document.body).backgroundColor,
+    primaryColor: getComputedStyle(document.querySelector('.hero .button-dark')).backgroundColor,
+    footerColor: getComputedStyle(document.querySelector('.site-footer')).backgroundColor,
+  }));
+  if (nightState.theme !== 'dark' || nightState.stored !== 'dark' ||
+      nightState.colorScheme !== 'dark' ||
+      nightState.bodyBackground !== 'rgb(7, 19, 30)' ||
+      nightState.primaryColor !== 'rgb(255, 98, 71)' ||
+      nightState.footerColor !== 'rgb(4, 10, 16)') {
+    throw new Error('Night mode did not apply/persist the expected premium palette: ' + JSON.stringify(nightState));
+  }
+  pass('night mode applies the dark navy palette, warm CTA and matching footer');
+  await captureScreenshot(page, '07-home-night-desktop.png');
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 30_000 });
+  await page.getByRole('heading', { name: 'Margherita Classic', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+  const restoredTheme = await page.evaluate(() => ({
+    theme: document.documentElement.dataset.theme,
+    stored: window.localStorage.getItem('pizza-house-theme'),
+  }));
+  if (restoredTheme.theme !== 'dark' || restoredTheme.stored !== 'dark') {
+    throw new Error('Night mode preference was not restored after reload: ' + JSON.stringify(restoredTheme));
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await captureScreenshot(page, '08-home-night-mobile.png');
+  await auditResponsiveState(page, 'home-night');
+  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  const lightRestored = await page.evaluate(() => window.localStorage.getItem('pizza-house-theme'));
+  if (lightRestored !== 'light') throw new Error('Switching back to light mode did not persist the preference.');
+  pass('light/night toggle persists across reload and can return to light');
+
   await page.getByRole('button', { name: 'Explore the menu' }).click();
   await page.locator('.pizza-card').first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.getByRole('heading', { name: 'Margherita Classic', exact: true }).waitFor({ state: 'visible' });
   await captureScreenshot(page, '03-menu-mobile.png');
   await auditResponsiveState(page, 'menu');
-  pass('hosted home and live menu render');
+  await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  await captureScreenshot(page, '09-menu-night-mobile.png');
+  await auditResponsiveState(page, 'menu-night');
+  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  pass('hosted home and live menu render in both themes');
 
   await page.getByRole('button', { name: 'Add Margherita Classic', exact: true }).click();
   await page.locator('.bag-button').click();
@@ -153,7 +209,13 @@ try {
   await page.locator('.toast').waitFor({ state: 'hidden', timeout: 6_000 }).catch(() => {});
   await captureScreenshot(page, '04-bag-mobile.png');
   await auditResponsiveState(page, 'bag');
-  pass('menu → bag → delivery form interaction');
+  await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  await captureScreenshot(page, '10-bag-night-mobile.png');
+  await auditResponsiveState(page, 'bag-night');
+  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  pass('menu → bag → delivery form interaction in light and night themes');
 
   // Recreate the stale-toast condition deliberately: a cart success message is live,
   // then a customer opens Sign in immediately. The dialog must dismiss the old toast.
