@@ -41,7 +41,14 @@ app.use(helmet({
         'https://lumberjack-cx.razorpay.com',
         'https://lumberjack-metrics.razorpay.com',
       ],
-      imgSrc: ["'self'", 'data:', 'https://cdn.razorpay.com'],
+      // Allow only the image hosts used by the premium pizza catalog cards.
+      imgSrc: [
+        "'self'",
+        'data:',
+        'https://cdn.razorpay.com',
+        'https://images.pexels.com',
+        'https://images.unsplash.com',
+      ],
       formAction: ["'self'", 'https://api.razorpay.com', 'https://checkout.razorpay.com'],
     },
   },
