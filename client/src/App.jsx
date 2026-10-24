@@ -1315,7 +1315,7 @@ function PizzaDetailView({ pizza, catalog, index = 0, returnLabel, onBack, onAdd
 
   return <section className="pizza-detail-page section-wrap page-section" data-pizza-detail data-pizza-id={pizza.id}>
     <div className="pizza-detail-breadcrumb">
-      <button type="button" onClick={onBack}><ArrowDownRight size={14} className="breadcrumb-back-icon"/>{returnLabel}</button>
+      <button type="button" onClick={onBack}><ArrowRight size={14} className="breadcrumb-back-icon"/>{returnLabel}</button>
       <span aria-hidden="true">/</span><span>{pizza.name}</span>
     </div>
     <div className="pizza-detail-layout">
