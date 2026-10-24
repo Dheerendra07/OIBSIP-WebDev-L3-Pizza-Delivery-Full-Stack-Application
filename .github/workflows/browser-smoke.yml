@@ -10,6 +10,8 @@ on:
       - '.github/workflows/browser-smoke.yml'
       - 'client/src/**'
       - 'client/index.html'
+      # Backend CSP changes can break frontend assets even when the client bundle is unchanged.
+      - 'server/src/app.js'
   workflow_dispatch:
 
 permissions:
