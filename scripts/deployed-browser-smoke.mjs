@@ -195,7 +195,7 @@ try {
     cardColor: getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor,
   }));
   if (endcapLight.itemCount !== 3 || endcapLight.featuredCount !== liveFeaturedCount ||
-      endcapLight.headingColor !== 'rgb(40, 37, 34)' || endcapLight.cardColor !== 'rgba(255, 255, 255, 0.72)') {
+      endcapLight.headingColor !== 'rgb(23, 45, 61)' || endcapLight.cardColor !== 'rgba(255, 255, 255, 0.72)') {
     throw new Error('Home lower-page cards did not reflect live catalog data or the light palette: ' + JSON.stringify({ endcapLight, liveFeaturedCount }));
   }
   const footerNavCount = await page.locator('.footer-nav button').count();
