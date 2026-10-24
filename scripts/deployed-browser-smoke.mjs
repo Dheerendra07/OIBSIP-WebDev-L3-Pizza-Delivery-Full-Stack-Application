@@ -50,6 +50,23 @@ try {
     viewport: { width: 390, height: 844 },
     locale: 'en-IN',
   });
+  // Verify the old static hostname before testing the canonical app. This catches
+  // stale CDN/deployment state as well as path/query/hash regressions.
+  const legacyPage = await context.newPage();
+  const legacySmokeUrl = new URL(
+    '/?legacy-redirect-smoke=1#legacy',
+    'https://pizza-house-web-n75h.onrender.com',
+  );
+  await legacyPage.goto(legacySmokeUrl.href, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await legacyPage.waitForURL((url) =>
+    url.origin === new URL(webUrl).origin &&
+    url.pathname === '/' &&
+    url.searchParams.get('legacy-redirect-smoke') === '1' &&
+    url.hash === '#legacy',
+  { timeout: 20_000 });
+  pass('legacy static frontend redirects to canonical origin and preserves path, query and hash');
+  await legacyPage.close();
+
   const page = await context.newPage();
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('requestfailed', (request) => {
