@@ -1004,6 +1004,59 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     restoreRetryProvider();
   }
 
+  // A provider order response with a mismatched amount or currency must never be passed to checkout.
+  // Each failed response should release this order's reservation and allow a safe retry.
+  const invalidProviderCheckout = await fetch(`${base}/api/orders`, {
+    method: 'POST',
+    headers: { ...headers, Cookie: cookie, 'Idempotency-Key': 'integration-invalid-provider-order-shape-0001' },
+    body: JSON.stringify(createOrderPayload),
+  });
+  assert.equal(invalidProviderCheckout.status, 201);
+  const invalidProviderOrder = (await invalidProviderCheckout.json()).order;
+  const stockBeforeInvalidProviderResponse = (await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock;
+
+  const assertInvalidProviderOrderRejected = async ({ amountDelta, currency }) => {
+    const restoreInvalidProvider = setRazorpayClientFactoryForIntegrationTests(() => ({
+      orders: {
+        create: async ({ amount, currency: requestedCurrency }) => ({
+          id: 'order_test_invalid_provider_response',
+          amount: amount + amountDelta,
+          currency: currency ?? requestedCurrency,
+        }),
+      },
+    }));
+    try {
+      const response = await fetch(`${base}/api/payments/create-order`, {
+        method: 'POST',
+        headers: { ...headers, Cookie: cookie },
+        body: JSON.stringify({ orderId: invalidProviderOrder.id }),
+      });
+      assert.equal(response.status, 502, 'a malformed provider checkout order must not open payment checkout');
+      const responseBody = await response.json();
+      assert.equal(responseBody.error, 'Razorpay could not create the checkout order. No payment was started; please retry later.');
+      assert.equal(JSON.stringify(responseBody).includes('order_test_invalid_provider_response'), false);
+
+      const persisted = await Order.findById(invalidProviderOrder.id).lean();
+      assert.equal(persisted.status, 'pending_payment');
+      assert.equal(persisted.paymentStatus, 'pending');
+      assert.equal(persisted.inventoryReserved, false, 'failed checkout response validation releases stock');
+      assert.equal(persisted.paymentOrderCreationInProgress, false);
+      assert.equal(persisted.stockReservedAt, null);
+      assert.equal(persisted.stockReservationExpiresAt, null);
+      assert.equal(persisted.razorpayOrderId, null, 'the untrusted provider response is never persisted');
+      assert.equal(
+        (await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock,
+        stockBeforeInvalidProviderResponse,
+        'stock must be restored after the invalid provider response',
+      );
+    } finally {
+      restoreInvalidProvider();
+    }
+  };
+
+  await assertInvalidProviderOrderRejected({ amountDelta: 1, currency: 'INR' });
+  await assertInvalidProviderOrderRejected({ amountDelta: 0, currency: 'USD' });
+
   const logout = await fetch(`${base}/api/auth/logout`, {
     method: 'POST',
     headers: { Origin: webOrigin, Cookie: cookie },
