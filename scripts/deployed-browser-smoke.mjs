@@ -1486,7 +1486,129 @@ try {
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
     pass('customer order history renders photo-backed item cards and readable report actions in light and night themes');
     pass('customer order history reflects the synthetic completed stage and clearly labels it as Test Mode simulation');
-    console.log('[INFO] Kitchen, delivery and customer end-to-end UI drills above use mocked HTTP routes and a synthetic in-memory order; no production order or staff account was created or changed.');
+
+    // Check the admin-only notification health panel with a synthetic administrator
+    // and mocked endpoints. No production account, queue entry, or notification is changed.
+    const mockedAdmin = {
+      id: 'browser-smoke-admin',
+      name: 'Browser QA Admin',
+      email: 'admin-qa@example.invalid',
+      role: 'admin',
+    };
+    const notificationHealthFixture = {
+      checkedAt: new Date().toISOString(),
+      deliveryConfigured: false,
+      counts: { queued: 2, sending: 0, sentLast24Hours: 1, dead: 1 },
+      oldestQueuedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+      deadLetters: [{
+        orderNumber: 'PH-NOTIFY-QA',
+        attempts: 8,
+        lastError: 'Email provider delivery failed',
+        updatedAt: new Date().toISOString(),
+      }],
+    };
+    await page.route('**/api/auth/admin/login', async (route) => {
+      const body = route.request().postDataJSON();
+      if (body?.email !== mockedAdmin.email || body?.password !== 'AdminMockOnlyPass123') {
+        await route.fulfill({ status: 401, json: { error: 'Unexpected admin test credentials.' } });
+        return;
+      }
+      activeMockedUser = mockedAdmin;
+      await route.fulfill({
+        status: 200,
+        headers: { 'set-cookie': mockedSessionCookie + '; Path=/; HttpOnly; Secure; SameSite=Lax' },
+        json: { user: mockedAdmin },
+      });
+    });
+    await page.route('**/api/admin/**', async (route) => {
+      const pathname = new URL(route.request().url()).pathname;
+      const responses = {
+        '/api/admin/summary': { summary: { ordersTotal: 1, paidOrders: 1, revenue: 278, lowStock: 0 } },
+        '/api/admin/inventory': { items: [] },
+        '/api/admin/orders': { orders: [] },
+        '/api/admin/payment-reviews': { events: [] },
+        '/api/admin/issues': { issues: [] },
+        '/api/admin/staff': { staff: [] },
+        '/api/admin/notification-health': notificationHealthFixture,
+      };
+      if (route.request().method() !== 'GET' || !responses[pathname]) {
+        await route.fulfill({ status: 404, json: { error: 'Unexpected mocked admin route.' } });
+        return;
+      }
+      await route.fulfill({ status: 200, json: responses[pathname] });
+    });
+
+    await signOutMockedStaff();
+    await dialog.getByRole('button', { name: 'Admin sign in', exact: true }).click();
+    await dialog.getByLabel('Email address').fill(mockedAdmin.email);
+    await dialog.getByLabel('Password').fill('AdminMockOnlyPass123');
+    const adminLoginPromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/auth/admin/login' &&
+      response.request().method() === 'POST',
+    );
+    await dialog.getByRole('button', { name: 'Sign in as admin', exact: true }).click();
+    const adminLoginResponse = await adminLoginPromise;
+    if (adminLoginResponse.status() !== 200) throw new Error('Synthetic admin login returned HTTP ' + adminLoginResponse.status() + '.');
+    await context.addCookies([{
+      name: 'pizza_session',
+      value: 'browser-smoke-session',
+      url: webUrl,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+    }]);
+    const notificationPanel = page.locator('[data-notification-health-panel="admin-notifications-v1"]');
+    await page.getByRole('heading', { name: /Good food takes/ }).waitFor({ state: 'visible', timeout: 15_000 });
+    await notificationPanel.waitFor({ state: 'visible', timeout: 15_000 });
+    await page.getByText('Email provider not configured', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+    await notificationPanel.getByText('Order emails stay queued until a Resend sender/key or SMTP settings are configured in Render.', { exact: false }).waitFor({ state: 'visible', timeout: 10_000 });
+    const queueMetrics = await notificationPanel.locator('.notification-health-metric').evaluateAll((cards) =>
+      cards.map((card) => ({
+        label: card.querySelector('span')?.textContent?.trim(),
+        count: card.querySelector('strong')?.textContent?.trim(),
+      })),
+    );
+    const expectedMetrics = [
+      { label: 'Queued', count: '2' },
+      { label: 'Sending', count: '0' },
+      { label: 'Sent · 24h', count: '1' },
+      { label: 'Needs attention', count: '1' },
+    ];
+    if (JSON.stringify(queueMetrics) !== JSON.stringify(expectedMetrics)) {
+      throw new Error('Admin notification metrics do not match the mocked health response: ' + JSON.stringify(queueMetrics));
+    }
+    await notificationPanel.getByText('PH-NOTIFY-QA', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+    await notificationPanel.getByText('Email provider delivery failed', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+    await notificationPanel.getByText(/8 attempts/).waitFor({ state: 'visible', timeout: 10_000 });
+    pass('admin notification panel renders provider-not-configured state, queue metrics and dead-letter details from its API response');
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const lightProviderStyle = await notificationPanel.locator('.notification-provider-state.missing').evaluate((el) => {
+      const strong = el.querySelector('strong');
+      return { background: getComputedStyle(el).backgroundColor, color: getComputedStyle(strong).color };
+    });
+    if (lightProviderStyle.background !== 'rgb(255, 248, 235)' || lightProviderStyle.color !== 'rgb(118, 83, 27)') {
+      throw new Error('Admin notification missing-provider state has unreadable light-theme contrast: ' + JSON.stringify(lightProviderStyle));
+    }
+    await captureScreenshot(page, '18-mocked-admin-notifications-light.png');
+    await auditResponsiveState(page, 'mocked-admin-notifications-light');
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
+    await page.waitForFunction(() => {
+      const panel = document.querySelector('[data-notification-health-panel="admin-notifications-v1"] .notification-provider-state.missing');
+      const strong = panel?.querySelector('strong');
+      return document.documentElement.dataset.theme === 'dark' &&
+        panel && getComputedStyle(panel).backgroundColor === 'rgb(48, 40, 28)' &&
+        strong && getComputedStyle(strong).color === 'rgb(255, 223, 154)';
+    }, null, { timeout: 5000 });
+    await captureScreenshot(page, '19-mocked-admin-notifications-night.png');
+    await auditResponsiveState(page, 'mocked-admin-notifications-night');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+    pass('admin notification health remains legible and responsive in Light and Night modes');
+    console.log('[INFO] Kitchen, delivery, customer and admin dashboard drills use mocked HTTP routes and synthetic in-memory accounts/orders; no production account, order, payment, or notification queue entry was created or changed.');
     console.log('[INFO] Successful customer-auth checks use mocked endpoints unless optional PIZZA_QA_CUSTOMER_EMAIL/PIZZA_QA_CUSTOMER_PASSWORD secrets enable the separate live-session check.');
   }
 
