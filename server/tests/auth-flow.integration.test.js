@@ -443,6 +443,60 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(await PaymentWebhookReceipt.countDocuments({ eventId: 'integration-payment-captured-1' }), 1);
   assert.equal((await Order.findById(createdOrder.id).lean()).razorpayPaymentId, mockProviderPaymentId);
 
+  // A validly signed refund event not initiated by this app must quarantine an
+  // active paid order, so a refund visible only in the admin receipt queue cannot
+  // leave the order available to kitchen/delivery staff.
+  const unexpectedRefundOrder = await Order.create({
+    orderNumber: 'PH-EXTERNAL-REFUND-QA',
+    user: loginBody.user.id,
+    items: [fixtureItem],
+    subtotal: 249,
+    deliveryFee: 29,
+    total: 278,
+    deliveryDetails: createOrderPayload.deliveryDetails,
+    status: 'in_kitchen',
+    paymentStatus: 'paid',
+    paymentMode: 'test',
+    paymentReviewRequired: false,
+    paymentReviewReason: null,
+    razorpayOrderId: 'order_test_unrequested_refund',
+    razorpayPaymentId: 'pay_test_unrequested_refund',
+    inventoryReserved: false,
+  });
+  const unexpectedRefundBody = JSON.stringify({
+    event: 'refund.created',
+    payload: { refund: { entity: {
+      id: 'rfnd_test_unrequested_refund',
+      payment_id: 'pay_test_unrequested_refund',
+      amount: 27800,
+      currency: 'INR',
+      status: 'created',
+    } } },
+  });
+  const unexpectedRefundSignature = crypto.createHmac('sha256', env.RAZORPAY_WEBHOOK_SECRET)
+    .update(unexpectedRefundBody)
+    .digest('hex');
+  const unexpectedRefundResponse = await fetch(`${base}/api/payments/webhook`, {
+    method: 'POST',
+    headers: {
+      Origin: webOrigin,
+      'Content-Type': 'application/json',
+      'X-Razorpay-Signature': unexpectedRefundSignature,
+      'X-Razorpay-Event-Id': 'integration-unrequested-refund-1',
+    },
+    body: unexpectedRefundBody,
+  });
+  assert.equal(unexpectedRefundResponse.status, 200);
+  assert.equal((await unexpectedRefundResponse.json()).status, 'review_required');
+  const quarantinedUnexpectedRefund = await Order.findById(unexpectedRefundOrder.id).lean();
+  assert.equal(quarantinedUnexpectedRefund.status, 'payment_review');
+  assert.equal(quarantinedUnexpectedRefund.paymentReviewRequired, true);
+  assert.equal(quarantinedUnexpectedRefund.paymentReviewReason, 'refund_not_requested_by_application');
+  assert.equal(quarantinedUnexpectedRefund.paymentStatus, 'paid', 'unrequested refund must not be falsely recorded as completed');
+  const unexpectedRefundReceipt = await PaymentWebhookReceipt.findOne({ eventId: 'integration-unrequested-refund-1' }).lean();
+  assert.equal(unexpectedRefundReceipt.status, 'review_required');
+  assert.equal(unexpectedRefundReceipt.reason, 'refund_not_requested_by_application');
+
   // A provider capture that already has a partial refund must not become a
   // kitchen-ready order. Verify this through the real HTTP app and isolated DB.
   const priorRefundCheckout = await fetch(`${base}/api/orders`, {
