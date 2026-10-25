@@ -488,6 +488,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     },
   }));
   try {
+    const stockBeforeReviewRefund = (await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock;
     const reviewPaymentSetup = await fetch(`${base}/api/payments/create-order`, {
       method: 'POST',
       headers: { ...headers, Cookie: cookie },
@@ -495,8 +496,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     });
     assert.equal(reviewPaymentSetup.status, 200);
     assert.equal((await reviewPaymentSetup.json()).paymentOrderId, reviewProviderOrderId);
-
-    const stockBeforeReviewRefund = (await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock;
+    assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, stockBeforeReviewRefund - 1, 'provider checkout reserves exactly one pizza worth of stock');
     const capturedReviewBody = JSON.stringify({
       event: 'payment.captured',
       payload: { payment: { entity: { ...reviewCapture } } },
