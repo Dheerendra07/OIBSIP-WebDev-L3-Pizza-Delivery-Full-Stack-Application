@@ -293,6 +293,45 @@ export async function requestFullPaymentReviewRefund(orderId, paymentId, adminUs
   };
 }
 
+async function quarantineUnexpectedRefund(order, paymentId, reason) {
+  if (!order || !paymentId || order.paymentStatus !== 'paid') return null;
+
+  const reviewFields = {
+    paymentReviewRequired: true,
+    paymentReviewReason: reason || 'refund_requires_manual_review',
+  };
+  const identity = {
+    _id: order._id,
+    razorpayPaymentId: paymentId,
+    paymentStatus: 'paid',
+  };
+
+  // Stop active fulfillment atomically. Preserve terminal delivery/cancellation
+  // history while still flagging the unexpected refund for administrator review.
+  let updated = await Order.findOneAndUpdate(
+    { ...identity, status: { $nin: ['delivered', 'cancelled'] } },
+    { $set: { ...reviewFields, status: 'payment_review' } },
+    { new: true, runValidators: true },
+  ).lean();
+
+  if (!updated) {
+    updated = await Order.findOneAndUpdate(
+      { ...identity, status: { $in: ['delivered', 'cancelled'] } },
+      { $set: reviewFields },
+      { new: true, runValidators: true },
+    ).lean();
+  }
+
+  if (updated) {
+    publishOrderUpdate(updated);
+    publishAdminRefresh();
+    if (updated.status === 'payment_review') {
+      await queueOrderNotificationSafely(updated, 'payment_review');
+    }
+  }
+  return updated;
+}
+
 export async function reconcileRefundWebhook(eventType, refund) {
   const paymentId = typeof refund?.payment_id === 'string' && refund.payment_id.length <= 100
     ? refund.payment_id
@@ -304,6 +343,9 @@ export async function reconcileRefundWebhook(eventType, refund) {
     return { status: 'processed', reason: null, providerOrderId: order?.razorpayOrderId || null, paymentId, orderId: order?._id || null };
   }
   if (decision.action !== 'apply') {
+    if (order && paymentId) {
+      await quarantineUnexpectedRefund(order, paymentId, decision.reason || 'refund_requires_manual_review');
+    }
     return {
       status: 'review_required',
       reason: decision.reason || 'refund_requires_manual_review',
