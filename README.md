@@ -122,9 +122,9 @@ All routes below are under /api.
 
 ## Verification and launch status
 
-The repository's **current evidence and remaining launch blockers are tracked in [PROJECT_STATUS.md](PROJECT_STATUS.md)**. CI success proves the tests and build covered by that run passed; it does not prove that live Razorpay transactions, real webhook delivery, outbound customer email, refunds, or real kitchen/driver operations work end to end.
+The repository's **current evidence and remaining launch blockers are tracked in [PROJECT_STATUS.md](PROJECT_STATUS.md)**. The latest release verification is green: [CI run 40168730746](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40168730746), [hosted browser smoke 40163698528](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698528), and [deployed API/revision smoke 40168730760](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40168730760). These automated checks validate the tested build and hosted service path; they do not certify live-money payments, actual customer email delivery, provider-sent webhook/refund handling, or real restaurant fulfillment.
 
-Before accepting real orders, complete the remaining items in the status/launch checklist: verify the current deployed runtime revision and hosted smoke checks, exercise the provider/webhook/refund journey in Test Mode, confirm actual email delivery using the chosen provider, manually test each admin/kitchen/delivery/customer role, complete accessibility checks, and only then run an explicitly approved production-readiness review. Never enable live payments just because a build or simulated order flow passed.
+Before accepting real orders, exercise the provider/webhook/refund journey in Test Mode, confirm actual email delivery using the chosen provider, manually test each authenticated admin/kitchen/delivery/customer role against the live service using synthetic test orders, complete accessibility checks, and only then run an explicitly approved production-readiness review. Re-run the deployed smoke suite after runtime changes. Never enable live payments just because a build or simulated order flow passed.
 
 ## Security basics
 
