@@ -456,6 +456,179 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.ok(adminSession, 'admin login should issue a session cookie');
   const adminCookie = adminSession.split(';', 1)[0];
 
+  // Exercise the post-payment recovery path over the real HTTP app and isolated MongoDB.
+  // The provider client and refund HTTP request are test-only stubs; no external payment
+  // or refund is sent, and all writes remain inside this disposable database.
+  const reviewOrderResponse = await fetch(`${base}/api/orders`, {
+    method: 'POST',
+    headers: { ...headers, Cookie: cookie, 'Idempotency-Key': 'integration-refund-review-order-0001' },
+    body: JSON.stringify({ items: [{ type: 'featured', pizzaId: 'margherita', quantity: 1 }], deliveryDetails: createOrderPayload.deliveryDetails }),
+  });
+  assert.equal(reviewOrderResponse.status, 201);
+  const reviewOrder = (await reviewOrderResponse.json()).order;
+  const reviewProviderOrderId = 'order_test_refund_review_1';
+  const reviewProviderPaymentId = 'pay_test_refund_review_1';
+  const reviewRefundId = 'rfnd_test_refund_review_1';
+  const reviewCapturedAmount = reviewOrder.total * 100 - 100;
+  const reviewCapture = {
+    id: reviewProviderPaymentId,
+    order_id: reviewProviderOrderId,
+    amount: reviewCapturedAmount,
+    amount_refunded: 0,
+    currency: 'INR',
+    status: 'captured',
+  };
+  const restoreRefundProvider = setRazorpayClientFactoryForIntegrationTests(() => ({
+    orders: {
+      create: async ({ amount, currency }) => ({ id: reviewProviderOrderId, amount, currency }),
+      fetchPayments: async (orderId) => ({ items: orderId === reviewProviderOrderId ? [reviewCapture] : [] }),
+    },
+    payments: {
+      fetch: async (paymentId) => paymentId === reviewProviderPaymentId ? reviewCapture : null,
+    },
+  }));
+  try {
+    const stockBeforeReviewRefund = (await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock;
+    const reviewPaymentSetup = await fetch(`${base}/api/payments/create-order`, {
+      method: 'POST',
+      headers: { ...headers, Cookie: cookie },
+      body: JSON.stringify({ orderId: reviewOrder.id }),
+    });
+    assert.equal(reviewPaymentSetup.status, 200);
+    assert.equal((await reviewPaymentSetup.json()).paymentOrderId, reviewProviderOrderId);
+    assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, stockBeforeReviewRefund - 1, 'provider checkout reserves exactly one pizza worth of stock');
+    const capturedReviewBody = JSON.stringify({
+      event: 'payment.captured',
+      payload: { payment: { entity: { ...reviewCapture } } },
+    });
+    const capturedReviewSignature = crypto.createHmac('sha256', env.RAZORPAY_WEBHOOK_SECRET)
+      .update(capturedReviewBody)
+      .digest('hex');
+    const capturedReviewResponse = await fetch(`${base}/api/payments/webhook`, {
+      method: 'POST',
+      headers: {
+        Origin: webOrigin,
+        'Content-Type': 'application/json',
+        'X-Razorpay-Signature': capturedReviewSignature,
+        'X-Razorpay-Event-Id': 'integration-refund-review-capture-1',
+      },
+      body: capturedReviewBody,
+    });
+    assert.equal(capturedReviewResponse.status, 200);
+    assert.equal((await capturedReviewResponse.json()).status, 'review_required');
+    const heldReviewOrder = await Order.findById(reviewOrder.id).lean();
+    assert.equal(heldReviewOrder.status, 'payment_review');
+    assert.equal(heldReviewOrder.paymentStatus, 'paid');
+    assert.equal(heldReviewOrder.paymentReviewRequired, true);
+    assert.equal(heldReviewOrder.paymentReviewReason, 'captured_amount_mismatch');
+    assert.equal(heldReviewOrder.inventoryReserved, true, 'a captured-payment mismatch must retain the stock hold');
+    assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, stockBeforeReviewRefund - 1);
+
+    // The API service submits the refund through its native idempotency header.
+    // Intercept only the Razorpay refund URL; local HTTP requests still hit the real app.
+    const originalFetch = globalThis.fetch;
+    const refundProviderRequests = [];
+    globalThis.fetch = async (input, options) => {
+      const url = typeof input === 'string' ? input : input?.url;
+      if (url === `https://api.razorpay.com/v1/payments/${encodeURIComponent(reviewProviderPaymentId)}/refund`) {
+        refundProviderRequests.push({ url, options });
+        return new Response(JSON.stringify({
+          id: reviewRefundId,
+          payment_id: reviewProviderPaymentId,
+          amount: reviewCapturedAmount,
+          currency: 'INR',
+          status: 'pending',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return originalFetch(input, options);
+    };
+
+    let refundRequest;
+    try {
+      refundRequest = await fetch(`${base}/api/admin/orders/${reviewOrder.id}/refund`, {
+        method: 'POST',
+        headers: { ...headers, Cookie: adminCookie },
+        body: JSON.stringify({ paymentId: reviewProviderPaymentId }),
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    assert.equal(refundRequest.status, 200, 'authorized admin can submit a safe full-refund recovery');
+    const refundRequestBody = await refundRequest.json();
+    assert.equal(refundRequestBody.refundStatus, 'pending');
+    assert.equal(refundRequestBody.paymentStatus, 'paid');
+    assert.equal(refundProviderRequests.length, 1);
+    assert.equal(refundProviderRequests[0].options.method, 'POST');
+    assert.equal(refundProviderRequests[0].options.headers['X-Refund-Idempotency'], `pizza-house-${String(reviewOrder.id).toLowerCase()}-full-refund`);
+    assert.equal(JSON.parse(refundProviderRequests[0].options.body).amount, reviewCapturedAmount);
+
+    const pendingRefundOrder = await Order.findById(reviewOrder.id).lean();
+    assert.equal(pendingRefundOrder.refundStatus, 'pending');
+    assert.equal(pendingRefundOrder.paymentStatus, 'paid');
+    assert.equal(pendingRefundOrder.status, 'payment_review');
+    assert.equal(pendingRefundOrder.inventoryReserved, true, 'stock is not restored until the provider confirms the refund');
+    assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, stockBeforeReviewRefund - 1);
+
+    const processedRefundBody = JSON.stringify({
+      event: 'refund.processed',
+      payload: {
+        refund: {
+          entity: {
+            id: reviewRefundId,
+            payment_id: reviewProviderPaymentId,
+            amount: reviewCapturedAmount,
+            currency: 'INR',
+            status: 'processed',
+          },
+        },
+      },
+    });
+    const processedRefundSignature = crypto.createHmac('sha256', env.RAZORPAY_WEBHOOK_SECRET)
+      .update(processedRefundBody)
+      .digest('hex');
+    const processedRefundHeaders = {
+      Origin: webOrigin,
+      'Content-Type': 'application/json',
+      'X-Razorpay-Signature': processedRefundSignature,
+      'X-Razorpay-Event-Id': 'integration-refund-processed-1',
+    };
+    const processedRefundResponse = await fetch(`${base}/api/payments/webhook`, {
+      method: 'POST',
+      headers: processedRefundHeaders,
+      body: processedRefundBody,
+    });
+    assert.equal(processedRefundResponse.status, 200);
+    assert.equal((await processedRefundResponse.json()).status, 'processed');
+
+    const refundedOrder = await Order.findById(reviewOrder.id).lean();
+    assert.equal(refundedOrder.refundStatus, 'processed');
+    assert.equal(refundedOrder.paymentStatus, 'refunded');
+    assert.equal(refundedOrder.status, 'cancelled');
+    assert.equal(refundedOrder.paymentReviewRequired, false);
+    assert.equal(refundedOrder.paymentReviewReason, null);
+    assert.equal(refundedOrder.inventoryReserved, false);
+    assert.equal(refundedOrder.stockReservationExpiresAt, null);
+    assert.equal(refundedOrder.razorpayRefundId, reviewRefundId);
+    assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, stockBeforeReviewRefund, 'inventory must be restored only after the confirmed refund');
+
+    const { default: PaymentWebhookReceipt } = await import('../src/models/PaymentWebhookReceipt.js');
+    const reviewCaptureReceipt = await PaymentWebhookReceipt.findOne({ eventId: 'integration-refund-review-capture-1' }).lean();
+    assert.equal(reviewCaptureReceipt.status, 'processed');
+    assert.equal(reviewCaptureReceipt.reason, 'resolved_by_full_refund');
+
+    const duplicateRefundResponse = await fetch(`${base}/api/payments/webhook`, {
+      method: 'POST',
+      headers: processedRefundHeaders,
+      body: processedRefundBody,
+    });
+    assert.equal(duplicateRefundResponse.status, 200);
+    assert.equal((await duplicateRefundResponse.json()).duplicate, true);
+    assert.equal((await Order.findById(reviewOrder.id).lean()).paymentStatus, 'refunded');
+    assert.equal((await InventoryItem.findOne({ key: 'base:classic' }).lean()).stock, stockBeforeReviewRefund, 'replayed refund webhook must not restore inventory twice');
+  } finally {
+    restoreRefundProvider();
+  }
+
   const adminQueueResponse = await fetch(`${base}/api/admin/orders`, {
     headers: { Origin: webOrigin, Cookie: adminCookie },
   });
