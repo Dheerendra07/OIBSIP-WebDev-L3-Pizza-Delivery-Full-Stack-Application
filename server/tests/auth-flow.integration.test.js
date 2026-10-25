@@ -479,6 +479,26 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.ok(preparingOrder.kitchenStartedAt);
   assert.equal(preparingOrder.paymentStatus, 'paid');
 
+  const dispatchResponse = await fetch(`${base}/api/admin/orders/${createdOrder.id}/status`, {
+    method: 'PATCH',
+    headers: { ...headers, Cookie: adminCookie },
+    body: JSON.stringify({ status: 'sent_to_delivery' }),
+  });
+  assert.equal(dispatchResponse.status, 200);
+  const dispatchResult = await dispatchResponse.json();
+  assert.equal(dispatchResult.order.fulfillmentMode, 'simulated');
+  assert.ok(dispatchResult.order.dispatchedAt);
+
+  const deliveredResponse = await fetch(`${base}/api/admin/orders/${createdOrder.id}/status`, {
+    method: 'PATCH',
+    headers: { ...headers, Cookie: adminCookie },
+    body: JSON.stringify({ status: 'delivered' }),
+  });
+  assert.equal(deliveredResponse.status, 200);
+  const deliveredResult = await deliveredResponse.json();
+  assert.equal(deliveredResult.order.fulfillmentMode, 'simulated');
+  assert.ok(deliveredResult.order.deliveredAt);
+
   const finalCustomerHistory = await fetch(`${base}/api/orders/my`, {
     headers: { Origin: webOrigin, Cookie: cookie },
   });
@@ -486,8 +506,10 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   const finalHistoryBody = await finalCustomerHistory.json();
   const progressedOrder = finalHistoryBody.orders.find(order => String(order.id) === String(createdOrder.id));
   assert.ok(progressedOrder);
-  assert.equal(progressedOrder.status, 'in_kitchen');
+  assert.equal(progressedOrder.status, 'delivered');
   assert.ok(progressedOrder.kitchenStartedAt);
+  assert.ok(progressedOrder.dispatchedAt);
+  assert.ok(progressedOrder.deliveredAt);
   // Provider rejects the configured Test Mode credential pair after the database reservation is committed.
   // Verify the safe 502 diagnosis, stock-release compensation, and same-order retry recovery.
   const failedProviderCheckout = await fetch(`${base}/api/orders`, {
