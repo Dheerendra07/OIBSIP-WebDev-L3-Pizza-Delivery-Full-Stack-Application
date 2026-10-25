@@ -1331,7 +1331,15 @@ try {
       const queueHeading = entry.user.role === 'kitchen' ? /Kitchen queue/ : /Your delivery/;
       await page.getByRole('heading', { name: queueHeading }).waitFor({ state: 'visible', timeout: 15_000 });
       await page.getByText('SANDBOX WORKFLOW', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
-      await page.locator('.order-card[data-order-id="browser-smoke-ops-order"]').waitFor({ state: 'visible', timeout: 10_000 });
+      const visibleStaffOrder = page.locator('.order-card[data-order-id="browser-smoke-ops-order"]');
+      const previewItems = visibleStaffOrder.locator('[data-order-card-item]');
+      if (await previewItems.count() !== 1 || (await previewItems.first().getAttribute('data-order-card-item-name')) !== 'Margherita Classic') {
+        throw new Error('The staff order card did not render the item preview from the synthetic order payload.');
+      }
+      if (!(await previewItems.first().locator('.order-card-item-photo').isVisible())) {
+        throw new Error('The staff order card photo fallback is missing.');
+      }
+      pass('staff queue order card renders photo-backed item tiles from order data in both kitchen and delivery views');
       pass('mocked ' + entry.user.role + ' first sign-in forces a password change before showing the assigned queue');
     }
 
@@ -1425,6 +1433,35 @@ try {
     await page.getByRole('heading', { name: /Good to see you,.*Browser/i }).waitFor({ state: 'visible', timeout: 15_000 });
     await page.getByText('PH-OPS-QA', { exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
     await page.getByText('TEST MODE · SIMULATED TRACKING', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+    const customerQaOrder = page.locator('.order-card[data-order-id="browser-smoke-ops-order"]');
+    if (await customerQaOrder.locator('[data-order-card-item]').count() !== 1) {
+      throw new Error('Customer order history is missing the catalog-backed item preview.');
+    }
+    const reportProblemButton = customerQaOrder.locator('.order-issue-actions .button-light');
+    await reportProblemButton.waitFor({ state: 'visible', timeout: 10_000 });
+    if ((await page.evaluate(() => document.documentElement.dataset.theme)) !== 'light') {
+      await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+      await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+    }
+    const lightReportColors = await reportProblemButton.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { background: style.backgroundColor, color: style.color };
+    });
+    if (lightReportColors.background !== 'rgb(255, 255, 255)' || lightReportColors.color !== 'rgb(29, 53, 68)') {
+      throw new Error('The light-mode report-problem action is not readable: ' + JSON.stringify(lightReportColors));
+    }
+    await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    const nightReportColors = await reportProblemButton.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { background: style.backgroundColor, color: style.color };
+    });
+    if (nightReportColors.background !== 'rgb(255, 98, 71)' || nightReportColors.color !== 'rgb(255, 255, 255)') {
+      throw new Error('The night-mode report-problem action is not readable: ' + JSON.stringify(nightReportColors));
+    }
+    await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+    pass('customer order history renders photo-backed item cards and readable report actions in light and night themes');
     pass('customer order history reflects the synthetic completed stage and clearly labels it as Test Mode simulation');
     console.log('[INFO] Kitchen, delivery and customer end-to-end UI drills above use mocked HTTP routes and a synthetic in-memory order; no production order or staff account was created or changed.');
     console.log('[INFO] Successful customer-auth checks use mocked endpoints unless optional PIZZA_QA_CUSTOMER_EMAIL/PIZZA_QA_CUSTOMER_PASSWORD secrets enable the separate live-session check.');

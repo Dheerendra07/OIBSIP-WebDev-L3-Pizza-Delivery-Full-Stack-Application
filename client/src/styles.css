@@ -2485,3 +2485,118 @@ html[data-theme="dark"] .builder-summary .summary-badge{
   .builder-summary .summary-pizza-photo,.builder-summary .summary-pizza-artwork{transition:none!important}
   .builder-summary .summary-picture.has-photo .summary-pizza-photo{transform:none}
 }
+
+
+/* Image-backed order-line cards: use order/catalog data, never invented order content. */
+.order-card-items{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));
+  gap:10px;
+  margin-top:16px;
+}
+.order-card-item{
+  display:grid;
+  grid-template-columns:68px minmax(0,1fr) auto;
+  align-items:center;
+  gap:11px;
+  min-width:0;
+  padding:10px;
+  border:1px solid #dfe8ed;
+  border-radius:14px;
+  background:linear-gradient(120deg,#f8fbfc 0%,#f1f6f8 100%);
+}
+.order-card-item-photo{
+  position:relative;
+  display:grid;
+  place-items:center;
+  width:68px;
+  height:62px;
+  overflow:hidden;
+  isolation:isolate;
+  border:1px solid #dce6eb;
+  border-radius:10px;
+  background:radial-gradient(circle at 45% 35%,#fff 0,#f2e6d8 75%,#e8d7c5 100%);
+}
+.order-card-item-photo--green{background:radial-gradient(circle at 45% 35%,#fff 0,#eef1df 75%,#dce6cc 100%)}
+.order-card-item-photo--orange{background:radial-gradient(circle at 45% 35%,#fff 0,#f5e2d3 75%,#e8c5ab 100%)}
+.order-card-item-photo--cream{background:radial-gradient(circle at 45% 35%,#fff 0,#eeeae0 75%,#dedfd3 100%)}
+.order-card-item-artwork{
+  position:absolute;
+  inset:0;
+  width:124%;
+  height:124%;
+  max-width:none;
+  opacity:1;
+  filter:drop-shadow(0 5px 4px rgba(50,31,17,.18));
+  transition:opacity .18s ease;
+}
+.order-card-item-photo img{
+  position:absolute;
+  inset:0;
+  z-index:1;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  opacity:0;
+  transition:opacity .18s ease;
+}
+.order-card-item-photo.has-photo img{opacity:1}
+.order-card-item-photo.has-photo .order-card-item-artwork{opacity:0}
+.order-card-item-quantity{
+  position:absolute;
+  z-index:2;
+  right:4px;
+  bottom:4px;
+  padding:3px 5px;
+  border:1px solid rgba(255,255,255,.75);
+  border-radius:6px;
+  background:rgba(17,35,47,.88);
+  color:#fff;
+  font-size:9px;
+  line-height:1;
+  font-weight:850;
+  box-shadow:0 2px 5px rgba(0,0,0,.16);
+}
+.order-card-item-copy{display:grid;gap:5px;min-width:0}
+.order-card-item-copy strong{
+  color:#223c4b;
+  font-size:12px;
+  line-height:1.4;
+  font-weight:800;
+  overflow-wrap:anywhere;
+}
+.order-card-item-copy small{
+  color:#718693;
+  font-size:10px;
+  line-height:1.45;
+  overflow-wrap:anywhere;
+}
+.order-card-item-total{
+  align-self:center;
+  color:#213b4a;
+  font-size:12px;
+  font-weight:850;
+  white-space:nowrap;
+}
+html[data-theme="dark"] .order-card-item{
+  border-color:#2e4655;
+  background:linear-gradient(120deg,#142a38 0%,#102330 100%);
+}
+html[data-theme="dark"] .order-card-item-photo{border-color:#344f60;background:radial-gradient(circle at 45% 35%,#35404a 0,#243441 75%,#162733 100%)}
+html[data-theme="dark"] .order-card-item-photo--green{background:radial-gradient(circle at 45% 35%,#34443b 0,#233831 75%,#142a29 100%)}
+html[data-theme="dark"] .order-card-item-photo--orange{background:radial-gradient(circle at 45% 35%,#49362f 0,#382e30 75%,#222733 100%)}
+html[data-theme="dark"] .order-card-item-photo--cream{background:radial-gradient(circle at 45% 35%,#41443c 0,#30383b 75%,#1b2b33 100%)}
+html[data-theme="dark"] .order-card-item-artwork{filter:drop-shadow(0 5px 5px rgba(0,0,0,.38)) saturate(1.06)}
+html[data-theme="dark"] .order-card-item-copy strong{color:#f0f5f7}
+html[data-theme="dark"] .order-card-item-copy small{color:#9fb3c0}
+html[data-theme="dark"] .order-card-item-total{color:#f1d9b8}
+@media(max-width:700px){
+  .order-card-items{grid-template-columns:minmax(0,1fr);gap:8px;margin-top:13px}
+  .order-card-item{grid-template-columns:62px minmax(0,1fr) auto;padding:9px;gap:10px}
+  .order-card-item-photo{width:62px;height:58px}
+  .order-card-item-copy strong{font-size:12px}
+  .order-card-item-copy small{font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){
+  .order-card-item-artwork,.order-card-item-photo img{transition:none}
+}
