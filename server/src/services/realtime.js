@@ -95,6 +95,8 @@ export function buildOrderUpdatePayload(order) {
   };
 }
 
+function relatedUserId(value) { return value?._id ?? value ?? null; }
+
 export function publishOrderUpdate(order, target = realtimeServer) {
   const payload = buildOrderUpdatePayload(order);
   const user = order?.user;
@@ -103,6 +105,10 @@ export function publishOrderUpdate(order, target = realtimeServer) {
 
   target.to(`user:${String(userId)}`).emit('order:update', payload);
   target.to('role:admin').emit('order:update', payload);
+  const kitchenStaffId = relatedUserId(order.kitchenStaff);
+  const deliveryStaffId = relatedUserId(order.deliveryStaff);
+  if (kitchenStaffId != null) target.to(`staff:${String(kitchenStaffId)}`).emit('order:update', payload);
+  if (deliveryStaffId != null) target.to(`staff:${String(deliveryStaffId)}`).emit('order:update', payload);
   return true;
 }
 
@@ -169,12 +175,13 @@ export function attachRealtimeServer(httpServer) {
       const expiresAt = getSessionExpiry(payload);
       if (expiresAt === null) return next(new Error('Authentication required'));
 
-      const user = await User.findById(payload.sub).select('name email role emailVerifiedAt sessionVersion');
+      const user = await User.findById(payload.sub).select('name email role active emailVerifiedAt sessionVersion');
       if (
         !user ||
+        user.active === false ||
         !user.emailVerifiedAt ||
         !isSessionVersionCurrent(payload.sv, user.sessionVersion) ||
-        !['user', 'admin'].includes(user.role)
+        !['user', 'admin', 'kitchen', 'delivery'].includes(user.role)
       ) {
         return next(new Error('Authentication required'));
       }
@@ -192,8 +199,21 @@ export function attachRealtimeServer(httpServer) {
     if (!scheduleSocketExpiry(socket, socket.data.expiresAt)) return;
     socket.join(`user:${socket.data.userId}`);
     if (socket.data.role === 'admin') socket.join('role:admin');
+    if (socket.data.role === 'kitchen') socket.join('role:kitchen');
+    if (socket.data.role === 'delivery') socket.join('role:delivery');
+    if (['kitchen', 'delivery'].includes(socket.data.role)) socket.join(`staff:${socket.data.userId}`);
   });
 
   realtimeServer = io;
   return io;
+}
+
+
+export function publishOpsRefresh(target = realtimeServer) {
+  if (!target) return false;
+  // This invalidation event carries no order data. Staff must fetch their own
+  // role-filtered queue through the authenticated operations endpoint.
+  target.to('role:kitchen').emit('ops:refresh', {});
+  target.to('role:delivery').emit('ops:refresh', {});
+  return true;
 }
