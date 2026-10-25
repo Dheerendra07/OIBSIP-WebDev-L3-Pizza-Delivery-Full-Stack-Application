@@ -558,6 +558,12 @@ try {
   await page.locator('.bag-button').click();
   await page.getByRole('heading', { name: /Your little bag of joy/i }).waitFor({ state: 'visible' });
   await page.locator('.delivery-details-panel').waitFor({ state: 'visible' });
+  const cartPhoto = page.locator('.cart-line [data-cart-line-photo="catalog-photo-v1"]').first();
+  await cartPhoto.waitFor({ state: 'visible', timeout: 10_000 });
+  if ((await cartPhoto.getAttribute('data-cart-line-photo-name')) !== 'Margherita Classic') {
+    throw new Error('The cart thumbnail does not reflect the selected live menu item.');
+  }
+  pass('cart line renders a photo-backed thumbnail from the selected catalog item');
   const cartEndcap = page.locator('[data-page-endcap="cart"]');
   await cartEndcap.waitFor({ state: 'visible', timeout: 15_000 });
   if (await cartEndcap.locator('.page-endcap-item').count() !== 3) {
@@ -1451,7 +1457,12 @@ try {
       throw new Error('The light-mode report-problem action is not readable: ' + JSON.stringify(lightReportColors));
     }
     await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
-    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    await page.waitForFunction(() => {
+      const el = document.querySelector('.order-card[data-order-id="browser-smoke-ops-order"] .order-issue-actions .button-light');
+      if (!el || document.documentElement.dataset.theme !== 'dark') return false;
+      const style = getComputedStyle(el);
+      return style.backgroundColor === 'rgb(255, 98, 71)' && style.color === 'rgb(255, 255, 255)';
+    }, null, { timeout: 5000 });
     const nightReportColors = await reportProblemButton.evaluate((el) => {
       const style = getComputedStyle(el);
       return { background: style.backgroundColor, color: style.color };

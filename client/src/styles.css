@@ -2600,3 +2600,17 @@ html[data-theme="dark"] .order-card-item-total{color:#f1d9b8}
 @media(prefers-reduced-motion:reduce){
   .order-card-item-artwork,.order-card-item-photo img{transition:none}
 }
+
+
+/* Cart item photography follows the actual selected recipe with a local artwork fallback. */
+.cart-line-art{position:relative;isolation:isolate}
+.cart-line-art .cart-line-artwork{transition:opacity .18s ease}
+.cart-line-photo{
+  position:absolute;inset:0;z-index:1;width:100%;height:100%;
+  object-fit:cover;opacity:0;border-radius:inherit;transition:opacity .18s ease;
+}
+.cart-line-art.has-photo .cart-line-photo{opacity:1}
+.cart-line-art.has-photo .cart-line-artwork{opacity:0}
+@media(prefers-reduced-motion:reduce){
+  .cart-line-art .cart-line-artwork,.cart-line-photo{transition:none}
+}
