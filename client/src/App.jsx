@@ -1522,11 +1522,11 @@ function orderRecipeSummary(item, catalog) {
     ].filter(Boolean).join(' · ') || 'Recipe details unavailable';
 }
 function OrderStaffAssignment({ order, staff = [], pending = false, onSave }) {
-    const [kitchenStaffId, setKitchenStaffId] = useState(order.kitchenStaff?.id || '');
-    const [deliveryStaffId, setDeliveryStaffId] = useState(order.deliveryStaff?.id || '');
+    const [kitchenStaffId, setKitchenStaffId] = useState(order.kitchenStaff?.id || order.kitchenStaff?._id || '');
+    const [deliveryStaffId, setDeliveryStaffId] = useState(order.deliveryStaff?.id || order.deliveryStaff?._id || '');
     useEffect(() => {
-        setKitchenStaffId(order.kitchenStaff?.id || '');
-        setDeliveryStaffId(order.deliveryStaff?.id || '');
+        setKitchenStaffId(order.kitchenStaff?.id || order.kitchenStaff?._id || '');
+        setDeliveryStaffId(order.deliveryStaff?.id || order.deliveryStaff?._id || '');
     }, [order.kitchenStaff?.id, order.deliveryStaff?.id]);
     const activeOptions = (role) => {
         const list = staff.filter(person => person.role === role && person.active);
@@ -1535,7 +1535,9 @@ function OrderStaffAssignment({ order, staff = [], pending = false, onSave }) {
         if (current && !list.some(person => person.id === current.id)) list.unshift(current);
         return list;
     };
-    const dirty = kitchenStaffId !== (order.kitchenStaff?.id || '') || deliveryStaffId !== (order.deliveryStaff?.id || '');
+    const currentKitchenId = order.kitchenStaff?.id || order.kitchenStaff?._id || '';
+    const currentDeliveryId = order.deliveryStaff?.id || order.deliveryStaff?._id || '';
+    const dirty = kitchenStaffId !== currentKitchenId || deliveryStaffId !== currentDeliveryId;
     if (!['order_received', 'in_kitchen', 'sent_to_delivery'].includes(order.status)) return null;
     return <div className="order-assignment-panel">
         <div className="order-assignment-heading"><strong>Order ownership</strong><small>Assign an active person before the next hand-off.</small></div>
@@ -1547,7 +1549,7 @@ function OrderStaffAssignment({ order, staff = [], pending = false, onSave }) {
                 <option value="">Unassigned</option>{activeOptions('delivery').map(person => <option key={person.id} value={person.id} disabled={!person.active}>{person.name}{person.active ? '' : ' · disabled'}</option>)}
             </select></label>
         </div>
-        <button type="button" className="button button-light small-button" disabled={!dirty || pending} onClick={() => onSave(order, { kitchenStaffId: kitchenStaffId || null, deliveryStaffId: deliveryStaffId || null })}>{pending ? 'Saving assignments…' : 'Save assignments'}</button>
+        <button type="button" className="button button-light small-button" disabled={!dirty || pending} onClick={() => onSave(order, { ...(kitchenStaffId !== currentKitchenId ? { kitchenStaffId: kitchenStaffId || null } : {}), ...(deliveryStaffId !== currentDeliveryId ? { deliveryStaffId: deliveryStaffId || null } : {}) })}>{pending ? 'Saving assignments…' : 'Save assignments'}</button>
     </div>;
 }
 
@@ -1637,8 +1639,9 @@ function OrderCard({ order, admin = false, staffRole = null, staff = [], onStatu
         typeof onResumePayment === 'function' && Boolean(order.id);
     const canReportIssue = customerView && paid && !reviewNeeded && !refunded &&
         ['order_received', 'in_kitchen', 'sent_to_delivery', 'delivered'].includes(order.status);
+    const hasDeliveryStaff = Boolean(order.deliveryStaff?.id || order.deliveryStaff?._id);
     const canKitchenAdvance = staffRole === 'kitchen' &&
-        (order.status === 'order_received' || (order.status === 'in_kitchen' && Boolean(order.deliveryStaff?.id)));
+        (order.status === 'order_received' || (order.status === 'in_kitchen' && hasDeliveryStaff));
     const canDeliveryAdvance = staffRole === 'delivery' && order.status === 'sent_to_delivery';
     const canAdvance = admin || canKitchenAdvance || canDeliveryAdvance;
 
@@ -1707,12 +1710,12 @@ function OrderCard({ order, admin = false, staffRole = null, staff = [], onStatu
         </div>}
         {canAdvance && next && paid && !reviewNeeded && <div className="order-admin-actions">
             <div><span>{admin ? 'Next operational step' : staffRole === 'kitchen' ? 'Kitchen action' : 'Delivery action'}</span><small>{simulated ? 'Sandbox only · no physical dispatch' : 'Verified Live Mode order'}</small></div>
-            <button type="button" className="button button-light small-button" disabled={statusPending || (staffRole === 'kitchen' && order.status === 'in_kitchen' && !order.deliveryStaff?.id)} onClick={() => onStatus(order, next)}>
+            <button type="button" className="button button-light small-button" disabled={statusPending || (staffRole === 'kitchen' && order.status === 'in_kitchen' && !hasDeliveryStaff)} onClick={() => onStatus(order, next)}>
                 {statusPending ? 'Saving status…' : admin && simulated ? 'Simulate: ' + nextAction : nextAction}
                 {!statusPending && <ArrowRight size={15}/>}
             </button>
         </div>}
-        {staffRole === 'kitchen' && order.status === 'in_kitchen' && !order.deliveryStaff?.id && <p className="fulfillment-waiting-note">A delivery partner must be assigned before this order can be handed off.</p>}
+        {staffRole === 'kitchen' && order.status === 'in_kitchen' && !hasDeliveryStaff && <p className="fulfillment-waiting-note">A delivery partner must be assigned before this order can be handed off.</p>}
         {staffRole === 'delivery' && order.status === 'in_kitchen' && <p className="fulfillment-waiting-note">Waiting for the kitchen to hand off this order. The delivery action becomes available after dispatch.</p>}
         {canResumePayment && <div className="order-repeat-actions order-resume-payment"><p>This order is still unpaid. Resume the saved server quote; no new order is created.</p><button type="button" className="button button-dark small-button" disabled={pending} onClick={() => onResumePayment(order)}><CreditCard size={16}/> Resume checkout</button></div>}
         {canRepeat && <div className="order-repeat-actions"><p>Want this one again? We’ll use the current menu and prices, not the old total.</p><button type="button" className="button button-light small-button" onClick={() => onReorder?.(order)}><RefreshCw size={16}/> Order again</button></div>}
