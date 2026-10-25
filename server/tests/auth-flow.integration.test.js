@@ -598,8 +598,9 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     headers: { ...headers, Cookie: adminCookie },
     body: JSON.stringify({ active: false }),
   });
-  assert.equal(disableDriver.status, 200);
-  assert.equal((await disableDriver.json()).staff.active, false);
+  const disableDriverBody = await disableDriver.json();
+  assert.equal(disableDriver.status, 200, JSON.stringify({ staffId: deliveryStaff.id, response: disableDriverBody }));
+  assert.equal(disableDriverBody.staff.active, false);
   const disabledQueue = await fetch(base + '/api/ops/orders', { headers: { Origin: webOrigin, Cookie: deliverySession.cookie } });
   assert.equal(disabledQueue.status, 403, 'disabling a staff account must revoke its active session');
 
