@@ -312,16 +312,46 @@ try {
   }
   pass('premium card quantity controls update the subtotal and restore the original price');
 
-  // A tap on the photo itself—not only the small CTA pill—must open the recipe detail.
+  // The full photo target must be an accessible, keyboard-operable named button.
   const photoSurface = firstPremiumCard.locator('.pizza-card-open');
-  const photoSurfaceBounds = await photoSurface.boundingBox();
+  const photoSurfaceSemantics = await photoSurface.evaluate((element) => ({
+    tagName: element.tagName,
+    type: element.getAttribute('type'),
+    label: element.getAttribute('aria-label'),
+    releaseMarker: element.getAttribute('data-pizza-card-open'),
+    tabIndex: element.tabIndex,
+  }));
+  if (photoSurfaceSemantics.tagName !== 'BUTTON' ||
+      photoSurfaceSemantics.type !== 'button' ||
+      photoSurfaceSemantics.label !== `View ${firstLivePizza.name} details` ||
+      photoSurfaceSemantics.releaseMarker !== 'photo-hit-area-v1' ||
+      photoSurfaceSemantics.tabIndex < 0) {
+    throw new Error('Featured photo hit target is missing its accessible button semantics: ' + JSON.stringify(photoSurfaceSemantics));
+  }
+  pass('featured photo hit target exposes a named, keyboard-focusable button');
+
+  // Enter activates the photo target, not just the visible CTA pill.
+  await photoSurface.focus();
+  await photoSurface.press('Enter');
+  const keyboardDetail = page.locator('[data-pizza-detail]');
+  await keyboardDetail.waitFor({ state: 'visible', timeout: 10_000 });
+  if (await keyboardDetail.getAttribute('data-pizza-id') !== firstPizzaId) {
+    throw new Error('Keyboard activation opened the wrong pizza detail.');
+  }
+  pass('keyboard Enter on the featured photo opens the matching product detail');
+  await keyboardDetail.locator('.pizza-detail-breadcrumb button').click();
+
+  // A pointer tap near the edge of the photo must also open that product.
+  await firstPremiumCard.locator('.pizza-card-open').waitFor({ state: 'visible', timeout: 10_000 });
+  const pointerSurface = firstPremiumCard.locator('.pizza-card-open');
+  const photoSurfaceBounds = await pointerSurface.boundingBox();
   const photoArtworkBounds = await firstPremiumCard.locator('.pizza-card-art').boundingBox();
   if (!photoSurfaceBounds || !photoArtworkBounds ||
       Math.abs(photoSurfaceBounds.width - photoArtworkBounds.width) > 1 ||
       Math.abs(photoSurfaceBounds.height - photoArtworkBounds.height) > 1) {
     throw new Error('The featured pizza open target does not cover the full artwork surface.');
   }
-  await photoSurface.click({ position: {
+  await pointerSurface.click({ position: {
     x: Math.max(24, photoSurfaceBounds.width - 24),
     y: Math.min(photoSurfaceBounds.height - 24, Math.max(24, photoSurfaceBounds.height / 2)),
   } });
