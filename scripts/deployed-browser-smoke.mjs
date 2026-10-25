@@ -385,6 +385,38 @@ try {
   await page.getByRole('heading', { name: /The art of your slice/i }).waitFor({ state: 'visible', timeout: 15_000 });
   await page.locator('.builder-summary').waitFor({ state: 'visible', timeout: 15_000 });
   await page.getByRole('heading', { name: 'Your masterpiece.' }).waitFor({ state: 'visible' });
+  const builderPreview = page.locator('[data-builder-preview]');
+  await builderPreview.waitFor({ state: 'visible', timeout: 10_000 });
+  const initialBuilderVisual = await builderPreview.evaluate((root) => ({
+    source: root.getAttribute('data-builder-preview-source') || '',
+    loaded: Boolean(root.querySelector('.summary-pizza-photo')?.naturalWidth > 0 && root.classList.contains('has-photo')),
+    badge: root.querySelector('.summary-badge')?.textContent?.trim() || '',
+    note: root.querySelector('.summary-photo-note')?.textContent?.trim() || '',
+    price: document.querySelector('.builder-summary .summary-total strong')?.textContent?.trim() || '',
+  }));
+  if (!initialBuilderVisual.loaded || initialBuilderVisual.badge !== 'VISUAL REFERENCE' ||
+      !initialBuilderVisual.note.includes('Illustrative food photo') ||
+      !initialBuilderVisual.note.includes('selected recipe is listed below') || !initialBuilderVisual.price) {
+    throw new Error('Builder preview must load a real reference photo, disclose that it is illustrative, and retain the exact selected-recipe price: ' + JSON.stringify(initialBuilderVisual));
+  }
+  const mushroomsOption = page.locator('.veg-grid .veg-option').filter({ hasText: 'Mushrooms' }).first();
+  await mushroomsOption.click();
+  await page.waitForFunction((previousSource) => {
+    const preview = document.querySelector('[data-builder-preview]');
+    return Boolean(preview && preview.getAttribute('data-builder-preview-source') !== previousSource &&
+      preview.querySelector('.summary-pizza-photo')?.naturalWidth > 0 && preview.classList.contains('has-photo'));
+  }, initialBuilderVisual.source, { timeout: 10_000 });
+  const changedBuilderVisual = await builderPreview.evaluate((root) => ({
+    source: root.getAttribute('data-builder-preview-source') || '',
+    selectedRecipe: document.querySelector('.builder-summary .summary-ingredients')?.innerText || '',
+    price: document.querySelector('.builder-summary .summary-total strong')?.textContent?.trim() || '',
+  }));
+  if (changedBuilderVisual.source === initialBuilderVisual.source ||
+      !changedBuilderVisual.selectedRecipe.includes('Mushrooms') ||
+      changedBuilderVisual.price === initialBuilderVisual.price) {
+    throw new Error('Changing selected toppings must update the reference photo, exact recipe summary and price: ' + JSON.stringify({ initialBuilderVisual, changedBuilderVisual }));
+  }
+  pass('builder photo reference changes with selected toppings while the exact recipe and price stay visible');
   const builderLight = await page.locator('.builder-summary').evaluate((el) => ({
     background: getComputedStyle(el).backgroundColor,
     heading: getComputedStyle(el.querySelector('.summary-body h2')).color,
