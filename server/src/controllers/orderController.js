@@ -10,6 +10,7 @@ import { getRazorpayClient, verifyRazorpaySignature } from '../services/payments
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
 import { mapRazorpayOrderCreationError } from '../utils/paymentProviderErrors.js';
 import { config } from '../config/env.js';
+import { queueOrderNotificationSafely } from '../services/orderNotifications.js';
 
 const isRequestObjectId = (value) => typeof value === 'string' && mongoose.isObjectIdOrHexString(value);
 
@@ -231,6 +232,8 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 
   // Idempotent confirmation of the exact payment already applied to this order.
   if (initial.paymentStatus === 'paid' && initial.razorpayPaymentId === razorpayPaymentId) {
+    if (initial.status === 'payment_review') await queueOrderNotificationSafely(initial, 'payment_review');
+    else if (initial.status === 'order_received') await queueOrderNotificationSafely(initial, 'payment_confirmed');
     return res.json({
       message: initial.paymentReviewRequired ? 'Payment received; order requires manual review' : 'Payment already verified',
       order: {
@@ -349,6 +352,7 @@ export const verifyPayment = asyncHandler(async (req, res) => {
   publishAdminRefresh();
 
   const needsReview = Boolean(updated.paymentReviewRequired) || updated.status === 'payment_review';
+  await queueOrderNotificationSafely(updated, needsReview ? 'payment_review' : 'payment_confirmed');
   res.json({
     message: needsReview ? 'Payment received; order requires manual review. Do not pay again.' : 'Payment verified',
     order: {

@@ -3,12 +3,14 @@ import mongoose from 'mongoose';
 import app from './app.js';
 import { config } from './config/env.js';
 import { startStockAlertJob } from './jobs/stockAlerts.js';
+import { startOrderNotificationJob } from './jobs/orderNotifications.js';
 import { attachRealtimeServer } from './services/realtime.js';
 import { ensureAdminAccount, ensureInventorySeeded } from './utils/databaseBootstrap.js';
 
 let server;
 let realtime;
 let stockJob;
+let orderNotificationJob;
 
 async function start() {
   await mongoose.connect(config.mongoUri, { serverSelectionTimeoutMS: 10000 });
@@ -29,11 +31,13 @@ async function start() {
   realtime = attachRealtimeServer(server);
   server.listen(config.port, () => console.info(`Pizza House API listening on port ${config.port}`));
   stockJob = startStockAlertJob();
+  orderNotificationJob = startOrderNotificationJob();
 }
 
 async function shutdown(signal) {
   console.info(`${signal}: shutting down`);
   stockJob?.stop();
+  orderNotificationJob?.stop();
   if (realtime) {
     await new Promise((resolve) => realtime.close(resolve));
   } else if (server?.listening) {

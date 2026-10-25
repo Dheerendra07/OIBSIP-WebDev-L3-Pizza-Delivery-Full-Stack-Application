@@ -11,6 +11,8 @@ import { hashPassword, isStrongEnough } from '../utils/password.js';
 import { disconnectUserSockets, publishOpsRefresh } from '../services/realtime.js';
 import { resolveFulfillmentMode, validateOrderStatusTransition } from '../utils/orderRules.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
+import OrderNotification from '../models/OrderNotification.js';
+import { queueOrderNotificationSafely } from '../services/orderNotifications.js';
 
 export const summary = asyncHandler(async (_req, res) => {
   const [ordersTotal, paidOrders, revenue, pendingOrders, usersTotal, lowStock] = await Promise.all([
@@ -78,6 +80,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   if (status === 'delivered') order.deliveredAt = changedAt;
   await order.save();
   publishOrderUpdate(order);
+  await queueOrderNotificationSafely(order, 'status_changed');
   publishAdminRefresh();
   res.json({
     order: {
@@ -94,6 +97,34 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     },
   });
 });
+
+
+export const orderNotificationHealth = asyncHandler(async (_req, res) => {
+  const now = new Date();
+  const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const [queued, sending, sentLast24Hours, dead, oldestQueued, deadLetters] = await Promise.all([
+    OrderNotification.countDocuments({ deliveryStatus: 'queued' }),
+    OrderNotification.countDocuments({ deliveryStatus: 'sending' }),
+    OrderNotification.countDocuments({ deliveryStatus: 'sent', sentAt: { $gte: dayAgo } }),
+    OrderNotification.countDocuments({ deliveryStatus: 'dead' }),
+    OrderNotification.findOne({ deliveryStatus: 'queued' }).sort({ createdAt: 1 }).select('createdAt').lean(),
+    OrderNotification.find({ deliveryStatus: 'dead' }).sort({ updatedAt: -1 }).limit(10)
+      .select('order attempts lastError updatedAt').populate('order', 'orderNumber').lean(),
+  ]);
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    checkedAt: now.toISOString(),
+    counts: { queued, sending, sentLast24Hours, dead },
+    oldestQueuedAt: oldestQueued?.createdAt || null,
+    deadLetters: deadLetters.map((item) => ({
+      orderNumber: item.order?.orderNumber || null,
+      attempts: item.attempts,
+      lastError: item.lastError || null,
+      updatedAt: item.updatedAt,
+    })),
+  });
+});
+
 
 export const listPaymentReviews = asyncHandler(async (_req, res) => {
   const receipts = await PaymentWebhookReceipt.find({ status: 'review_required' })

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import {
-  summary, listInventory, updateInventory, listOrders, listPaymentReviews,
+  summary, listInventory, updateInventory, listOrders, listPaymentReviews, orderNotificationHealth,
   updateOrderStatus, refundPaymentReview, checkPaymentProvider,
   listStaff, createStaff, setStaffActive, assignOrderStaff,
 } from '../controllers/adminController.js';
@@ -19,6 +19,7 @@ router.post('/staff', createStaff);
 router.patch('/staff/:id/active', setStaffActive);
 router.patch('/orders/:id/assignments', assignOrderStaff);
 router.get('/payment-reviews', listPaymentReviews);
+router.get('/notification-health', orderNotificationHealth);
 router.get('/issues', listAdminIssues);
 router.patch('/issues/:id', updateIssue);
 router.patch('/orders/:id/status', updateOrderStatus);

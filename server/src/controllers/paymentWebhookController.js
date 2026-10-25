@@ -7,6 +7,7 @@ import { verifyRazorpayWebhookSignature } from '../utils/paymentSignature.js';
 import { classifyCapturedPayment } from '../utils/paymentWebhook.js';
 import { reconcileRefundWebhook } from '../services/refunds.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
+import { queueOrderNotificationSafely } from '../services/orderNotifications.js';
 
 function headerString(req, name) {
   const value = req.get(name);
@@ -88,6 +89,7 @@ async function reconcileCapturedPayment(payment) {
   if (updatedOrder) {
     publishOrderUpdate(updatedOrder);
     publishAdminRefresh();
+    await queueOrderNotificationSafely(updatedOrder, updatedOrder.status === 'payment_review' ? 'payment_review' : 'payment_confirmed');
   }
 
   return { ...outcome, providerOrderId, paymentId: safeId(payment?.id) };

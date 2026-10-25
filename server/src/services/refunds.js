@@ -7,6 +7,7 @@ import { inventoryRequirements } from '../utils/catalog.js';
 import { createFullRefundIdempotencyKey, classifyRefundWebhook, classifyRefundCaptureSet } from '../utils/paymentRefund.js';
 import { config } from '../config/env.js';
 import { publishAdminRefresh, publishOrderUpdate } from './realtime.js';
+import { queueOrderNotificationSafely } from './orderNotifications.js';
 
 function httpError(statusCode, message) {
   return Object.assign(new Error(message), { statusCode });
@@ -105,6 +106,9 @@ async function persistRefundState(orderId, refund, status) {
     if (updated) {
       publishOrderUpdate(updated);
       publishAdminRefresh();
+      if (updated.paymentStatus === 'refunded' && updated.refundStatus === 'processed') {
+        await queueOrderNotificationSafely(updated, 'refund_processed');
+      }
       return updated;
     }
   }

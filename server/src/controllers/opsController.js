@@ -5,6 +5,7 @@ import { config } from '../config/env.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { resolveFulfillmentMode, validateOrderStatusTransition } from '../utils/orderRules.js';
 import { publishAdminRefresh, publishOpsRefresh, publishOrderUpdate } from '../services/realtime.js';
+import { queueOrderNotificationSafely } from '../services/orderNotifications.js';
 
 const sameId = (left, right) => String(left?._id ?? left ?? '') === String(right?._id ?? right ?? '');
 
@@ -99,6 +100,7 @@ export const updateOpsOrderStatus = asyncHandler(async (req, res) => {
   if (status === 'delivered') order.deliveredAt = changedAt;
   await order.save();
   publishOrderUpdate(order);
+  await queueOrderNotificationSafely(order, 'status_changed');
   publishOpsRefresh();
   publishAdminRefresh();
 
