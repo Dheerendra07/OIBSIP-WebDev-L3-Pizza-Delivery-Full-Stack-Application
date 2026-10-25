@@ -26,6 +26,13 @@ after(async () => {
   });
 });
 
+test('notification queue health rejects visitors without an admin session', async () => {
+  const response = await fetch(`${baseUrl}/api/admin/notification-health`);
+  assert.equal(response.status, 401);
+  const body = await response.json();
+  assert.equal(body.error, 'Sign in to continue');
+});
+
 test('payment provider diagnostic rejects visitors without an admin session', async () => {
   const response = await fetch(`${baseUrl}/api/admin/payment-provider-check`);
   assert.equal(response.status, 401);

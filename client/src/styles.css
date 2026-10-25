@@ -2614,3 +2614,45 @@ html[data-theme="dark"] .order-card-item-total{color:#f1d9b8}
 @media(prefers-reduced-motion:reduce){
   .cart-line-art .cart-line-artwork,.cart-line-photo{transition:none}
 }
+
+
+/* Transactional email outbox: concise operational health, not a decorative dashboard. */
+.notification-provider-state{
+  display:flex;align-items:center;gap:12px;padding:14px 15px;
+  border:1px solid var(--line);border-radius:8px;background:var(--surface);
+}
+.notification-provider-state>div{display:grid;gap:4px;min-width:0}
+.notification-provider-state strong{font-size:13px;line-height:1.4;color:var(--text-primary)}
+.notification-provider-state small{font-size:11px;line-height:1.4;color:var(--text-secondary)}
+.notification-provider-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:#ba8531}
+.notification-provider-state.configured .notification-provider-dot{background:#4c8a60}
+.notification-provider-state.missing{border-color:#dfc699;background:#fff8eb}
+.notification-provider-state.missing strong{color:#76531b}
+.notification-provider-note{margin:12px 0 0;padding:12px 14px;border-left:3px solid #bd8834;background:#fff8eb;color:#6c5227;font-size:12px;line-height:1.6}
+.notification-health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:13px}
+.notification-health-metric{display:grid;gap:7px;min-width:0;padding:13px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.notification-health-metric>span{font-size:11px;line-height:1.4;color:var(--text-secondary);font-weight:650}
+.notification-health-metric>strong{font-family:var(--serif);font-size:27px;line-height:1.1;font-weight:500;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.notification-health-metric>small{font-size:10px;line-height:1.5;color:var(--text-secondary)}
+.notification-health-metric.is-warning{border-color:#d9ad78}
+.notification-health-metric.is-warning>strong{color:#b3472c}
+.notification-queue-age,.notification-clear-note{margin:13px 0 0;font-size:11px;line-height:1.55;color:var(--text-secondary)}
+.notification-dead-letters{margin-top:19px;padding-top:15px;border-top:1px solid var(--line)}
+.notification-dead-letters h3{margin:0 0 8px;font-size:13px;color:var(--text-primary)}
+.notification-dead-row{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:14px;padding:12px 0;border-top:1px solid var(--line)}
+.notification-dead-row>div{display:grid;gap:4px;align-content:start;min-width:0}
+.notification-dead-row strong{font-size:12px;line-height:1.4;color:var(--text-primary);overflow-wrap:anywhere}
+.notification-dead-row small,.notification-dead-row p{font-size:11px;line-height:1.5;color:var(--text-secondary);overflow-wrap:anywhere}
+.notification-dead-row p{margin:0}
+html[data-theme="dark"] .notification-provider-state{border-color:#314a59;background:#122633}
+html[data-theme="dark"] .notification-provider-state strong,html[data-theme="dark"] .notification-dead-row strong,html[data-theme="dark"] .notification-dead-letters h3{color:#edf4f7}
+html[data-theme="dark"] .notification-provider-state small,html[data-theme="dark"] .notification-health-metric>span,html[data-theme="dark"] .notification-health-metric>small,html[data-theme="dark"] .notification-dead-row small,html[data-theme="dark"] .notification-dead-row p,html[data-theme="dark"] .notification-queue-age,html[data-theme="dark"] .notification-clear-note{color:#a7bbc7}
+html[data-theme="dark"] .notification-provider-state.missing,html[data-theme="dark"] .notification-provider-note{border-color:#705730;background:#30281c;color:#dcc89e}
+html[data-theme="dark"] .notification-provider-state.missing strong{color:#ffdf9a}
+html[data-theme="dark"] .notification-health-metric{border-color:#2e4655;background:#132734}
+html[data-theme="dark"] .notification-health-metric>strong{color:#edf4f7}
+html[data-theme="dark"] .notification-health-metric.is-warning{border-color:#78513d}
+html[data-theme="dark"] .notification-health-metric.is-warning>strong{color:#ff9b83}
+html[data-theme="dark"] .notification-dead-letters,html[data-theme="dark"] .notification-dead-row{border-color:#2b4353}
+@media(max-width:800px){.notification-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.notification-health-panel{padding:16px}.notification-health-grid{gap:8px}.notification-health-metric{padding:11px}.notification-health-metric>strong{font-size:24px}.notification-dead-row{grid-template-columns:1fr;gap:8px}}

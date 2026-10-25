@@ -13,6 +13,7 @@ import { resolveFulfillmentMode, validateOrderStatusTransition } from '../utils/
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
 import OrderNotification from '../models/OrderNotification.js';
 import { queueOrderNotificationSafely } from '../services/orderNotifications.js';
+import { isMailConfigured } from '../utils/emailConfig.js';
 
 export const summary = asyncHandler(async (_req, res) => {
   const [ordersTotal, paidOrders, revenue, pendingOrders, usersTotal, lowStock] = await Promise.all([
@@ -114,6 +115,7 @@ export const orderNotificationHealth = asyncHandler(async (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({
     checkedAt: now.toISOString(),
+    deliveryConfigured: isMailConfigured(),
     counts: { queued, sending, sentLast24Hours, dead },
     oldestQueuedAt: oldestQueued?.createdAt || null,
     deadLetters: deadLetters.map((item) => ({
