@@ -1,121 +1,134 @@
-# Pizza House — Full-Stack Pizza Ordering & Inventory
+# Pizza House
 
-Pizza House is a MERN full-stack pizza ordering platform for custom orders, secure accounts, inventory reservation, payment verification and live order tracking. The payment integration uses Razorpay Test Mode; this repository has not been certified for production payments.
+**Pizza House** is a full-stack pizza ordering and restaurant-operations application built with React, Express, MongoDB and Razorpay. It has a deployed web/API service and customer, admin, kitchen and delivery-staff workflows. It is still in **launch-preparation**, not certified for accepting real customer payments or operating a real delivery business: the configured payment path and order progression used for validation are in Razorpay Test Mode / sandbox simulation.
 
-## Features
+- **Hosted app:** https://pizza-house-api.onrender.com
+- **Current implementation, verification evidence and launch blockers:** [PROJECT_STATUS.md](PROJECT_STATUS.md)
+- **Product research and roadmap:** [docs/PRODUCT_DISCOVERY.md](docs/PRODUCT_DISCOVERY.md)
+- **Same-origin Render setup:** [docs/RENDER_SAME_ORIGIN_DEPLOYMENT.md](docs/RENDER_SAME_ORIGIN_DEPLOYMENT.md)
 
-### Customer experience
-- Register and sign in with email verification, HttpOnly-cookie sessions, logout, forgot-password and reset-password.
-- Browse featured pizzas, filter the menu, build a custom pizza, manage the cart and view server-calculated totals.
-- Enter and validate recipient, mobile number and delivery address before creating a payable order; update destination details while payment is pending.
-- Start Razorpay Test Mode checkout and retry server verification for the same payment when confirmation is uncertain, including after a page reload in the same browser tab/session.
-- See saved delivery details in order history and authenticated Socket.IO order updates.
-- Repeat delivered/cancelled orders from history using the current menu prices; unavailable ingredients are not silently substituted, and payment starts only after a new explicit checkout.
-- Report a missing item, wrong item, food-quality concern or delivery delay against an eligible paid order; follow the case reference and see customer-visible updates from order history.
+## What is implemented
 
-### Admin experience
-- Separate admin login; public registration cannot create admin accounts.
-- Inventory dashboard with stock/threshold edits and scheduled low-stock email alerts.
-- Incoming-order queue, paid-order transition validation and operations summary.
-- Customer issue queue with reference IDs, review/resolution states and customer-visible case updates.
-- Payment-review queue for captured payments that cannot safely proceed to fulfillment.
-- Admin-only Razorpay Test Mode connection check in the dashboard. It verifies the deployed API key pair through a read-only request and displays only a safe connection state; no order, payment or refund is created. This does not verify webhook delivery, which must be tested separately.
-- Guarded full-refund action for eligible payment-review orders. Refund requests use an idempotency key; uncertain/failed results remain recoverable, and inventory is released only after a confirmed full refund. Multiple-capture cases require manual reconciliation.
+### Customer ordering
+- Responsive React/Vite experience with Light and Night themes, a featured pizza menu, category filters, recipe-backed ingredient labels, pizza detail views, custom-pizza builder, cart and checkout.
+- Customer registration, email verification, sign-in, logout, forgot/reset password, and cookie-based sessions.
+- Server-authoritative order prices and recipe validation. The server does not trust prices or totals supplied by the browser.
+- Required delivery recipient, Indian mobile number, street address, city, state and PIN code are validated and stored with the order; destination details can be corrected while payment is pending.
+- Basket and pending-order recovery, checkout idempotency, explicit confirmation when the server quote differs from the visible cart, and retry handling when payment verification is uncertain.
+- Customer order history, order-status timeline with recorded milestone times, authenticated real-time refresh events, safe repeat-order from the current catalog, and customer support reports for eligible paid orders.
 
-### Payment and inventory safety
-- Server rebuilds order line items from the allowlisted catalog; client-provided prices and totals are not trusted.
-- Ingredient stock is reserved using MongoDB transactions before checkout.
-- Checkout verification checks the payment signature and independently verifies provider payment status, order linkage, amount and INR currency.
-- Signed POST /api/payments/webhook validates the raw request body with the separate RAZORPAY_WEBHOOK_SECRET.
-- Webhook event receipts make duplicate deliveries idempotent. payment.failed is not treated as final proof that an order can be released; late-capture attempts are protected by a conservative hold window.
-- Captures that mismatch the order, amount, currency, active inventory reservation or required delivery details are placed in payment_review instead of being sent to the kitchen.
-- Captured-payment verification exceptions create admin-visible review receipts; customers are told not to pay again when manual review is required.
-- Invalid custom pizza options are returned as client validation errors instead of server errors.
-- Before automatic refund recovery, the server checks Razorpay order payment history and blocks the refund unless exactly one captured payment matches the reviewed payment.
-- Expired unpaid reservations are marked cancelled after safe reconciliation. Provider order references are retained so late captures can still be tied to the original order; uncertain provider state defers release.
+### Admin and restaurant operations
+- Separate admin sign-in; public registration cannot create an admin or staff account.
+- Admin summary, inventory/threshold editing, low-stock scan/notification job, incoming orders and payment-review queue.
+- Customer issue queue with reference IDs, review/resolution states and customer-visible updates.
+- Guarded refund workflow for eligible payment-review cases. The code uses provider idempotency and does not release inventory until a full refund is confirmed; ambiguous or multiple-capture cases need manual review.
+- Staff management: admin can create kitchen/delivery staff, assign paid orders to them, and disable accounts.
+- Staff sign-in and role-filtered kitchen and delivery queues. Staff accounts must change their temporary password at first sign-in; disabling an account revokes its active session.
+- Kitchen preparation details/tickets and staged handoff. Order status transitions are checked server-side rather than trusting the UI.
+
+### Payment, inventory and security controls
+- Razorpay Test Mode checkout with payment-signature checking and independent provider-state, order-linkage, amount and INR-currency checks.
+- Signed webhook endpoint with event receipts to make duplicate webhook deliveries idempotent; a payment.failed event alone is not treated as proof that a late capture cannot occur.
+- Inventory reservation and cautious expiry/late-capture reconciliation; uncertain payment/provider state preserves review or inventory holds instead of automatically treating the order as safely cancelled.
+- Payment-review handling for captured payments whose order, amount, currency, delivery details, reservation or capture history cannot safely proceed.
+- Auth rate limiting, hashed expiring verification/reset tokens, HttpOnly session cookies, server-side role checks, session-version invalidation, security headers and constrained error logging.
+- CI workflows for tests, dependency/security checks, production client build, hosted browser smoke and deployed API smoke checks.
+
+## Fulfillment modes: important distinction
+
+The application now has separate admin, kitchen and delivery workflows. That does **not** mean a real kitchen or driver has been contacted.
+
+- **Test Mode:** when both the configured application mode and the order payment mode are Test Mode, order stages can be advanced as an explicitly simulated workflow. UI messages identify the simulation; no real kitchen or delivery partner is contacted.
+- **Live Mode:** server guardrails require a matching Live Mode configuration and order before a live fulfillment transition can proceed. The real-money checkout, actual provider webhook/refund journey and operating restaurant delivery have **not** been certified by these checks.
+- **Real-world setup still needed:** actual staff accounts and training, kitchen preparation/acceptance process, delivery coverage and fees, customer-facing delivery estimates, notification delivery, support/refund policy, and verified payment/email provider configuration. Do not present a simulated status as a real delivery.
 
 ## Technology
-- Frontend: React, Vite
-- Backend: Node.js, Express
-- Database: MongoDB with Mongoose
-- Payments: Razorpay Test Mode
-- Realtime: Socket.IO
-- Security: HttpOnly JWT cookie, password hashing, expiring hashed verification/reset tokens, auth rate limiting, admin-only routes and session-version invalidation
-- Checks: Node.js test runner, client unit tests, Vite production build and GitHub Actions CI
 
-## Production deployment and login sessions
+| Area | Implementation |
+|---|---|
+| Customer and operations UI | React, Vite, CSS |
+| API | Node.js, Express |
+| Data | MongoDB, Mongoose |
+| Payment integration | Razorpay SDK (Test Mode for current validation) |
+| Live UI refresh | Socket.IO |
+| Authentication | JWT in HttpOnly cookies, password hashing, expiring tokens |
+| Tests | Node.js test runner, client tests, disposable MongoDB integration tests, Playwright hosted browser smoke |
+| Hosting | Render API service serves the built UI and API from one origin |
 
-The recommended Render setup serves the built customer frontend from the API service on one origin. This avoids cross-site session-cookie restrictions caused by the default isolated `*.onrender.com` frontend and API hosts. Follow [Render Same-Origin Deployment](docs/RENDER_SAME_ORIGIN_DEPLOYMENT.md) before changing production service settings. Keep secrets in Render's environment settings and use Razorpay Test Mode while validating checkout.
+The server requires **Node.js 20.19+**; Node.js 22 is recommended. MongoDB must support transactions (a replica set or compatible MongoDB Atlas deployment) because inventory/order writes span multiple documents.
 
-## Run locally
+## Run locally (Windows PowerShell)
 
-### Requirements
-- Node.js 22 recommended (the server requires Node.js 20.19+).
-- MongoDB running as a replica set or a transaction-capable MongoDB Atlas cluster. Multi-document inventory updates require transaction support.
-- Razorpay Test Mode credentials and an email provider for actual checkout/email testing. SMTP works locally, but Render Free blocks outbound SMTP ports `25`, `465` and `587`; use the Resend HTTPS API on Render Free. Email sending also requires a sender address verified by the provider.
+1. Clone the repository and open PowerShell at its root.
+2. Run the guided local configuration. It creates/preserves server/.env, generates a local JWT secret where needed, masks sensitive prompts and never prints entered secrets:
 
-### Setup
-1. From the repository root, run `npm run setup:local` in PowerShell. It creates `server/.env` when needed and generates a strong local `JWT_SECRET` without printing it. On an interactive terminal it guides you through missing settings; sensitive inputs are masked, Enter skips a provider, and existing values are preserved. It refuses to edit an env marked `NODE_ENV=production`.
-2. When prompted, log into your provider accounts yourself and enter the values directly into the local terminal. Use a transaction-capable MongoDB replica set/Atlas URI, your own admin email/password, either a Resend API key plus a verified `MAIL_FROM` sender or SMTP app credentials, and only Razorpay Test Mode keys (`rzp_test_...`) plus the webhook secret configured in your dashboard. Never send credentials to ChatGPT or commit them.
-3. Follow the preflight output. It checks configuration shape only; it does not connect to MongoDB, send email, call Razorpay or test the browser journey. You may press Enter to skip credentials and continue later.
+       npm run setup:local
 
-   After adding Razorpay **Test Mode** credentials, run `node server/scripts/razorpay-test-preflight.js` from the repository root. This performs a read-only `GET` against the Razorpay Test Mode orders API to verify the key pair; it never creates an order, payment, or refund and never prints credentials or provider response data. It does not prove that the dashboard webhook is configured or that checkout/refunds work end to end.
-4. Install dependencies from the repository root: `npm run install:all`.
-5. The API automatically ensures starter inventory on startup using insert-only upserts; `npm run seed:inventory` remains available as an explicit local step.
-6. When `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set, the API creates the initial admin on startup if it does not exist. `npm run seed:admin` remains available as an explicit local step; existing admin passwords are never reset.
-7. Start the frontend and API: `npm run dev`.
-8. Open http://localhost:5173; API health is at http://localhost:4000/api/health.
+3. Enter your own configuration directly in the terminal. Use a transaction-capable MongoDB URI, your own admin email/password, an email provider configuration, and **Razorpay Test Mode** keys only. Never paste secrets into an issue, pull request, chat or commit.
+4. Install the three locked dependency sets:
 
-### Verify
-Run `npm test` and `npm run build` from the repository root. GitHub Actions runs dependency installation, the configured test suite (including the disposable MongoDB integration test), and the production client build on pushes to main, feat/**, fix/**, build/**, and docs/**, and on pull requests targeting main.
+       npm run install:all
 
-The issue lifecycle integration test uses `mongodb-memory-server` with a disposable local MongoDB 7.0.14 instance. It verifies real index creation, customer ownership, admin-only access, issue status/message persistence, resolving and reopening a new case, and concurrent duplicate submissions. CI runs it automatically because GitHub Actions sets `CI=true`. To opt in locally from PowerShell:
-```powershell
-$env:RUN_MONGODB_INTEGRATION = "1"
-npm test
-Remove-Item Env:RUN_MONGODB_INTEGRATION
-```
-The first run downloads the temporary MongoDB binary. The test does not connect to your configured database or require Razorpay/email-provider credentials.
+5. Start the API and UI:
 
-The issue-report dialog keyboard flow was checked in Chrome at 320px: initial focus, Tab/Shift+Tab containment, Escape close, focus restoration, and error-response containment passed. PR #33 verified success/error live-region semantics and selected form-control contrast (14.99:1 text, 3.41:1 field border). PR #35 fixed baseline axe-detected contrast on the pizza-card number, dashboard labels, caption and footer wordmark. PR #37 further fixed builder option prices, ingredient labels, checkout notes and admin metric labels; it also added authentication-dialog focus entry/trapping/Escape/restoration and mobile-navigation focus entry/return. A temporary Playwright + axe-core 4.10.3 harness reported zero WCAG 2.1 A/AA violations over 31 scans of home, menu, builder, populated cart, auth dialog, customer dashboard and admin dashboard after the fixes. Home/menu/builder/populated-cart had no horizontal overflow at 320, 360, 390, 640, 768, 1024 or 1440 CSS-pixel viewport widths. The 640px run was only a viewport size, not literal browser zoom. Some axe checks remain incomplete; actual screen-reader sessions, manual review, remaining 320px states and 200% browser zoom are still unverified.
+       npm run dev
 
-Reproducible installs: the root, `server/`, and `client/` `package-lock.json` files are tracked together. `npm run install:all` uses `npm ci` for all three manifests, and CI caches all three lockfiles. The root, server and client clean installs passed on Node 22.22.2/npm 10.9.7; the full 142-test suite (including the disposable MongoDB integration test), production build, and all three npm audits passed. MongoDB, real email delivery, live Razorpay, and browser checkout still require configuration-backed end-to-end verification.
+6. Open http://localhost:5173. The development API health route is http://localhost:4000/api/health.
 
-## Key API routes
+The setup preflight validates configuration shape; it does not itself prove database connectivity, email delivery, payment checkout or webhook configuration. After adding Test Mode Razorpay credentials, run the following from the repository root. It makes a read-only provider request to check the key pair; it does not create an order, charge a payment or create a refund.
 
-| Method | Endpoint | Purpose |
+    node server/scripts/razorpay-test-preflight.js
+
+### Useful commands
+
+    npm run install:all
+    npm test
+    npm run build
+    npm run setup:local
+
+The disposable MongoDB integration tests are run by CI. To opt in locally from PowerShell:
+
+    $env:RUN_MONGODB_INTEGRATION = "1"
+    npm test
+    Remove-Item Env:RUN_MONGODB_INTEGRATION
+
+The first integration run downloads its temporary MongoDB binary. It does not connect to the database configured in server/.env.
+
+## Important API routes
+
+All routes below are under /api.
+
+| Method | Route | Purpose |
 |---|---|---|
-| POST | /api/auth/register | Register customer |
-| POST | /api/auth/login | Customer sign-in |
-| POST | /api/auth/admin/login | Admin sign-in |
-| GET | /api/catalog | Get menu and options |
-| POST | /api/orders | Create server-priced order with validated delivery details |
-| GET | /api/orders/my | Customer order history |
-| GET | /api/orders/:id | Read an order owned by the customer (admins can inspect any order) |
-| PATCH | /api/orders/:id/delivery-details | Update destination while payment is pending |
-| POST | /api/payments/create-order | Validate destination, reserve stock and create Razorpay order |
-| POST | /api/payments/verify | Verify checkout payment and record captured exceptions for review |
-| POST | /api/payments/webhook | Verify signed payment/refund webhook |
-| GET | /api/admin/orders | Admin order queue |
-| GET | /api/admin/payment-reviews | Captured-payment review queue |
-| POST | /api/admin/orders/:id/refund | Request safe full refund for eligible review hold |
-| PATCH | /api/admin/orders/:id/status | Advance a paid order through fulfillment |
+| GET | /catalog | Public menu, recipes and options |
+| POST | /auth/register | Customer registration |
+| POST | /auth/login | Customer sign-in |
+| POST | /auth/admin/login | Admin sign-in |
+| POST | /auth/staff/login | Kitchen/delivery staff sign-in |
+| POST | /auth/staff/change-password | Mandatory staff password rotation |
+| POST | /orders | Create a server-priced order with delivery details |
+| GET | /orders/my | Authenticated customer's order history |
+| POST | /payments/create-order | Reserve stock and create a payment order |
+| POST | /payments/verify | Verify payment and reconcile captured exceptions |
+| POST | /payments/webhook | Verify signed payment/refund webhook |
+| GET / PATCH | /admin/orders, /admin/orders/:id/status | Admin queue and guarded status transitions |
+| GET / POST | /admin/staff | List/provision kitchen and delivery staff |
+| PATCH | /admin/orders/:id/assignments | Assign a paid order to staff |
+| GET / PATCH | /ops/orders, /ops/orders/:id/status | Role-filtered kitchen/delivery queue and transitions |
+| GET / PATCH | /admin/inventory | Admin inventory view / stock thresholds |
+| GET / PATCH | /admin/issues | Admin customer-issue queue and case updates |
+| GET | /admin/payment-reviews | Captured-payment review queue |
+| POST | /admin/orders/:id/refund | Guarded full-refund recovery for eligible review cases |
 
-## Razorpay webhook setup for integration testing
+## Verification and launch status
 
-Configure the deployed API endpoint POST /api/payments/webhook in the Razorpay Dashboard, with payment.captured, payment.failed, refund.created, refund.processed and refund.failed enabled. Use the same separate webhook secret in the Dashboard and server/.env. Webhook delivery, real MongoDB transactions, email-provider delivery and a complete browser-to-provider checkout journey still need configuration-backed end-to-end testing.
+The repository's **current evidence and remaining launch blockers are tracked in [PROJECT_STATUS.md](PROJECT_STATUS.md)**. CI success proves the tests and build covered by that run passed; it does not prove that live Razorpay transactions, real webhook delivery, outbound customer email, refunds, or real kitchen/driver operations work end to end.
 
-## Security and deployment notes
-- Never commit .env files, provider credentials, real database exports or user data.
-- Use HTTPS in deployment, exact allowed CORS origins, secure cookie settings, a verified email sender and restricted database network access.
-- API startup runs insert-only inventory bootstrap and safely creates the configured first admin if absent. It preserves existing inventory stock and admin credentials; production requires both `ADMIN_EMAIL` and `ADMIN_PASSWORD`.
-- Use Razorpay Test Mode during assessment. Do not use production payment credentials until provider/webhook/refund procedures and the full end-to-end journey have been validated.
-- A passing CI run proves the automated tests and client build passed; it does not prove external services are configured or the live checkout flow has been exercised.
+Before accepting real orders, complete the remaining items in the status/launch checklist: verify the current deployed runtime revision and hosted smoke checks, exercise the provider/webhook/refund journey in Test Mode, confirm actual email delivery using the chosen provider, manually test each admin/kitchen/delivery/customer role, complete accessibility checks, and only then run an explicitly approved production-readiness review. Never enable live payments just because a build or simulated order flow passed.
 
-## Verified repository status
+## Security basics
 
-- Latest merged application hardening commit: `3f6778f33136cd5beb42159d1aceaee3227321f3` (PR #18).
-- PR #18 CI, tested against code SHA `e29bf1f78c9206c9d222d87dabb2c5bf5fb70aea`: [pull-request check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319853575) and [push check](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319845265) both passed unit/smoke tests and production client build.
-- These checks do not prove live MongoDB transaction behaviour, Razorpay payment/webhook/refund delivery, email delivery or browser end-to-end success. Those remain in the final setup/integration phase.
-- [Product discovery and differentiation roadmap](docs/PRODUCT_DISCOVERY.md) captures the research sources, code-audit findings, UI contract, prioritized feature backlog and test discipline.
-- See PROJECT_STATUS.md for current verification evidence and remaining integration work.
+- Keep server/.env, API keys, webhook secrets, database credentials, user exports and customer personal data out of Git.
+- Use HTTPS, exact allowed origins, secure cookies, restricted database network access and a verified sender identity.
+- Use Test Mode during development/assessment. Rotate any credential that has been exposed.
+- Never run destructive inventory, customer, order or admin-data changes against the production database for a smoke test.
