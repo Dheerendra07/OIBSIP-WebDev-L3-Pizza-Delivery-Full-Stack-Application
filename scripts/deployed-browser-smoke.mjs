@@ -137,6 +137,7 @@ try {
       (await page.locator('[data-payment-provider-check="readonly-admin-v1"]').count() === 1) &&
       (await page.locator('[data-auth-toast-fix="clear-stale-toast-v1"]').count() === 1) &&
       (await page.locator('[data-theme-toggle]').count() === 1) &&
+      (await page.locator('[data-home-hero="premium-food-v1"]').count() === 1) &&
       (await page.locator('[data-pizza-card-version="premium-photo-v1"]').count() >= 3);
 
     premiumVisualState = await page.locator('[data-pizza-card-version="premium-photo-v1"]').evaluateAll((cards) => {
@@ -168,7 +169,13 @@ try {
       }).length;
       const primary = document.querySelector('.hero .button-dark');
       const footer = document.querySelector('.site-footer');
+      const heroImage = document.querySelector('[data-home-hero-photo="premium-food-v1"]');
+      const homeHeroPhotoLoaded = Boolean(
+        heroImage && heroImage.complete && heroImage.naturalWidth > 0 &&
+        heroImage.closest('.hero-pizza')?.classList.contains('has-photo'),
+      );
       return {
+        homeHeroPhotoLoaded,
         variantCount: new Set(variants).size,
         primaryColor: primary ? getComputedStyle(primary).backgroundColor : '',
         footerColor: footer ? getComputedStyle(footer).backgroundColor : '',
@@ -178,9 +185,10 @@ try {
         interactiveCardCount,
         ingredientCardCount,
       };
-    }).catch(() => ({ variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0 }));
+    }).catch(() => ({ homeHeroPhotoLoaded: false, variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0 }));
 
     if (releaseMarkersReady &&
+        premiumVisualState.homeHeroPhotoLoaded === true &&
         premiumVisualState.premiumCardCount >= 3 &&
         premiumVisualState.loadedPhotoCount >= 3 &&
         premiumVisualState.uniquePhotoCount >= 3 &&
@@ -198,6 +206,7 @@ try {
       premiumVisualState.premiumCardCount + '; loadedPhotos=' + premiumVisualState.loadedPhotoCount +
       '; interactive=' + premiumVisualState.interactiveCardCount +
       '; uniquePhotos=' + premiumVisualState.uniquePhotoCount +
+      '; heroPhoto=' + premiumVisualState.homeHeroPhotoLoaded +
       '; ingredientCards=' + premiumVisualState.ingredientCardCount + '; variants=' +
       premiumVisualState.variantCount + '; CTA=' + premiumVisualState.primaryColor +
       '; footer=' + premiumVisualState.footerColor + ')',
@@ -205,8 +214,9 @@ try {
     await page.waitForTimeout(5_000);
   }
   if (!mobileSignInReady) {
-    throw new Error('Hosted site did not publish three premium cards with three distinct, loaded food-photo sources, working controls, and the navy/red visual release after 20 checks: ' + JSON.stringify(premiumVisualState));
+    throw new Error('Hosted site did not publish a loaded food-photo hero plus three distinct, loaded premium cards with working controls and the navy/red visual release after 20 checks: ' + JSON.stringify(premiumVisualState));
   }
+  pass('home hero displays a loaded real-food photograph with the local vector fallback retained');
   pass('production publishes three distinct premium photo cards with all three food photos loaded');
   pass('premium cards expose working quantity, catalog-price, subtotal and cart controls');
   pass('every premium card shows real ingredient names instead of the fallback label');
@@ -219,6 +229,12 @@ try {
   const liveMenuResponse = await page.request.get(`${webUrl}/api/catalog`, { timeout: 10_000 });
   if (!liveMenuResponse.ok()) throw new Error('The live catalog endpoint failed during ingredient chip verification.');
   const liveMenu = await liveMenuResponse.json();
+  const expectedBaseAndSauceCount = (liveMenu.catalog?.bases?.length || 0) + (liveMenu.catalog?.sauces?.length || 0);
+  const displayedBaseAndSauceCount = Number((await page.locator('.hero-proof strong').innerText()).trim());
+  if (!expectedBaseAndSauceCount || displayedBaseAndSauceCount !== expectedBaseAndSauceCount) {
+    throw new Error('Home hero base/sauce count does not match the live catalog: ' + JSON.stringify({ expectedBaseAndSauceCount, displayedBaseAndSauceCount }));
+  }
+  pass('home hero choice count matches the current live base and sauce catalog');
   const firstPizzaId = await firstPremiumCard.getAttribute('data-pizza-id');
   const firstLivePizza = liveMenu?.featuredPizzas?.find((pizza) => pizza.id === firstPizzaId);
   if (!firstLivePizza || !liveMenu?.catalog) throw new Error('Could not match the first featured card to the live catalog API.');
