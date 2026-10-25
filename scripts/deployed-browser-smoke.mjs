@@ -1269,7 +1269,7 @@ try {
       }]);
       await page.getByRole('heading', { name: 'Set your private password.', exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
       await page.getByLabel('Temporary password').fill(entry.temporaryPassword);
-      await page.getByLabel('New password').fill(entry.newPassword);
+      await page.getByLabel('New password', { exact: true }).fill(entry.newPassword);
       await page.getByLabel('Confirm new password').fill(entry.newPassword);
       const rotateResponsePromise = page.waitForResponse((response) =>
         new URL(response.url()).pathname === '/api/auth/staff/change-password' &&
