@@ -275,7 +275,9 @@ jobs:
             const bundleResponse = await fetch(bundleUrl, { signal: AbortSignal.timeout(8000) });
             assert.equal(bundleResponse.status, 200, 'production JavaScript bundle must be reachable');
             const bundle = await bundleResponse.text();
-            assert.ok(bundle.includes(`${apiBase}/api`) || bundle.includes('\"/api\"') || bundle.includes("'/api'"), 'production bundle must use the deployed API URL or the same-origin /api path');
+            const usesDeployedApi = bundle.includes(`${apiBase}/api`);
+            const usesSameOriginApi = bundle.includes('\"/api\"') || bundle.includes("'/api'");
+            assert.ok(usesDeployedApi || usesSameOriginApi, 'production bundle must use the deployed API URL or the same-origin /api path');
             assert.ok(!bundle.includes('http://localhost:4000/api'), 'production bundle must not fall back to localhost API');
             assert.ok(bundle.includes('pizza-house.checkout-draft'), 'deployed bundle must include checkout draft recovery code');
             assert.ok(bundle.includes("We couldn't confirm sign-out. Check your connection and try again."), 'deployed bundle must include the logout failure recovery fix');
