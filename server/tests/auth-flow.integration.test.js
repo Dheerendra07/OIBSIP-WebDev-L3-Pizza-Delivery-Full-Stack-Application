@@ -61,6 +61,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
         amount: 52700,
         currency: 'INR',
         status: 'captured',
+        amount_refunded: 0,
       }),
     },
   }));
@@ -403,6 +404,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
           amount: 52700,
           currency: 'INR',
           status: 'captured',
+          amount_refunded: 0,
         },
       },
     },
