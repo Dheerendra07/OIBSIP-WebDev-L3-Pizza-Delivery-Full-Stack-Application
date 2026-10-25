@@ -17,7 +17,7 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
   let payload;
   try { payload = jwt.verify(token, config.jwtSecret, { issuer: 'pizza-house-api', audience: 'pizza-house-client' }); }
   catch { return res.status(401).json({ error: 'Session expired. Sign in again.' }); }
-  const user = await User.findById(payload.sub).select('name email role active emailVerifiedAt sessionVersion');
+  const user = await User.findById(payload.sub).select('name email role active mustChangePassword emailVerifiedAt sessionVersion');
   if (!user) return res.status(401).json({ error: 'Account not found' });
   if (user.active === false) return res.status(403).json({ error: 'This account has been disabled. Contact the administrator.' });
   if (!isSessionVersionCurrent(payload.sv, user.sessionVersion)) return res.status(401).json({ error: 'Your session is no longer valid. Sign in again.' });
@@ -37,6 +37,9 @@ export const requireOperationsStaff = (req, res, next) => {
   }
   if (req.user?.active === false) {
     return res.status(403).json({ error: 'This staff account has been disabled' });
+  }
+  if (req.user?.mustChangePassword === true) {
+    return res.status(428).json({ error: 'Change your temporary staff password before opening the operations queue' });
   }
   next();
 };
