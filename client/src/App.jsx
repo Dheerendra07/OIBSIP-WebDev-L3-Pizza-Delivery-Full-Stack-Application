@@ -1416,7 +1416,7 @@ function PizzaCard({ pizza, index, onAdd, onCustomize, onViewDetails, catalog })
         onError={() => { setPhotoFailed(true); setPhotoLoaded(false); }}
       />}
       <span className="pizza-card-photo-scrim" aria-hidden="true"/>
-      <button className="pizza-card-view-button" type="button" onClick={() => onViewDetails?.()} aria-label={`View ${pizza.name} details`}>View details <ArrowUpRight size={15}/></button>
+      <button className="pizza-card-open" type="button" onClick={() => onViewDetails?.()} aria-label={`View ${pizza.name} details`}><span className="pizza-card-view-button" aria-hidden="true">View details <ArrowUpRight size={15}/></span></button>
       <span className="pizza-label">{pizza.tag || 'HOUSE FAVOURITE'}</span>
       <span className={`pizza-card-availability ${unavailable ? 'is-unavailable' : 'is-available'}`}>
         <span aria-hidden="true"/> {pizza.available === false ? 'Sold out' : !hasPrice ? 'Price unavailable' : 'Available'}

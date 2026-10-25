@@ -311,8 +311,19 @@ try {
   }
   pass('premium card quantity controls update the subtotal and restore the original price');
 
-  // Opening a live card must navigate to the richer recipe/detail page.
-  await firstPremiumCard.locator('.pizza-card-view-button').click();
+  // A tap on the photo itself—not only the small CTA pill—must open the recipe detail.
+  const photoSurface = firstPremiumCard.locator('.pizza-card-open');
+  const photoSurfaceBounds = await photoSurface.boundingBox();
+  const photoArtworkBounds = await firstPremiumCard.locator('.pizza-card-art').boundingBox();
+  if (!photoSurfaceBounds || !photoArtworkBounds ||
+      Math.abs(photoSurfaceBounds.width - photoArtworkBounds.width) > 1 ||
+      Math.abs(photoSurfaceBounds.height - photoArtworkBounds.height) > 1) {
+    throw new Error('The featured pizza open target does not cover the full artwork surface.');
+  }
+  await photoSurface.click({ position: {
+    x: Math.max(24, photoSurfaceBounds.width - 24),
+    y: Math.min(photoSurfaceBounds.height - 24, Math.max(24, photoSurfaceBounds.height / 2)),
+  } });
   const detailPage = page.locator('[data-pizza-detail]');
   await detailPage.waitFor({ state: 'visible', timeout: 10_000 });
   if (await detailPage.getAttribute('data-pizza-id') !== firstPizzaId) {

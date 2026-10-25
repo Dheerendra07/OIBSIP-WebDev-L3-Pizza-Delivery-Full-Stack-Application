@@ -1624,6 +1624,25 @@ html[data-theme="dark"] .pizza-card-assurance svg{color:#72d3a0}
   outline-offset:3px;
   border-radius:3px;
 }
+.pizza-card-open{
+  position:absolute;
+  inset:0;
+  z-index:4;
+  display:block;
+  width:100%;
+  height:100%;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:inherit;
+  background:transparent;
+  color:inherit;
+  text-align:left;
+}
+.pizza-card-open:focus-visible{
+  outline:3px solid var(--focus,#425eae);
+  outline-offset:-5px;
+}
 .pizza-card-view-button{
   position:absolute;
   z-index:5;
@@ -1645,9 +1664,9 @@ html[data-theme="dark"] .pizza-card-assurance svg{color:#72d3a0}
   box-shadow:0 7px 22px rgba(0,0,0,.18);
   transition:background .2s ease,transform .2s ease,border-color .2s ease;
 }
-.pizza-card-view-button:hover{
-  background:#f15f49;
-  border-color:#f15f49;
+.pizza-card-open:hover .pizza-card-view-button{
+  background:var(--brand-hover,#a63c22);
+  border-color:var(--brand-hover,#a63c22);
   transform:translateY(-1px);
 }
 .pizza-card-view-button svg{flex:0 0 auto}
