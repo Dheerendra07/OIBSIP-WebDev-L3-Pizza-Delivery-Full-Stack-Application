@@ -119,6 +119,7 @@ export default function App() {
     const [deliveryRestoreRetry, setDeliveryRestoreRetry] = useState(0);
     const [priceReview, setPriceReview] = useState(null);
     const [pendingRefundOrderId, setPendingRefundOrderId] = useState(null);
+    const [pendingStatusOrderId, setPendingStatusOrderId] = useState(null);
     const [pendingVerification, setPendingVerification] = useState(() => {
         try {
             return parsePendingVerification(sessionStorage.getItem(PENDING_PAYMENT_STORAGE_KEY));
@@ -915,14 +916,20 @@ export default function App() {
     catch (e) {
         notify(e.message, 'error');
     } };
-    const updateStatus = async (order, status) => { try {
-        await api(`/admin/orders/${order.id}/status`, { method: 'PATCH', body: { status } });
-        await refreshAdmin();
-        notify(`${order.orderNumber} moved to ${status.replaceAll('_', ' ')}`);
-    }
-    catch (e) {
-        notify(e.message, 'error');
-    } };
+    const updateStatus = async (order, status) => {
+        setPendingStatusOrderId(order.id);
+        try {
+            const response = await api(`/admin/orders/${order.id}/status`, { method: 'PATCH', body: { status } });
+            await refreshAdmin();
+            notify(response.fulfillmentMode === 'simulated'
+                ? `Test Mode simulation: ${order.orderNumber} → ${status.replaceAll('_', ' ')}. No real kitchen or driver was contacted.`
+                : `${order.orderNumber} moved to ${status.replaceAll('_', ' ')}`);
+        } catch (e) {
+            notify(e.message, 'error');
+        } finally {
+            setPendingStatusOrderId(null);
+        }
+    };
     const updateIssue = async (issue, updates) => {
         setPendingAdminIssueId(issue.id);
         try {
@@ -1043,7 +1050,7 @@ export default function App() {
 
     {page === 'dashboard' && <section className="section-wrap page-section"><div className="dashboard-top"><div><div className="eyebrow">YOUR PIZZA DIARY</div><h1>Good to see you, <em>{user?.name?.split(' ')[0] || 'friend'}.</em></h1><p>Every great day deserves a great slice.</p></div><button className="button button-light" onClick={() => navigate('menu')}>Order something lovely <ArrowRight size={16}/></button></div>{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <DashboardMetricSkeleton/> : <div className="dashboard-metrics"><div><span>ORDERS MADE</span><strong>{ordersStatus === 'ready' ? orders.length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'And counting' : 'Not available'}</small></div><div><span>ON THE WAY</span><strong>{ordersStatus === 'ready' ? orders.filter(o => ['order_received', 'in_kitchen', 'sent_to_delivery'].includes(o.status)).length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'Good things incoming' : 'Not available'}</small></div><div><span>YOUR LAST ORDER</span><strong>{ordersStatus === 'ready' && orders[0] ? currency(orders[0].total) : '—'}</strong><small>{ordersStatus === 'ready' ? orders[0]?.orderNumber || 'Your first slice awaits' : 'Not available'}</small></div></div>}<div className="section-heading dashboard-heading"><div><h2>Order <em>updates.</em></h2><p>We’ll keep you in the loop. This list refreshes automatically.</p></div><button className="text-link" onClick={refreshOrders}><RefreshCw size={15}/> Refresh</button></div>{ordersError && ordersStatus === 'ready' && <InlineDataWarning message={ordersError} onRetry={refreshOrders} />}{issuesError && <InlineDataWarning message={issuesError} onRetry={refreshIssues} />}{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <OrderListSkeleton count={2}/> : ordersStatus === 'error' ? <DataUnavailable title="Your orders haven’t loaded" message="We couldn’t confirm your order history. Please retry instead of assuming there are no orders." onRetry={refreshOrders}/> : orders.length ? <div className="orders-list">{orders.map(order => <OrderCard key={order.id} order={order} onReorder={repeatOrder} onResumePayment={resumePendingPayment} pending={pending} issue={issues.find(item => item.orderId === order.id)} onReportIssue={openIssueReport} onRefreshIssues={refreshIssues}/>)}</div> : <div className="empty-state compact-empty"><div className="empty-art">🥡</div><h2>The first one’s always special.</h2><p>Place an order and watch the magic happen here.</p><button className="button button-dark" onClick={() => navigate('menu')}>Explore the menu <ArrowRight size={17}/></button></div>}</section>}
 
-    {page === 'admin' && <section className="section-wrap page-section admin-page"><div className="admin-heading"><div><div className="eyebrow">BEHIND THE COUNTER</div><h1>Good food takes <em>good care.</em></h1><p>Live order events refresh the queue. Use Refresh data to recheck inventory and payment status.</p></div><button className="button button-light" onClick={refreshAdmin}><RefreshCw size={16}/> Refresh data</button></div>{!user || user.role !== 'admin' ? <div className="empty-state"><div className="empty-art">🔐</div><h2>Admin access only.</h2><p>Sign in through the separate admin sign-in flow.</p><button className="button button-dark" onClick={() => openAuth('admin')}>Admin sign in <ArrowRight size={16}/></button></div> : (adminStatus === 'loading' || adminStatus === 'idle') ? <AdminPanelsSkeleton/> : adminStatus === 'error' ? <DataUnavailable title="Operations data isn’t available" message="Inventory, order and payment-review data could not be confirmed. Retry to load the live dashboard." onRetry={refreshAdmin}/> : <>{adminError && <InlineDataWarning message={adminError} onRetry={refreshAdmin}/>}<div className="admin-metrics">{[{ label: 'Total orders', value: adminData.summary?.ordersTotal ?? '—', icon: ShoppingBag }, { label: 'Paid orders', value: adminData.summary?.paidOrders ?? '—', icon: BadgeCheck }, { label: 'Revenue', value: currency(adminData.summary?.revenue), icon: ArrowUpRight }, { label: 'Low-stock items', value: adminData.summary?.lowStock ?? '—', icon: Boxes }].map(item => <div className="admin-metric" key={item.label}><span><item.icon size={17}/>{item.label}</span><strong>{item.value}</strong></div>)}</div><div className="admin-panel payment-provider-panel"><div className="panel-heading"><div><h2>Razorpay {paymentMode === 'live' ? 'Live Mode' : paymentMode === 'test' ? 'Test Mode' : 'Payment'} connection</h2><p>Verify the configured API key pair with a read-only request. No order, payment, or refund is created.</p></div><button type="button" className="button button-light small-button" disabled={paymentProviderCheck.status === 'loading'} onClick={checkPaymentProvider}>{paymentProviderCheck.status === 'loading' ? 'Checking…' : 'Check connection'}</button></div><p className={`provider-check-message ${paymentProviderCheck.status}`} role={paymentProviderCheck.status === 'error' ? 'alert' : 'status'} aria-live={paymentProviderCheck.status === 'error' ? 'assertive' : 'polite'}>{paymentProviderCheck.status === 'connected' ? `Connected to Razorpay ${(paymentProviderCheck.mode || paymentMode) === 'live' ? 'Live' : 'Test'} Mode at ${new Date(paymentProviderCheck.checkedAt).toLocaleString()}. Webhook delivery is a separate check.` : paymentProviderCheck.status === 'error' ? paymentProviderCheck.message : paymentProviderCheck.status === 'loading' ? 'Checking the provider with a read-only request…' : 'Not checked yet. This check does not create a payment, charge, order, or refund.'}</p></div><div className="admin-panel"><div className="panel-heading"><div><h2>Inventory room</h2><p>Update stock counts and per-item alert thresholds.</p></div><Boxes size={20}/></div><div className="inventory-table"><div className="inventory-row inventory-header"><span>Item</span><span>In stock</span><span>Alert at</span><span>State</span></div>{adminData.inventory.length ? adminData.inventory.map(item => <InventoryRow key={item.key} item={item} onSave={updateInventory}/>) : <div className="empty-small">No inventory items were returned by the API.</div>}</div></div><div className="admin-panel"><div className="panel-heading"><div><h2>Payment review queue</h2><p>Signed webhook events needing manual reconciliation.</p></div><ShieldCheck size={20}/></div>{adminData.paymentReviews.length ? <div className="payment-review-list">{adminData.paymentReviews.map(event => <article className="payment-review-event" key={event.eventId}><div><strong>{event.eventType}</strong><small>{event.order?.orderNumber || 'Unmatched provider order'} · {new Date(event.receivedAt).toLocaleString()}</small></div><p>{event.reason?.replaceAll('_', ' ') || 'Manual review required'}</p><small>Provider order: {event.providerOrderId || 'not supplied'} · Payment: {event.paymentId || 'not supplied'}</small><small>Event ID: {event.eventId}</small>{event.order?.refundStatus === 'pending' && <p className="refund-status-note">Refund pending with Razorpay. Do not submit another refund.</p>}{event.order?.refundStatus === 'failed' && <p className="refund-status-note">Refund failed or was rejected. Manual provider review is required.</p>}{event.order?.id && event.order.status === 'payment_review' && event.order.paymentReviewRequired && event.order.paymentStatus === 'paid' && event.paymentId === event.order.razorpayPaymentId && event.reason !== 'multiple_captured_payments_for_order' && !adminData.paymentReviews.some(item => item.order?.id === event.order.id && item.paymentId && item.paymentId !== item.order?.razorpayPaymentId) && !['pending', 'processed', 'failed'].includes(event.order.refundStatus || 'none') && <div className="payment-review-actions"><small>{event.order.refundStatus === 'requested' ? 'A retry reuses the same provider idempotency key.' : 'Use only after reviewing the captured-payment exception.'}</small><button type="button" className="button button-light small-button" disabled={pendingRefundOrderId === event.order.id} onClick={() => requestReviewRefund(event)}>{pendingRefundOrderId === event.order.id ? 'Submitting…' : event.order.refundStatus === 'requested' ? 'Retry safely' : 'Issue full refund'}</button></div>}</article>)}</div> : <div className="empty-small">No payment webhook reviews are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Customer issue cases</h2><p>Track missing items, wrong items, quality concerns and delivery delays. Customer messages are visible to the customer.</p></div><MessageCircle size={20}/></div>{adminData.issues.length ? <div className="issue-case-list">{adminData.issues.map(issue => <AdminIssueCard key={issue.id} issue={issue} pending={pendingAdminIssueId === issue.id} onUpdate={updateIssue}/>)}</div> : <div className="empty-small">No customer issue reports are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Incoming orders</h2><p>Move paid orders through the kitchen and delivery.</p></div><ShoppingBag size={20}/></div>{adminData.orders.length ? <div className="orders-list">{adminData.orders.map(order => <OrderCard key={order.id} order={order} admin onStatus={updateStatus}/>)}</div> : <div className="empty-small">No orders have come in yet.</div>}</div></>}</section>}
+    {page === 'admin' && <section className="section-wrap page-section admin-page"><div className="admin-heading"><div><div className="eyebrow">BEHIND THE COUNTER</div><h1>Good food takes <em>good care.</em></h1><p>Live order events refresh the queue. Use Refresh data to recheck inventory and payment status.</p></div><button className="button button-light" onClick={refreshAdmin}><RefreshCw size={16}/> Refresh data</button></div>{!user || user.role !== 'admin' ? <div className="empty-state"><div className="empty-art">🔐</div><h2>Admin access only.</h2><p>Sign in through the separate admin sign-in flow.</p><button className="button button-dark" onClick={() => openAuth('admin')}>Admin sign in <ArrowRight size={16}/></button></div> : (adminStatus === 'loading' || adminStatus === 'idle') ? <AdminPanelsSkeleton/> : adminStatus === 'error' ? <DataUnavailable title="Operations data isn’t available" message="Inventory, order and payment-review data could not be confirmed. Retry to load the live dashboard." onRetry={refreshAdmin}/> : <>{adminError && <InlineDataWarning message={adminError} onRetry={refreshAdmin}/>}<div className="admin-metrics">{[{ label: 'Total orders', value: adminData.summary?.ordersTotal ?? '—', icon: ShoppingBag }, { label: 'Paid orders', value: adminData.summary?.paidOrders ?? '—', icon: BadgeCheck }, { label: 'Revenue', value: currency(adminData.summary?.revenue), icon: ArrowUpRight }, { label: 'Low-stock items', value: adminData.summary?.lowStock ?? '—', icon: Boxes }].map(item => <div className="admin-metric" key={item.label}><span><item.icon size={17}/>{item.label}</span><strong>{item.value}</strong></div>)}</div><div className="admin-panel payment-provider-panel"><div className="panel-heading"><div><h2>Razorpay {paymentMode === 'live' ? 'Live Mode' : paymentMode === 'test' ? 'Test Mode' : 'Payment'} connection</h2><p>Verify the configured API key pair with a read-only request. No order, payment, or refund is created.</p></div><button type="button" className="button button-light small-button" disabled={paymentProviderCheck.status === 'loading'} onClick={checkPaymentProvider}>{paymentProviderCheck.status === 'loading' ? 'Checking…' : 'Check connection'}</button></div><p className={`provider-check-message ${paymentProviderCheck.status}`} role={paymentProviderCheck.status === 'error' ? 'alert' : 'status'} aria-live={paymentProviderCheck.status === 'error' ? 'assertive' : 'polite'}>{paymentProviderCheck.status === 'connected' ? `Connected to Razorpay ${(paymentProviderCheck.mode || paymentMode) === 'live' ? 'Live' : 'Test'} Mode at ${new Date(paymentProviderCheck.checkedAt).toLocaleString()}. Webhook delivery is a separate check.` : paymentProviderCheck.status === 'error' ? paymentProviderCheck.message : paymentProviderCheck.status === 'loading' ? 'Checking the provider with a read-only request…' : 'Not checked yet. This check does not create a payment, charge, order, or refund.'}</p></div><div className="admin-panel"><div className="panel-heading"><div><h2>Inventory room</h2><p>Update stock counts and per-item alert thresholds.</p></div><Boxes size={20}/></div><div className="inventory-table"><div className="inventory-row inventory-header"><span>Item</span><span>In stock</span><span>Alert at</span><span>State</span></div>{adminData.inventory.length ? adminData.inventory.map(item => <InventoryRow key={item.key} item={item} onSave={updateInventory}/>) : <div className="empty-small">No inventory items were returned by the API.</div>}</div></div><div className="admin-panel"><div className="panel-heading"><div><h2>Payment review queue</h2><p>Signed webhook events needing manual reconciliation.</p></div><ShieldCheck size={20}/></div>{adminData.paymentReviews.length ? <div className="payment-review-list">{adminData.paymentReviews.map(event => <article className="payment-review-event" key={event.eventId}><div><strong>{event.eventType}</strong><small>{event.order?.orderNumber || 'Unmatched provider order'} · {new Date(event.receivedAt).toLocaleString()}</small></div><p>{event.reason?.replaceAll('_', ' ') || 'Manual review required'}</p><small>Provider order: {event.providerOrderId || 'not supplied'} · Payment: {event.paymentId || 'not supplied'}</small><small>Event ID: {event.eventId}</small>{event.order?.refundStatus === 'pending' && <p className="refund-status-note">Refund pending with Razorpay. Do not submit another refund.</p>}{event.order?.refundStatus === 'failed' && <p className="refund-status-note">Refund failed or was rejected. Manual provider review is required.</p>}{event.order?.id && event.order.status === 'payment_review' && event.order.paymentReviewRequired && event.order.paymentStatus === 'paid' && event.paymentId === event.order.razorpayPaymentId && event.reason !== 'multiple_captured_payments_for_order' && !adminData.paymentReviews.some(item => item.order?.id === event.order.id && item.paymentId && item.paymentId !== item.order?.razorpayPaymentId) && !['pending', 'processed', 'failed'].includes(event.order.refundStatus || 'none') && <div className="payment-review-actions"><small>{event.order.refundStatus === 'requested' ? 'A retry reuses the same provider idempotency key.' : 'Use only after reviewing the captured-payment exception.'}</small><button type="button" className="button button-light small-button" disabled={pendingRefundOrderId === event.order.id} onClick={() => requestReviewRefund(event)}>{pendingRefundOrderId === event.order.id ? 'Submitting…' : event.order.refundStatus === 'requested' ? 'Retry safely' : 'Issue full refund'}</button></div>}</article>)}</div> : <div className="empty-small">No payment webhook reviews are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Customer issue cases</h2><p>Track missing items, wrong items, quality concerns and delivery delays. Customer messages are visible to the customer.</p></div><MessageCircle size={20}/></div>{adminData.issues.length ? <div className="issue-case-list">{adminData.issues.map(issue => <AdminIssueCard key={issue.id} issue={issue} pending={pendingAdminIssueId === issue.id} onUpdate={updateIssue}/>)}</div> : <div className="empty-small">No customer issue reports are currently queued.</div>}</div><div className="admin-panel fulfillment-admin-panel"><div className="panel-heading"><div><h2>Kitchen &amp; dispatch</h2><p>Accept paid orders, start preparation, hand off for delivery and confirm completion.</p></div><ChefHat size={20}/></div><FulfillmentQueue orders={adminData.orders} paymentMode={paymentMode} catalog={catalog} onStatus={updateStatus} pendingStatusOrderId={pendingStatusOrderId}/></div></>}</section>}
     {['menu', 'builder', 'cart', 'dashboard', 'admin'].includes(page) && <PageEndcap page={page} navigate={navigate} cartCount={cart.reduce((n, item) => n + item.quantity, 0)} catalogStatus={catalogStatus} featuredCount={featured.length} ordersCount={orders.length} ordersStatus={ordersStatus} paymentMode={paymentMode} onRefresh={refreshAdmin}/>}
     </main>
     <footer className="site-footer"><div className="footer-main"><a className="brand footer-brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>PIZZA · MADE TO ORDER</small></span></a><p>House favourites and made-to-order recipes.<br />From the live menu to your doorstep.</p><nav className="footer-nav" aria-label="Footer navigation"><span className="footer-nav-label">Explore</span><button type="button" onClick={() => navigate('home')}>Home</button><button type="button" onClick={() => navigate('menu')}>Menu</button><button type="button" onClick={() => navigate('builder')}>Build a pizza</button><button type="button" onClick={() => navigate('cart')}>Bag ({cart.reduce((n, item) => n + item.quantity, 0)})</button>{user && <button type="button" onClick={() => navigate(user.role === 'admin' ? 'admin' : 'dashboard')}>{user.role === 'admin' ? 'Operations' : 'My orders'}</button>}</nav><button className="back-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Back to the top <ArrowUpRight size={16}/></button></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Pizza House. House favourites, made to order.</span><div><span>Live menu pricing</span><span className="footer-dot">·</span><span>Payment verified before confirmation</span></div></div></footer>
@@ -1412,15 +1419,47 @@ function BuilderSkeleton() { return <div className="builder-layout builder-loadi
 
 function BuilderGroup({ step, title, subtitle, options, value, onChange }) { return <div className="builder-group"><div className="builder-step"><span>{step}</span><div><h3>{title}</h3><p>{subtitle}</p></div></div><div className="option-list">{options.map(option => <button key={option.id} disabled={option.available === false} aria-pressed={value === option.id} className={`builder-option ${value === option.id ? 'chosen' : ''}`} onClick={() => onChange(option.id)}><span className="radio-dot"/><span>{option.name}</span><small>{option.price === 0 ? 'Included' : `+${currency(option.price)}`}</small></button>)}</div></div>; }
 function Ingredient({ label, value }) { return <div className="ingredient-row"><span>{label}</span><b>{value || 'Not selected'}</b></div>; }
-function OrderCard({ order, admin = false, onStatus, onReorder, onResumePayment, pending = false, issue, onReportIssue, onRefreshIssues }) {
+function formatOrderStageTime(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+function orderRecipeSummary(item, catalog) {
+    const recipe = item?.ingredients;
+    if (!recipe || typeof recipe !== 'object' || Array.isArray(recipe)) return 'Recipe details unavailable';
+    const optionName = (group, id) => {
+        if (!id) return '';
+        return catalog?.[group]?.find(option => option.id === id)?.name || String(id).replaceAll('-', ' ');
+    };
+    return [
+        optionName('bases', recipe.base),
+        optionName('sauces', recipe.sauce),
+        optionName('cheeses', recipe.cheese),
+        ...(Array.isArray(recipe.vegetables) ? recipe.vegetables.map(id => optionName('vegetables', id)) : []),
+    ].filter(Boolean).join(' · ') || 'Recipe details unavailable';
+}
+function OrderCard({ order, admin = false, onStatus, onReorder, onResumePayment, pending = false, statusPending = false, issue, onReportIssue, onRefreshIssues, catalog = DEFAULT_CATALOG }) {
     const current = ORDER_STEPS.findIndex(s => s.id === order.status);
     const paid = order.paymentStatus === 'paid';
     const refunded = order.paymentStatus === 'refunded';
     const cancelled = order.status === 'cancelled';
     const reviewNeeded = Boolean(order.paymentReviewRequired) || order.status === 'payment_review';
+    const simulated = (order.paymentMode || 'test') === 'test';
     const next = order.status === 'order_received' ? 'in_kitchen'
         : order.status === 'in_kitchen' ? 'sent_to_delivery'
             : order.status === 'sent_to_delivery' ? 'delivered' : null;
+    const nextAction = {
+        in_kitchen: 'Accept & start preparation',
+        sent_to_delivery: 'Mark ready & hand to delivery',
+        delivered: 'Confirm delivery completed',
+    }[next] || '';
+    const stageTimes = {
+        order_received: order.paidAt || order.createdAt,
+        in_kitchen: order.kitchenStartedAt,
+        sent_to_delivery: order.dispatchedAt,
+        delivered: order.deliveredAt,
+    };
     const canRepeat = !admin && !reviewNeeded && ['delivered', 'cancelled'].includes(order.status) &&
         Array.isArray(order.items) && order.items.length > 0;
     const canResumePayment = !admin && !reviewNeeded && order.status === 'pending_payment' && order.paymentStatus === 'pending' &&
@@ -1428,33 +1467,55 @@ function OrderCard({ order, admin = false, onStatus, onReorder, onResumePayment,
     const canReportIssue = !admin && paid && !reviewNeeded && !refunded &&
         ['order_received', 'in_kitchen', 'sent_to_delivery', 'delivered'].includes(order.status);
 
-    return <article className="order-card" data-order-id={order.id} tabIndex={-1}>
+    return <article className="order-card" data-order-id={order.id} data-order-payment-mode={simulated ? 'test' : 'live'} tabIndex={-1}>
         <div className="order-card-top">
-            <div>
+            <div className="order-card-identity">
                 <span className="eyebrow">ORDER {order.orderNumber}</span>
-                <h3>{order.items?.map(i => `${i.quantity}× ${i.name}`).join(', ') || 'Pizza order'}</h3>
-                <p>{admin && order.user ? `${order.user.name} · ${order.user.email}` : new Date(order.createdAt).toLocaleString()} · {currency(order.total)}</p>
+                <h3>{order.items?.map(i => String(i.quantity) + '× ' + i.name).join(', ') || 'Pizza order'}</h3>
+                <p className="order-card-meta">{admin && order.user ? order.user.name + ' · ' + order.user.email : formatOrderStageTime(order.createdAt)} <span aria-hidden="true">·</span> <strong>{currency(order.total)}</strong></p>
                 {order.deliveryDetails && <div className="order-delivery-details">
                     <small><strong>Deliver to:</strong> {order.deliveryDetails.recipientName} · {order.deliveryDetails.addressLine}, {order.deliveryDetails.city}, {order.deliveryDetails.state} {order.deliveryDetails.postalCode}</small>
-                    <small><strong>Mobile:</strong> {order.deliveryDetails.phone}</small>
+                    <small><strong>Mobile:</strong> {admin ? <a href={'tel:' + order.deliveryDetails.phone}>{order.deliveryDetails.phone}</a> : order.deliveryDetails.phone}</small>
                     {order.deliveryDetails.landmark && <small><strong>Landmark:</strong> {order.deliveryDetails.landmark}</small>}
-                    {order.deliveryDetails.instructions && <small><strong>Note:</strong> {order.deliveryDetails.instructions}</small>}
+                    {order.deliveryDetails.instructions && <small><strong>Delivery note:</strong> {order.deliveryDetails.instructions}</small>}
                 </div>}
             </div>
-            <span className={`status-pill ${reviewNeeded ? 'review' : refunded ? 'refunded' : cancelled ? 'cancelled' : paid ? 'paid' : 'waiting'}`}>
-                {reviewNeeded ? '⚠ Review required' : refunded ? '↺ Refunded' : cancelled ? '× Cancelled' : paid ? '● Paid' : '○ Payment pending'}
-            </span>
+            <div className="order-card-badges">
+                <span className={'status-pill ' + (reviewNeeded ? 'review' : refunded ? 'refunded' : cancelled ? 'cancelled' : paid ? 'paid' : 'waiting')}>
+                    {reviewNeeded ? 'Review required' : refunded ? 'Refunded' : cancelled ? 'Cancelled' : paid ? 'Paid' : 'Payment pending'}
+                </span>
+                {simulated && <span className="fulfillment-mode-pill">TEST MODE · SANDBOX</span>}
+            </div>
         </div>
         {reviewNeeded
             ? <div className="payment-review-warning" role="alert"><strong>Payment captured — order on hold.</strong><p>This order needs a manual payment and inventory review before kitchen preparation or delivery.</p>{admin && order.paymentReviewReason && <small>Reason: {order.paymentReviewReason.replaceAll('_', ' ')}</small>}</div>
             : refunded
                 ? <div className="pending-message"><ShieldCheck size={15}/> Full refund confirmed; order cancelled.</div>
                 : cancelled
-                    ? <div className="pending-message"><X size={15}/> This unpaid order expired and was cancelled. Start a new checkout to order again.</div>
+                    ? <div className="pending-message"><X size={15}/> This order was cancelled. Start a new checkout to order again.</div>
                     : paid
-                        ? <div className="order-timeline">{ORDER_STEPS.map((step, i) => <div key={step.id} className={`timeline-step ${i <= current ? 'complete' : ''} ${i === current ? 'current' : ''}`}><span className="timeline-icon"><step.icon size={16}/></span><small>{step.label}</small></div>)}</div>
+                        ? <div className="order-timeline">{ORDER_STEPS.map((step, i) => {
+                            const stageTime = i <= current ? stageTimes[step.id] : null;
+                            return <div key={step.id} className={'timeline-step ' + (i <= current ? 'complete' : '') + (i === current ? ' current' : '')}>
+                                <span className="timeline-icon"><step.icon size={16}/></span>
+                                <small>{step.label}</small>
+                                {stageTime && <time dateTime={new Date(stageTime).toISOString()}>{formatOrderStageTime(stageTime)}</time>}
+                            </div>;
+                        })}</div>
                         : <div className="pending-message"><Clock3 size={15}/> Waiting for a verified payment before kitchen preparation.</div>}
-        {!admin && issue && <div className={`issue-status-card issue-status-${issue.status}`} tabIndex={-1}>
+        {!admin && paid && simulated && !reviewNeeded && !refunded && !cancelled && <div className="test-order-notice" role="note">
+            <strong>TEST MODE · SIMULATED TRACKING</strong>
+            <p>Status updates verify the app only. No real kitchen or delivery partner has been contacted for this order.</p>
+        </div>}
+        {admin && <div className="order-prep-ticket">
+            <div className="order-prep-ticket-heading"><span>PREPARATION TICKET</span><span>{order.items?.length || 0} line items</span></div>
+            {order.items?.map((item, index) => <div className="order-prep-line" key={String(item.name) + '-' + index}>
+                <div><strong>{item.quantity}× {item.name}</strong><small>{orderRecipeSummary(item, catalog)}</small></div>
+                <b>{currency(item.lineTotal ?? item.unitPrice * item.quantity)}</b>
+            </div>)}
+            {order.deliveryDetails?.instructions && <p className="order-prep-delivery-note"><strong>Delivery note:</strong> {order.deliveryDetails.instructions}</p>}
+        </div>}
+        {!admin && issue && <div className={'issue-status-card issue-status-' + issue.status} tabIndex={-1}>
             <div className="issue-status-copy">
                 <span className="eyebrow">CASE {issue.reference}</span>
                 <strong>{issue.status === 'resolved' ? 'Marked resolved' : issue.status === 'under_review' ? 'Team is reviewing this case' : 'Report received'}</strong>
@@ -1467,11 +1528,71 @@ function OrderCard({ order, admin = false, onStatus, onReorder, onResumePayment,
             <p>{issue?.status === 'resolved' ? 'A new issue with this order? Open another case.' : 'Something missing, incorrect or not right? Tell us what happened.'}</p>
             <button type="button" className="button button-light small-button" onClick={event => onReportIssue?.(order, event.currentTarget)}><MessageCircle size={16}/>{issue?.status === 'resolved' ? 'Report another problem' : 'Report a problem'}</button>
         </div>}
-        {admin && next && paid && !reviewNeeded && <div className="order-admin-actions"><span>Update status</span><button className="button button-light small-button" onClick={() => onStatus(order, next)}>Move to {next.replaceAll('_', ' ')} <ArrowRight size={15}/></button></div>}
+        {admin && next && paid && !reviewNeeded && <div className="order-admin-actions">
+            <div><span>Next operational step</span><small>{simulated ? 'Sandbox only · no physical dispatch' : 'Admin-confirmed live fulfillment'}</small></div>
+            <button type="button" className="button button-light small-button" disabled={statusPending} onClick={() => onStatus(order, next)}>
+                {statusPending ? 'Saving status…' : (simulated ? 'Simulate: ' : '') + nextAction}
+                {!statusPending && <ArrowRight size={15}/>}
+            </button>
+        </div>}
         {canResumePayment && <div className="order-repeat-actions order-resume-payment"><p>This order is still unpaid. Resume the saved server quote; no new order is created.</p><button type="button" className="button button-dark small-button" disabled={pending} onClick={() => onResumePayment(order)}><CreditCard size={16}/> Resume checkout</button></div>}
         {canRepeat && <div className="order-repeat-actions"><p>Want this one again? We’ll use the current menu and prices, not the old total.</p><button type="button" className="button button-light small-button" onClick={() => onReorder?.(order)}><RefreshCw size={16}/> Order again</button></div>}
     </article>;
 }
+
+function FulfillmentQueue({ orders = [], paymentMode = 'test', catalog = DEFAULT_CATALOG, onStatus, pendingStatusOrderId }) {
+    const [filter, setFilter] = useState('active');
+    const selectedMode = paymentMode === 'live' ? 'live' : 'test';
+    const modeOrders = orders.filter(order => (order.paymentMode || 'test') === selectedMode);
+    const eligibleOrders = modeOrders.filter(order =>
+        order.paymentStatus === 'paid' &&
+        !order.paymentReviewRequired &&
+        order.status !== 'payment_review' &&
+        order.status !== 'cancelled' &&
+        !['pending_payment'].includes(order.status) &&
+        ORDER_STEPS.some(step => step.id === order.status),
+    );
+    const counts = Object.fromEntries(ORDER_STEPS.map(step => [step.id, eligibleOrders.filter(order => order.status === step.id).length]));
+    const options = [
+        { id: 'active', label: 'Active queue', count: eligibleOrders.filter(order => order.status !== 'delivered').length },
+        { id: 'order_received', label: 'Needs kitchen', count: counts.order_received },
+        { id: 'in_kitchen', label: 'In preparation', count: counts.in_kitchen },
+        { id: 'sent_to_delivery', label: 'On the way', count: counts.sent_to_delivery },
+        { id: 'delivered', label: 'Completed', count: counts.delivered },
+    ];
+    const visibleOrders = eligibleOrders.filter(order => filter === 'active' ? order.status !== 'delivered' : order.status === filter)
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const waitingForPayment = modeOrders.filter(order => order.paymentStatus !== 'paid' && !['cancelled', 'payment_review'].includes(order.status)).length;
+
+    return <div className="fulfillment-console">
+        <div className={'fulfillment-mode-banner ' + (selectedMode === 'test' ? 'is-simulated' : 'is-live')}>
+            <span className="fulfillment-banner-kicker">{selectedMode === 'test' ? 'SANDBOX WORKFLOW' : 'LIVE OPERATIONS'}</span>
+            <strong>{selectedMode === 'test' ? 'Test orders · simulated kitchen and delivery' : 'Verified live orders · kitchen and dispatch'}</strong>
+            <p>{selectedMode === 'test'
+                ? 'Move test orders through each stage to verify the customer timeline. No kitchen ticket is sent to a real kitchen and no driver is dispatched.'
+                : 'Only paid orders completed in Live Mode can enter this queue. Every stage change is saved and reflected in customer order tracking.'}</p>
+        </div>
+        <div className="fulfillment-stage-summary">
+            {ORDER_STEPS.map((step, index) => <div className={'fulfillment-stage-count stage-' + index} key={step.id}>
+                <span>{String(index + 1).padStart(2, '0')} / {step.label}</span>
+                <strong>{counts[step.id]}</strong>
+                <small>{step.id === 'order_received' ? 'Awaiting kitchen acceptance' : step.id === 'in_kitchen' ? 'Preparation in progress' : step.id === 'sent_to_delivery' ? 'Out for delivery' : 'Completed orders'}</small>
+            </div>)}
+        </div>
+        <div className="fulfillment-queue-toolbar">
+            <div><h3>Fulfillment queue</h3><p>Choose a stage to focus the team’s next actions.</p></div>
+            <div className="fulfillment-filter-row" role="group" aria-label="Filter orders by fulfillment stage">
+                {options.map(option => <button type="button" key={option.id} className={'fulfillment-filter ' + (filter === option.id ? 'is-active' : '')} aria-pressed={filter === option.id} onClick={() => setFilter(option.id)}>{option.label}<span>{option.count}</span></button>)}
+            </div>
+        </div>
+        {visibleOrders.length
+            ? <div className="orders-list fulfillment-order-list">{visibleOrders.map(order => <OrderCard key={order.id} order={order} admin catalog={catalog} onStatus={onStatus} statusPending={pendingStatusOrderId === order.id}/>)}</div>
+            : <div className="fulfillment-empty"><span>{filter === 'delivered' ? '✓' : '↗'}</span><strong>{filter === 'delivered' ? 'No completed orders in this mode yet' : filter === 'active' ? 'The active queue is clear' : 'No orders at this stage'}</strong><p>{filter === 'active' ? 'Paid, eligible orders will appear here after payment verification.' : 'When an order reaches this stage, it will appear here with its next operational action.'}</p></div>}
+        {waitingForPayment > 0 && <p className="fulfillment-waiting-note">{waitingForPayment} order{waitingForPayment === 1 ? '' : 's'} are waiting for verified payment and are intentionally excluded from kitchen preparation.</p>}
+        {orders.some(order => (order.paymentMode || 'test') !== selectedMode) && <p className="fulfillment-waiting-note">Orders from the other payment mode are kept out of this queue. Test payments are never promoted into real fulfillment.</p>}
+    </div>;
+}
+
 
 function InventoryRow({ item, onSave }) {
     const [stock, setStock] = useState(String(item.stock));

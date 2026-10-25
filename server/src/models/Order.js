@@ -49,6 +49,9 @@ const orderSchema = new mongoose.Schema({
   checkoutRequestFingerprint: { type: String, default: null },
   razorpayPaymentId: { type: String, default: null, index: true },
   paidAt: { type: Date, default: null },
+  kitchenStartedAt: { type: Date, default: null },
+  dispatchedAt: { type: Date, default: null },
+  deliveredAt: { type: Date, default: null },
 }, { timestamps: true, strict: 'throw' });
 
 orderSchema.index({ user: 1, createdAt: -1 });

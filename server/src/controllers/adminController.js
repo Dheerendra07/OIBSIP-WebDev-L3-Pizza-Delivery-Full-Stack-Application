@@ -6,7 +6,7 @@ import { requestFullPaymentReviewRefund } from '../services/refunds.js';
 import { checkRazorpayConnection } from '../services/payments.js';
 import { config } from '../config/env.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { validateOrderStatusTransition } from '../utils/orderRules.js';
+import { resolveFulfillmentMode, validateOrderStatusTransition } from '../utils/orderRules.js';
 import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js';
 
 export const summary = asyncHandler(async (_req, res) => {
@@ -32,21 +32,46 @@ export const updateInventory = asyncHandler(async (req, res) => {
 });
 export const listOrders = asyncHandler(async (_req, res) => {
   const orders = await Order.find().sort({ createdAt: -1 }).limit(200).populate('user', 'name email').lean();
-  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, user: o.user, items: o.items, deliveryDetails: o.deliveryDetails, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, paymentReviewReason: o.paymentReviewReason, refundStatus: o.refundStatus, paymentMode: o.paymentMode || 'test', createdAt: o.createdAt })) });
+  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, user: o.user, items: o.items, deliveryDetails: o.deliveryDetails, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentReviewRequired: o.paymentReviewRequired, paymentReviewReason: o.paymentReviewReason, refundStatus: o.refundStatus, paymentMode: o.paymentMode || 'test', createdAt: o.createdAt, updatedAt: o.updatedAt, paidAt: o.paidAt, kitchenStartedAt: o.kitchenStartedAt, dispatchedAt: o.dispatchedAt, deliveredAt: o.deliveredAt })) });
 });
 export const updateOrderStatus = asyncHandler(async (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const { status } = body;
   if (typeof status !== 'string' || !status.trim()) return res.status(400).json({ error: 'A valid order status is required' });
   const order = await Order.findById(req.params.id); if (!order) return res.status(404).json({ error: 'Order not found' });
-  if (config.nodeEnv === 'production' && (config.paymentMode !== 'live' || (order.paymentMode || 'test') !== 'live')) {
-    return res.status(409).json({ error: 'Real fulfillment is blocked unless the app and this order both use verified Live Mode payments.' });
+  const fulfillmentMode = resolveFulfillmentMode(config.paymentMode, order.paymentMode || 'test');
+  if (!fulfillmentMode) {
+    return res.status(409).json({
+      error: config.paymentMode === 'live'
+        ? 'This Test Mode order cannot enter real kitchen or delivery operations. Only verified Live Mode orders can be fulfilled for real.'
+        : 'The configured payment mode and this order do not match, so no fulfillment status was changed.',
+    });
   }
   const transition = validateOrderStatusTransition(order, status);
   if (!transition.allowed) return res.status(transition.statusCode).json({ error: transition.message });
-  order.status = status; await order.save();
+
+  const changedAt = new Date();
+  order.status = status;
+  if (status === 'in_kitchen') order.kitchenStartedAt = changedAt;
+  if (status === 'sent_to_delivery') order.dispatchedAt = changedAt;
+  if (status === 'delivered') order.deliveredAt = changedAt;
+  await order.save();
   publishOrderUpdate(order);
-  res.json({ order: { id: order.id, orderNumber: order.orderNumber, status: order.status, paymentStatus: order.paymentStatus } });
+  publishAdminRefresh();
+  res.json({
+    order: {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentMode: order.paymentMode || 'test',
+      fulfillmentMode,
+      paidAt: order.paidAt || null,
+      kitchenStartedAt: order.kitchenStartedAt || null,
+      dispatchedAt: order.dispatchedAt || null,
+      deliveredAt: order.deliveredAt || null,
+    },
+  });
 });
 
 export const listPaymentReviews = asyncHandler(async (_req, res) => {
