@@ -32,15 +32,19 @@ jobs:
           # Full history lets the smoke check verify deployed-commit ancestry and runtime diffs.
           fetch-depth: 0
 
+      # A rerun may execute after Render deployed a later documentation-only commit.
+      # Fetch current main so that commit is available for ancestry/runtime-diff checks.
+      - name: Fetch current main history for release verification
+        run: git fetch --no-tags origin main
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      # Render deploys a commit, but may include later test/docs-only commits.
-      # Validate that the deployed commit is an ancestor of this checkout and that
-      # no runtime files changed after it. This stays strict without false failures
-      # when only tests or documentation changed.
+      # The deployment can be older or newer than this smoke run if a release and
+      # test/docs-only commit race each other. Require the two SHAs to be on the same
+      # ancestry line, then compare runtime files in both snapshots.
       - name: Verify deployed API, catalog, CORS, webhook guard and website
         env:
           API_BASE_URL: https://pizza-house-api.onrender.com
@@ -98,10 +102,14 @@ jobs:
             const deployedCommit = health.body?.version;
             const testedCommit = process.env.TESTED_COMMIT_SHA;
             assert.match(deployedCommit || '', /^[a-f0-9]{40}$/i, 'API health must expose the deployed Git commit SHA');
-            const ancestry = spawnSync('git', ['merge-base', '--is-ancestor', deployedCommit, testedCommit], { stdio: 'ignore' });
-            assert.equal(ancestry.status, 0, `deployed commit ${deployedCommit} must be present in the tested Git history`);
+            const deployedBeforeTest = spawnSync('git', ['merge-base', '--is-ancestor', deployedCommit, testedCommit], { stdio: 'ignore' });
+            const deployedAfterTest = spawnSync('git', ['merge-base', '--is-ancestor', testedCommit, deployedCommit], { stdio: 'ignore' });
+            assert.ok(
+              deployedBeforeTest.status === 0 || deployedAfterTest.status === 0,
+              `deployed commit ${deployedCommit} and tested commit ${testedCommit} must be on the same Git ancestry line`,
+            );
             const runtimeChanges = execFileSync('git', [
-              'diff', '--name-only', `${deployedCommit}..${testedCommit}`, '--',
+              'diff', '--name-only', deployedCommit, testedCommit, '--',
               'server/src', 'server/scripts', 'server/package.json', 'server/package-lock.json',
               'client/src', 'client/public', 'client/index.html', 'client/vite.config.*',
               'client/package.json', 'client/package-lock.json',
