@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FEATURED_PIZZAS, CATALOG } from '../src/utils/catalog.js';
-import { buildOrderItem, buildOrderItems, calculateOrderTotals, validateOrderStatusTransition, validateDeliveryDetails } from '../src/utils/orderRules.js';
+import { buildOrderItem, buildOrderItems, calculateOrderTotals, resolveFulfillmentMode, validateOrderStatusTransition, validateDeliveryDetails } from '../src/utils/orderRules.js';
 
 test('featured pizza uses the server-owned price, recipe and stock requirements', () => {
   const item = buildOrderItem({ type: 'featured', pizzaId: 'margherita', quantity: 2, unitPrice: 1, lineTotal: 2, inventoryKeys: ['attacker:controlled'] });
@@ -44,6 +44,14 @@ test('invalid custom-pizza choices map to a client validation error instead of H
 test('order totals calculate free delivery from server-computed subtotal', () => {
   assert.deepEqual(calculateOrderTotals([buildOrderItem({ type: 'featured', pizzaId: 'margherita' }), buildOrderItem({ type: 'featured', pizzaId: 'margherita' })]), { subtotal: 498, deliveryFee: 29, total: 527 });
   assert.deepEqual(calculateOrderTotals([buildOrderItem({ type: 'featured', pizzaId: 'margherita' }), buildOrderItem({ type: 'featured', pizzaId: 'garden' })]), { subtotal: 578, deliveryFee: 0, total: 578 });
+});
+
+test('test orders use a clearly simulated workflow and cannot enter live fulfillment', () => {
+  assert.equal(resolveFulfillmentMode('test', 'test'), 'simulated');
+  assert.equal(resolveFulfillmentMode('live', 'live'), 'live');
+  assert.equal(resolveFulfillmentMode('live', 'test'), null);
+  assert.equal(resolveFulfillmentMode('test', 'live'), null);
+  assert.equal(resolveFulfillmentMode('unknown', 'test'), null);
 });
 
 test('fulfillment allows only the next status for paid orders', () => {
