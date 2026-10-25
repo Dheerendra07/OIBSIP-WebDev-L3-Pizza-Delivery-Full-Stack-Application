@@ -1643,7 +1643,9 @@ function OrderCard({ order, admin = false, staffRole = null, staff = [], onStatu
     const canKitchenAdvance = staffRole === 'kitchen' &&
         (order.status === 'order_received' || (order.status === 'in_kitchen' && hasDeliveryStaff));
     const canDeliveryAdvance = staffRole === 'delivery' && order.status === 'sent_to_delivery';
-    const canAdvance = admin || canKitchenAdvance || canDeliveryAdvance;
+    const activeKitchenAssigned = Boolean(order.kitchenStaff?.id || order.kitchenStaff?._id) && order.kitchenStaff?.active !== false;
+    const activeDeliveryAssigned = Boolean(order.deliveryStaff?.id || order.deliveryStaff?._id) && order.deliveryStaff?.active !== false;
+    const canAdvance = (admin && (next === 'in_kitchen' ? activeKitchenAssigned : ['sent_to_delivery', 'delivered'].includes(next) ? activeDeliveryAssigned : false)) || canKitchenAdvance || canDeliveryAdvance;
 
     return <article className="order-card" data-order-id={order.id} data-order-payment-mode={simulated ? 'test' : 'live'} tabIndex={-1}>
         <div className="order-card-top">
