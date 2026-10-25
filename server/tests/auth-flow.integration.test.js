@@ -490,7 +490,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   });
   assert.equal(escalationAttempt.status, 400, 'staff creation must never grant admin access');
 
-  const signInStaff = async (email, password, expectedRole) => {
+  const signInStaff = async (email, password, expectedRole, newPassword) => {
     const response = await fetch(base + '/api/auth/staff/login', {
       method: 'POST',
       headers,
@@ -499,15 +499,41 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     assert.equal(response.status, 200, 'provisioned staff should be able to sign in');
     const result = await response.json();
     assert.equal(result.user.role, expectedRole);
+    assert.equal(result.user.mustChangePassword, true, 'new staff must rotate the temporary password');
     const cookies = typeof response.headers.getSetCookie === 'function'
       ? response.headers.getSetCookie()
       : [response.headers.get('set-cookie')].filter(Boolean);
     const session = cookies.find(value => value.startsWith('pizza_session='));
     assert.ok(session);
-    return { user: result.user, cookie: session.split(';', 1)[0] };
+    const initialCookie = session.split(';', 1)[0];
+
+    const blockedQueue = await fetch(base + '/api/ops/orders', { headers: { Origin: webOrigin, Cookie: initialCookie } });
+    assert.equal(blockedQueue.status, 428, 'the temporary password must block operations access');
+
+    const changeResponse = await fetch(base + '/api/auth/staff/change-password', {
+      method: 'POST',
+      headers: { ...headers, Cookie: initialCookie },
+      body: JSON.stringify({ currentPassword: password, newPassword }),
+    });
+    assert.equal(changeResponse.status, 200);
+    const changed = await changeResponse.json();
+    assert.equal(changed.user.mustChangePassword, false);
+    const changedCookies = typeof changeResponse.headers.getSetCookie === 'function'
+      ? changeResponse.headers.getSetCookie()
+      : [changeResponse.headers.get('set-cookie')].filter(Boolean);
+    const refreshedCookie = changedCookies.find(value => value.startsWith('pizza_session='));
+    assert.ok(refreshedCookie, 'password rotation should issue a refreshed session cookie');
+
+    const oldPassword = await fetch(base + '/api/auth/staff/login', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ email, password }),
+    });
+    assert.equal(oldPassword.status, 401, 'the temporary password must stop working after rotation');
+    return { user: changed.user, cookie: refreshedCookie.split(';', 1)[0] };
   };
-  const kitchenSession = await signInStaff('kitchen-integration@example.test', 'KitchenPass123', 'kitchen');
-  const deliverySession = await signInStaff('delivery-integration@example.test', 'DeliveryPass123', 'delivery');
+  const kitchenSession = await signInStaff('kitchen-integration@example.test', 'KitchenPass123', 'kitchen', 'KitchenRotated456');
+  const deliverySession = await signInStaff('delivery-integration@example.test', 'DeliveryPass123', 'delivery', 'DeliveryRotated456');
 
   const customerOpsDenied = await fetch(base + '/api/ops/orders', { headers: { Origin: webOrigin, Cookie: cookie } });
   assert.equal(customerOpsDenied.status, 403, 'customer accounts must not access staff queues');
