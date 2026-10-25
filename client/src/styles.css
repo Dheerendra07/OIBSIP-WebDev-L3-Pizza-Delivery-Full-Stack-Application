@@ -1143,11 +1143,8 @@ html[data-theme="dark"] .page-endcap-main>p{color:#a9bdc9}
 html[data-theme="dark"] .page-endcap-main .eyebrow{color:#ff9b85}
 html[data-theme="dark"] .page-endcap-secondary{color:#e9f1f5}
 html[data-theme="dark"] .page-endcap-secondary:hover{background:#1b3040;border-color:#395366}
-html[data-theme="dark"] .page-endcap-item{border-color:#2b4353;background:#10202d}
-html[data-theme="dark"] .page-endcap-item-icon{border-color:#65463f;color:#ff947d;background:#2b2630}
 html[data-theme="dark"] .page-endcap-item h3{color:#edf3f6}
 html[data-theme="dark"] .page-endcap-item p{color:#a8bac5}
-html[data-theme="dark"] .page-endcap-cart .page-endcap-item:nth-child(3) .page-endcap-item-icon{color:#9bd9a8;background:#1a332f;border-color:#31564a}
 
 @media(max-width:900px){
   .page-endcap{grid-template-columns:minmax(0,1fr);gap:22px}
