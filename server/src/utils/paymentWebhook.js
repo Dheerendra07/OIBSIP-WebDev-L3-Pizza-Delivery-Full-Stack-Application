@@ -4,6 +4,19 @@ import { validateDeliveryDetails } from './orderRules.js';
  * Decide whether a verified provider capture can fulfill the order or must be
  * quarantined for manual reconciliation. This function never trusts client data.
  */
+/**
+ * A capture is safe for fulfillment only when the provider confirms that no
+ * amount has already been refunded. Missing/invalid refund state is ambiguous,
+ * so callers must hold the order for review rather than infer zero.
+ */
+export function capturedPaymentRefundReviewReason(payment) {
+  if (!payment || !Number.isSafeInteger(payment.amount_refunded) || payment.amount_refunded < 0) {
+    return 'captured_refund_state_unavailable';
+  }
+  if (payment.amount_refunded > 0) return 'captured_payment_has_prior_refund';
+  return null;
+}
+
 export function classifyCapturedPayment(payment, order) {
   if (!payment || payment.status !== 'captured' ||
       typeof payment.id !== 'string' || !payment.id ||
@@ -14,6 +27,16 @@ export function classifyCapturedPayment(payment, order) {
   }
 
   if (!order) return { action: 'review', reason: 'provider_order_not_found' };
+
+  // A duplicate capture event for an already-refunded order is historical; do
+  // not reopen it simply because the provider now reports amount_refunded > 0.
+  if (order.paymentStatus === 'refunded' && order.refundStatus === 'processed' &&
+      order.razorpayPaymentId === payment.id) {
+    return { action: 'already_processed' };
+  }
+
+  const refundStateReason = capturedPaymentRefundReviewReason(payment);
+  if (refundStateReason) return { action: 'review', reason: refundStateReason };
 
   if (order.paymentStatus === 'paid') {
     if (order.razorpayPaymentId === payment.id) {
