@@ -1052,34 +1052,20 @@ html[data-theme="dark"] .admin-heading .button-light:hover:not(:disabled){
 /* Contextual lower-page content: every non-home screen ends with a useful next step.
    These surfaces share the card system and remain legible in both saved themes. */
 .page-endcap{
-  position:relative;
   display:grid;
   grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);
   align-items:center;
   gap:clamp(22px,3.5vw,42px);
   margin-block:clamp(36px,5.5vw,72px);
   padding:clamp(22px,3.8vw,38px);
-  overflow:hidden;
-  border:1px solid #d9e3e8;
-  border-radius:22px;
-  background:linear-gradient(125deg,#edf4f7 0%,#fbf8f2 57%,#ffebe4 100%);
-  box-shadow:0 14px 36px rgba(25,49,62,.06);
+  border:1px solid #dfe2dc;
+  border-radius:16px;
+  background:#f7f6f1;
+  box-shadow:0 10px 28px rgba(16,39,55,.045);
 }
-.page-endcap::after{
-  content:"";
-  position:absolute;
-  width:260px;
-  height:260px;
-  right:-120px;
-  top:-160px;
-  border:1px solid rgba(255,98,71,.17);
-  border-radius:50%;
-  box-shadow:0 0 0 24px rgba(255,98,71,.035),0 0 0 48px rgba(255,98,71,.025);
-  pointer-events:none;
-}
-.page-endcap-main,.page-endcap-benefits{position:relative;z-index:1;min-width:0}
-.page-endcap-main .eyebrow{display:inline-flex;align-items:center;gap:7px;margin-bottom:13px}
-.page-endcap-main .eyebrow svg{color:var(--brand)}
+.page-endcap-main,.page-endcap-benefits{min-width:0}
+.page-endcap-main .eyebrow{display:inline-flex;align-items:center;gap:9px;margin-bottom:13px}
+.page-endcap-eyebrow-mark{display:inline-block;width:18px;height:2px;border-radius:2px;background:var(--brand);flex:0 0 auto}
 .page-endcap-main h2{
   max-width:540px;
   margin:0;
@@ -1115,38 +1101,43 @@ html[data-theme="dark"] .admin-heading .button-light:hover:not(:disabled){
 }
 .page-endcap-secondary:hover{background:rgba(255,255,255,.65);border-color:var(--border);transform:translateY(-1px)}
 .page-endcap-secondary:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
-.page-endcap-benefits{display:grid;gap:10px}
+.page-endcap-benefits{display:grid;gap:0}
 .page-endcap-item{
   display:grid;
-  grid-template-columns:38px minmax(0,1fr);
+  grid-template-columns:28px minmax(0,1fr);
   align-items:start;
-  gap:12px;
+  gap:11px;
   min-width:0;
-  padding:13px 15px;
-  border:1px solid rgba(205,218,225,.9);
-  border-radius:14px;
-  background:rgba(255,255,255,.72);
+  padding:14px 0;
+  border:0;
+  border-top:1px solid #dce2df;
+  border-radius:0;
+  background:transparent;
 }
+.page-endcap-item:first-child{padding-top:0;border-top:0}
+.page-endcap-item:last-child{padding-bottom:0}
 .page-endcap-item-icon{
   display:grid;
   place-items:center;
-  width:36px;
-  height:36px;
-  border:1px solid #f3c8bd;
-  border-radius:11px;
-  color:#bf482d;
-  background:#fff3ef;
+  width:24px;
+  height:24px;
+  border:0;
+  border-radius:0;
+  color:#b84932;
+  background:transparent;
 }
 .page-endcap-item h3{margin:1px 0 4px;color:var(--text-primary);font-size:.91rem;line-height:1.35}
 .page-endcap-item p{margin:0;color:var(--text-secondary);font-size:.81rem;line-height:1.55}
-.page-endcap-cart .page-endcap-item:nth-child(3) .page-endcap-item-icon{color:#426447;background:#edf5eb;border-color:#d5e5d1}
+.page-endcap-cart .page-endcap-item:nth-child(3) .page-endcap-item-icon{color:#426447;background:transparent}
 
 html[data-theme="dark"] .page-endcap{
   border-color:#294151;
-  background:linear-gradient(125deg,#0b1a26 0%,#102433 58%,#172b37 100%);
-  box-shadow:0 16px 42px rgba(0,0,0,.15);
+  background:#102433;
+  box-shadow:0 12px 30px rgba(0,0,0,.12);
 }
-html[data-theme="dark"] .page-endcap::after{border-color:rgba(255,98,71,.2);box-shadow:0 0 0 24px rgba(255,98,71,.04),0 0 0 48px rgba(255,98,71,.025)}
+html[data-theme="dark"] .page-endcap-item{border-top-color:#2b4353;background:transparent}
+html[data-theme="dark"] .page-endcap-item-icon{color:#ff947d;background:transparent}
+html[data-theme="dark"] .page-endcap-cart .page-endcap-item:nth-child(3) .page-endcap-item-icon{color:#9bd9a8;background:transparent}
 html[data-theme="dark"] .page-endcap-main h2{color:#f3f6f8}
 html[data-theme="dark"] .page-endcap-main>p{color:#a9bdc9}
 html[data-theme="dark"] .page-endcap-main .eyebrow{color:#ff9b85}
