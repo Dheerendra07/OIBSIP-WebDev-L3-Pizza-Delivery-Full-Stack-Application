@@ -233,7 +233,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   }
   providerPaymentsByOrderId.set('order_expired_empty', { items: [] });
   providerPaymentsByOrderId.set('order_expired_captured', {
-    items: [{ id: 'pay_expired_captured', order_id: 'order_expired_captured', amount: 27800, currency: 'INR', status: 'captured' }],
+    items: [{ id: 'pay_expired_captured', order_id: 'order_expired_captured', amount: 27800, currency: 'INR', status: 'captured', amount_refunded: 0 }],
   });
   providerPaymentsByOrderId.set('order_expired_authorized', {
     items: [{ id: 'pay_expired_authorized', order_id: 'order_expired_authorized', amount: 27800, currency: 'INR', status: 'authorized' }],
