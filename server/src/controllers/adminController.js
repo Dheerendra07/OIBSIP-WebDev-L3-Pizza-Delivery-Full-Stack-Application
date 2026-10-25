@@ -54,6 +54,20 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
         : 'The configured payment mode and this order do not match, so no fulfillment status was changed.',
     });
   }
+  const requiredStaff = status === 'in_kitchen'
+    ? { id: order.kitchenStaff, role: 'kitchen', label: 'active kitchen owner' }
+    : ['sent_to_delivery', 'delivered'].includes(status)
+      ? { id: order.deliveryStaff, role: 'delivery', label: 'active delivery partner' }
+      : null;
+  if (requiredStaff && (!requiredStaff.id || !await User.exists({
+    _id: requiredStaff.id,
+    role: requiredStaff.role,
+    active: { $ne: false },
+  }))) {
+    return res.status(409).json({
+      error: `Assign an ${requiredStaff.label} before moving this order to ${status.replaceAll('_', ' ')}.`,
+    });
+  }
   const transition = validateOrderStatusTransition(order, status);
   if (!transition.allowed) return res.status(transition.statusCode).json({ error: transition.message });
 
