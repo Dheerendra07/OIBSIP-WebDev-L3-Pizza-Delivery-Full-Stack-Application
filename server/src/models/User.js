@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
   passwordHash: { type: String, required: true, select: false },
   role: { type: String, enum: ['user', 'admin', 'kitchen', 'delivery'], default: 'user', immutable: true },
   active: { type: Boolean, default: true, index: true },
+  mustChangePassword: { type: Boolean, default: false, index: true },
   sessionVersion: { type: Number, min: 0, default: 0 },
   emailVerifiedAt: { type: Date, default: null },
   emailVerificationTokenHash: { type: String, select: false, default: null },
