@@ -368,8 +368,8 @@ try {
   }
   const footerNavCount = await page.locator('.footer-nav button').count();
   if (footerNavCount < 4) throw new Error('Footer is missing expected navigation shortcuts.');
-  if (await page.locator('.footer-brand .brand-name small').innerText() !== 'PIZZA · MADE TO ORDER') {
-    throw new Error('Footer brand tagline is not the useful product-led label.');
+  if (await page.locator('.footer-brand .brand-name small').innerText() !== 'LIVE MENU · CLEAR PRICES') {
+    throw new Error('Footer brand tagline is not the current product-led label.');
   }
   pass('home lower section uses a direct builder CTA with live ingredient and pricing value');
   pass('generic home quote/endcap filler is removed and footer copy is product-led');
