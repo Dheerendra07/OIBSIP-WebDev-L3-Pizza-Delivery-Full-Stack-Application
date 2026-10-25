@@ -1692,8 +1692,40 @@ function StaffPasswordChangeForm({ onComplete }) {
     </div>;
 }
 
+
+function OrderCardItemPreview({ item, index, catalog = DEFAULT_CATALOG }) {
+    const quantity = Math.max(0, Number(item?.quantity) || 0);
+    const lineTotal = item?.lineTotal ?? (Number(item?.unitPrice) || 0) * quantity;
+    const photo = getPizzaCardPhoto(item, index);
+    const variant = getPizzaArtworkVariant(item, index);
+    const recipeSummary = orderRecipeSummary(item, catalog);
+    const [photoLoaded, setPhotoLoaded] = useState(false);
+    const [photoFailed, setPhotoFailed] = useState(false);
+
+    return <div className="order-card-item" data-order-card-item data-order-card-item-name={item?.name || 'Pizza'} role="group" aria-label={`${quantity} × ${item?.name || 'Pizza'}`}>
+        <div className={`order-card-item-photo order-card-item-photo--${variant} ${photoLoaded ? 'has-photo' : ''}`} aria-hidden="true">
+            <PizzaArtwork variant={variant} className="order-card-item-artwork"/>
+            {!photoFailed && <img
+                src={photo.src}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                onLoad={() => setPhotoLoaded(true)}
+                onError={() => { setPhotoFailed(true); setPhotoLoaded(false); }}
+            />}
+            <span className="order-card-item-quantity">{quantity}×</span>
+        </div>
+        <div className="order-card-item-copy">
+            <strong>{item?.name || 'Pizza'}</strong>
+            <small>{recipeSummary}</small>
+        </div>
+        <b className="order-card-item-total">{currency(lineTotal)}</b>
+    </div>;
+}
+
 function OrderCard({ order, admin = false, staffRole = null, staff = [], onStatus, onAssign, statusPending = false, assignmentPending = false, onReorder, onResumePayment, pending = false, issue, onReportIssue, onRefreshIssues, catalog = DEFAULT_CATALOG }) {
     const customerView = !admin && !staffRole;
+    const orderItems = Array.isArray(order.items) ? order.items : [];
     const current = ORDER_STEPS.findIndex(s => s.id === order.status);
     const paid = order.paymentStatus === 'paid';
     const refunded = order.paymentStatus === 'refunded';
@@ -1732,7 +1764,7 @@ function OrderCard({ order, admin = false, staffRole = null, staff = [], onStatu
         <div className="order-card-top">
             <div className="order-card-identity">
                 <span className="eyebrow">ORDER {order.orderNumber}</span>
-                <h3>{order.items?.map(i => String(i.quantity) + '× ' + i.name).join(', ') || 'Pizza order'}</h3>
+                <h3>{orderItems.length === 1 ? orderItems[0].name : orderItems.length > 1 ? `${orderItems.length} items in this order` : 'Pizza order'}</h3>
                 <p className="order-card-meta">{admin && order.user ? order.user.name + ' · ' + order.user.email : customerView ? formatOrderStageTime(order.createdAt) : 'Assigned to your staff account'} <span aria-hidden="true">·</span> <strong>{currency(order.total)}</strong></p>
                 {order.deliveryDetails && <div className="order-delivery-details">
                     <small><strong>Deliver to:</strong> {order.deliveryDetails.recipientName} · {order.deliveryDetails.addressLine}, {order.deliveryDetails.city}, {order.deliveryDetails.state} {order.deliveryDetails.postalCode}</small>
@@ -1748,6 +1780,9 @@ function OrderCard({ order, admin = false, staffRole = null, staff = [], onStatu
                 {simulated && <span className="fulfillment-mode-pill">TEST MODE · SANDBOX</span>}
             </div>
         </div>
+        {orderItems.length > 0 && <div className="order-card-items" data-order-card-items="catalog-photo-v1" aria-label="Items in this order">
+            {orderItems.map((item, index) => <OrderCardItemPreview key={String(item.name || 'pizza') + '-' + index} item={item} index={index} catalog={catalog}/>)}
+        </div>}
         {reviewNeeded
             ? <div className="payment-review-warning" role="alert"><strong>Payment captured — order on hold.</strong><p>This order needs a manual payment and inventory review before kitchen preparation or delivery.</p>{admin && order.paymentReviewReason && <small>Reason: {order.paymentReviewReason.replaceAll('_', ' ')}</small>}</div>
             : refunded
