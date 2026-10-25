@@ -1539,6 +1539,7 @@ try {
     });
 
     await signOutMockedStaff();
+    await page.locator('.main-nav.open').getByRole('button', { name: 'Sign in', exact: true }).click();
     await dialog.getByRole('button', { name: 'Admin sign in', exact: true }).click();
     await dialog.getByLabel('Email address').fill(mockedAdmin.email);
     await dialog.getByLabel('Password').fill('AdminMockOnlyPass123');
