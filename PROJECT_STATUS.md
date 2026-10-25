@@ -1,117 +1,109 @@
-# Project Status — Pizza House
+# Pizza House — Project Status and Launch Roadmap
 
-Last updated: 2026-10-23
+**Last reviewed:** 2026-10-25  
+**Repository:** [Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application)  
+**Canonical hosted app/API:** https://pizza-house-api.onrender.com  
+**Latest application/runtime commit:** d5ab86f8d4c64bba8b28f7b53669ef1eaf5baedc (PR #121)  
+**Product state:** deployed development/launch-preparation platform; **not certified for live-money transactions or a real delivery business**.
 
-## Latest live end-to-end QA — 2026-10-23
+> Keep implemented features, automated evidence, hosted evidence and real-world readiness separate. A green build or simulated order progression is not proof that a customer was charged, a kitchen accepted an order, or a driver delivered it.
 
-- **Live customer auth passed:** a synthetic QA account was registered and signed in through the real UI. Login and persisted session checks passed; cookie flags were checked without reading/logging tokens, and logout cleared the session.
-- **Live catalog/cart/delivery passed:** catalog rendered; cart totals recalculated correctly; empty/incomplete delivery states were handled; valid delivery details were accepted.
-- **Pending-order recovery passed in the earlier QA run:** “Resume checkout” restored the saved order quote and delivery details without increasing the order count. The first payment-order attempt exposed a provider 401 and a safe, actionable error.
-- **Latest Test Mode checkout result (user-supplied live screenshot):** after entering the mock/test OTP, the order-updates page shows an order as **Paid** at **Order received**. The client callback calls `POST /api/payments/verify` and refreshes orders; the server verification code independently fetches the provider payment and only marks it paid when provider status is `captured`. This is strong live evidence that the Test Mode payment-verification path succeeded. No live-mode money was charged; this was the site's Test Mode flow.
-- **Another pending order remains visible:** order history also shows a separate `pending_payment` order. It was not modified, cancelled, fulfilled or delivered. Do not click Resume checkout on an order already paid; investigate/cancel an abandoned pending order only after verifying its ownership and intended state.
-- **Checkout-script resilience fix:** the loader now shares in-flight loads, times out, cleans up a failed script and gives actionable offline/network/content-blocker guidance. Render build passed and the deployed bundle was verified to contain the new code. The checkout note also clarifies that Test Mode uses a simulated OTP rather than a real SMS OTP.
-- **Current deployment/health:** Render deployment `dep-dbdl53fb9u1s73a2t520` is live at commit `369757a11595dfca02f81ff8314ecbce2991940d`. Live health returned HTTP 200, `status: ok`, and database `connected` with the exact deployed version. Startup logs confirm the inventory bootstrap checked 20 catalog ingredients and preserved existing stock. Production client build succeeded and npm audit found 0 vulnerabilities.
-- **Nonterminal payment-failure webhook coverage added:** the MongoDB integration test sends a correctly signed `payment.failed` webhook before a later successful capture and asserts the order stays pending, retryable and inventory-reserved. Latest CI [run 39952278247](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39952278247) passed dependency installation, audits, production build and tests.
-- **Deployed-smoke CI false mismatch fixed:** the check now validates that the reported deployed commit is in the tested history and that no backend/frontend runtime files changed after it. Test/docs-only commits no longer create false failures, while an undeployed runtime change still fails the check. Latest deployed smoke [run 39952278331](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39952278331) passed.
-- **Provider and API error-log hardening deployed:** reservation-reconciliation failures log only a validated upstream HTTP status and constrained provider error code; generic 5xx logging omits raw exception text and the concrete URL path, and 404 responses no longer echo tokenized paths. Regression tests cover private provider messages/bodies, malformed provider codes, tokenized error paths and the safer 404 response shape. Latest CI [run 39953217532](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39953217532) passed, and deployed smoke [run 39953217509](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39953217509) passed against the live runtime.
-- **Stock reconciliation tests now cover three expired-reservation states:** no provider payment releases inventory and cancels; a provider-confirmed late capture becomes paid/order-received without restoring consumed stock; an authorized/in-flight payment remains pending with its inventory hold. CI run [39950832004](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39950832004) passed after these tests were added. This is automated mocked-provider evidence, not a read of the user's live inventory records.
-- **Still not fully verified live:** signed webhook delivery/idempotent reconciliation against a real provider event, refund workflow, real email delivery, admin fulfillment/stock lifecycle, and the complete live Socket.IO order lifecycle. The screenshot confirms Test Mode checkout progress, not live-mode acceptance or the whole production journey.
+## 1. What is implemented now
 
-**Acceptance status:** live login/cart and a Test Mode payment showing Paid/Order received are verified from the browser flow. Webhook/refund/email/admin fulfillment and live-money processing remain unverified. Never share/commit Razorpay secrets; the exposed test secret should be rotated privately in Razorpay and Render.
+### Customer product
+- React/Vite responsive storefront, home/menu sections, featured recipe cards with live-catalog ingredient labels, custom pizza builder, product details, cart/checkout and persistent Light/Night themes.
+- Customer register/login, email verification, logout, forgotten-password/reset flow and cookie-backed sessions.
+- Server-priced cart/order creation, validated delivery recipient and address, quote-change confirmation, idempotent checkout, pending-order/cart recovery, and guarded payment-verification retry.
+- Order history with status timeline and stage timestamps; safe repeat-order from the current catalog; authenticated order issue reporting and customer-visible case updates.
+- Mobile layout and accessibility fixes across focus management, visible error announcements, contrast and keyboard-operable issue dialog. Some manual accessibility review is still outstanding.
 
-## Current Git state
+### Money, inventory and security
+- Razorpay Test Mode checkout integration with signature verification plus independent provider-state/order/amount/currency checks.
+- Signed payment/refund webhook route with idempotent event receipts and conservative late-capture / reservation reconciliation.
+- Server-side inventory reservation and review holds for ambiguous payment outcomes; no blind inventory release just because a provider request failed.
+- Payment-review workflow and a guarded full-refund recovery path for eligible cases.
+- Auth rate limits, hashed expiring email-verification/password-reset tokens, HttpOnly cookies, role-based route guards, session invalidation and safer error logging.
+- Insert-only startup inventory bootstrap; startup logs on the latest deployment reported that 20 catalog ingredients were checked and existing stock preserved. Existing admin password was preserved.
 
-- Product-discovery plan: [docs/PRODUCT_DISCOVERY.md](docs/PRODUCT_DISCOVERY.md). Shared card states/catalog gating landed in PR #20; server-quote confirmation landed in PR #21. PR #22 completes source readability/touch targets; targeted issue-dialog keyboard QA landed in PR #31; live-region semantics in PR #33; axe-detected baseline contrast fixes in PR #35; and broader builder/cart/admin contrast plus auth/mobile-navigation focus fixes in PR #37. Actual assistive-technology sessions, literal 200% browser zoom and remaining manual checks are still pending.
+### Admin, kitchen and delivery operations
+- Admin summary, stock/threshold editing, incoming-order and payment-review queues, low-stock scan/notification job, and customer support case management.
+- Admin staff management: create kitchen/delivery staff, assign paid orders and disable accounts.
+- Separate role-filtered kitchen/delivery queues and status actions; temporary staff passwords must be changed at first sign-in. Disabling a staff account invalidates its active session.
+- Kitchen preparation ticket/details, explicit order-stage timestamps and customer timeline.
+- The server distinguishes **simulated Test Mode fulfillment** from Live Mode. Test Mode progression is explicitly presented as a simulation; it does not contact a real kitchen or delivery partner.
 
-- Repository: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application
-- Default branch: `main`.
-- Dependency-maintenance baseline commit: `c14179443138ff6187c93975c61995406d57c05c` — PR #46 configures weekly Dependabot update PRs for root, server, client, and GitHub Actions dependencies. Minor/patch updates are grouped; major updates remain separate for review. CI run [#39523724778](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39523724778) passed dependency installation, the configured test suite, and production client build. Latest guided local-setup implementation commit remains `0cf99bd19a2bd024779eeffc23a1e8172ef49a1f` (PR #44): prompts for missing settings, masks sensitive input, preserves existing values, and prints configuration status without secret values. PR #45 records the setup evidence. PR #42 introduced local JWT generation; PR #40 extends disposable MongoDB integration coverage for authenticated order creation, server-side prices, persistence, ownership, invalid input and delivery-update rules; PR #39 adds the E2E configuration preflight. Latest customer/admin UI accessibility code commit remains `89cd3d4a5e4211ad7ec6b3780e27447193c596fe` (PR #37). Previous baseline contrast fixes are PR #35; live-region semantics are PR #33; issue-dialog keyboard handling is PR #31; disposable MongoDB issue lifecycle coverage is PR #29; reproducible npm lockfiles and `npm ci` are PR #26.
-- Delivery details collection and persistence merged in PR #16.
-- Trust/safety PRs merged: #12 late-capture inventory hold, #13 signed Razorpay webhook reconciliation, #15 guarded admin full-refund recovery, #16 delivery destination fields, #17 checkout/recovery hardening, #18 custom-pizza validation/provider capture-history checks, #20 shared card loading/error states and live catalog gating, and #21 explicit server-quote confirmation before payment, #23 live-catalog-based repeat order, and #24 Nodemailer security-range upgrade, plus #27 authenticated order-issue reporting and admin case management.
-- PR #14 was a stale status-document snapshot and is closed as superseded.
-- Historical Socket.IO live order tracking merge: `fb3baf38ba2926c033ea1a11e93e6f1350c15d77`.
-- Historical Socket.IO session-expiry hardening merge: `71d18fec59dd4106a43d6efd34327639035a7a25`.
-- Order-list skeletons reserve space for the repeat-order footer to reduce layout shift; the footer shape is hidden from assistive technology as decorative loading UI.
-- Safe repeat-order is the customer order-history feature in PR #23: it rebuilds delivered/cancelled orders using the current catalog, refuses partial restores or substitutions when recipes/options are missing or unavailable, and keeps payment checkout as a separate explicit action.
-- Verification outside GitHub Actions: isolated utility tests passed 10/10; full `npm test` passed 124/124 and Vite production build passed in a remote workspace using Node 26.8.2/npm 12.2.0. Chrome rendered the home page, order history, and repeat-order cart with deterministic mocked API responses at desktop and 390px mobile; no page errors were recorded, and mobile document width matched scroll width (390px). These are UI/component checks, not live API/payment proof.
-- Nodemailer is now declared as `^10.1.7` after PR #24. The isolated upgrade verification passed 124/124 tests, production build, and `npm audit --prefix server` with zero reported vulnerabilities; real SMTP provider delivery still needs a configuration-backed test.
-- Reproducible dependency installation now uses root/server/client lockfileVersion 3 manifests and `npm run install:all` runs `npm ci` in all three packages. Clean install, full tests (124/124), production build and root/server/client audits (0 vulnerabilities each) passed on Node 22.22.2/npm 10.9.7 outside GitHub Actions.
-- PR #27 adds authenticated issue reports for eligible paid orders, a partial unique index for one active case per order/customer, an admin queue with `open → under_review → resolved` transitions, and customer-visible updates. PR #27's initial check used mocked APIs in Chrome; no page errors and no 390px horizontal overflow were observed.
-- PR #29 merges `mongodb-memory-server`-backed issue lifecycle integration tests into the suite. At that checkpoint, clean `npm ci`, 142/142 tests, Vite build and root/server/client audits passed. Its disposable MongoDB integration covers persistence across reconnect, ownership, admin-only access, issue transitions and concurrent duplicate submission. The later production deployment health check now confirms a live connected database and populated catalog; live reservation contention and transaction/checkout behaviour still need configuration-backed verification.
-- Real environment credentials and database exports must not be committed.
+## 2. Latest changes and evidence
 
-## Implemented
+### PR #121 — secure kitchen and delivery staff workflows
+Merged to main as d5ab86f8d4c64bba8b28f7b53669ef1eaf5baedc.
+- Role-filtered operations API and queues.
+- Staff provisioning, assignments, password rotation and account disable/session revocation.
+- Integration coverage for assignment, staged handoff, delivery confirmation, payment-safe fulfillment and staff disable.
+- [PR #121](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/pull/121)
 
-- React/Vite customer UI with featured menu, custom pizza builder, cart, checkout, authentication, order history and a responsive delivery details form.
-- Express/Mongoose API with registration/email verification, secure cookie sessions, password reset, server-priced orders and admin-only operations.
-- Validated delivery recipient, Indian mobile number, street address, city, state and PIN code; details are saved with the order and visible in customer/admin order views.
-- Pending destination can be updated only while the order is unpaid and awaiting payment.
-- Transactional ingredient stock reservation before checkout and cautious expired-reservation reconciliation.
-- Razorpay Test Mode checkout signature validation and independent provider-state verification.
-- Signed `POST /api/payments/webhook` validates the exact raw request body with the separate `RAZORPAY_WEBHOOK_SECRET`.
-- Event-ID receipts make duplicate webhook deliveries idempotent; payment.failed is not treated as a final payment outcome while late capture remains possible.
-- Captured payments that cannot safely fulfill because of amount, currency, order linkage, inventory reservation, multiple captures or invalid/missing destination are placed in `payment_review` and made visible to the admin.
-- Client verification retry is preserved in session storage for the current tab/session so a reload does not automatically restart checkout.
-- Expired unpaid orders become cancelled after safe reservation reconciliation. The provider-order reference is retained so a late capture can still be linked and reviewed.
-- Admin payment-review queue and guarded full-refund recovery for eligible review holds. Refund requests use deterministic provider idempotency; extra captures, failed refunds and uncertain states remain on manual review.
-- Inventory is released only after a confirmed full refund or a safely reconciled expired unpaid checkout; ambiguous provider state preserves the hold.
-- Before Razorpay is opened, checkout compares the visible cart against the server-priced order; changed prices, totals, or recipe details require explicit review. Accepting only updates the cart; a second explicit checkout action is required to open payment.
-- Authenticated Socket.IO updates with role-derived rooms, session-expiry checks and REST refresh on reconnect.
-- Admin inventory controls, low-stock notification job and fulfillment status transition validation.
-- CI installs root/server/client dependencies, runs the configured server/client test suite and builds the production client. A passing CI run is not the same as live end-to-end verification.
+### PR #120 — fulfillment operations and safe sandbox flow
+- Premium customer order timeline and timestamps.
+- Kitchen preparation ticket and stage-filtered admin queue.
+- Test Mode stages are simulation-only; Live Mode transitions require the configured app mode and order mode to match.
+- [PR #120](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/pull/120)
 
-## Latest verified automated checks
+### Recent UI / visual QA
+- [PR #119](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/pull/119) keeps featured recipe images distinct and requires at least three distinct successfully loaded image URLs in production browser smoke.
+- [PR #114](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/pull/114) resolves featured recipe ingredient chips from the live catalog.
+- [PR #116](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/pull/116) adds recipe-backed pizza detail views and cleans up the home journey.
+- [PR #95](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/pull/95), #107, #108 and #109 cover Night Mode and lower-page parity, footer, and photo-led catalog cards; hosted browser checks are linked from the relevant PRs and Actions runs.
 
-- **Production same-origin release (2026-10-23):** PR #85 merged as `aa6e55add4cf54eced07169971b30b1dedb0c994`. Render deployment `dep-dbdf8ccs728c73bofdsg` is live at [pizza-house-api.onrender.com](https://pizza-house-api.onrender.com). The existing service build command triggered an opt-in client build hook; Render logs confirm the Vite production bundle built successfully. The existing MongoDB data and admin account were preserved during startup.
-- **Post-deploy API smoke:** [GitHub Actions run #39](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39907398646) passed 16/16 checks: canonical UI root, API base, health/database readiness and expected commit SHA, populated catalog, CORS/credentials, checkout idempotency preflight, unauthenticated guards, auth validation/database path, webhook guards and production bundle URL.
-- **Post-deploy browser smoke:** [GitHub Actions run #11](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39907398713) passed 6/6 checks: homepage/menu, menu-to-bag-to-delivery interaction, mobile sign-in focus, accessible live sign-in error, signup form render without production account creation, and no uncaught page errors.
-- **Historical mocked-session smoke (2026-10-23):** [run 39914211411](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39914211411) passed 9/9 checks, but auth transitions were mocked. A later fail-closed credential preflight temporarily blocked the browser job; that preflight was removed in commit [f8e0b94](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/f8e0b94da34682a56b6cc7b1af5f119ab215324e). Actual live customer auth was subsequently verified as recorded in the latest QA section above. Do not treat the historic mocked checks as production-login evidence.
-- **Merged-code CI:** [Run #648](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39907287683) passed 217/217 tests, production client build and root/server/client high/critical npm audits.
+### Current CI / host checks for PR #121's application/runtime commit
+- **Pizza House CI:** [run 40163698652](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698652) — passed the configured tests and client production build.
+- **Pizza House Browser Smoke:** [run 40163698528](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698528) — passed the hosted website browser smoke.
+- **Deployed smoke checks:** [run 40163698500](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698500) — pending at the time this snapshot was prepared. Do not report the full deployment verification as passed until this run is complete and green.
+- **Render deploy:** dep-dbeonugm7kps73eipdu0 for runtime commit d5ab86f8d4c64bba8b28f7b53669ef1eaf5baedc. Render logs showed the Vite build succeeded, the server started, the inventory bootstrap completed and the existing admin password was preserved. The deployment was still reported as update_in_progress in the last status read; re-check Render and the deployed-smoke run before claiming it is live.
+- CI and browser smoke are automated evidence. They do not by themselves prove real Razorpay payments, provider webhooks/refunds, customer email delivery, real staff usage or real restaurant fulfillment.
 
-- PR #46 dependency-maintenance configuration: GitHub Actions run [#39523724778](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39523724778) completed successfully. The PR changed only `.github/dependabot.yml`; dependency installation, the configured test suite, and the production client build passed. Dependabot will propose updates for review; future update PRs still need to pass CI and are not configured to auto-merge.
-- PR #27 verification on the merged source: 141/141 tests passed; production client build passed; root/server/client npm audits reported zero vulnerabilities; unauthenticated customer/admin issue routes returned HTTP 401; issue submission/admin review/customer refresh was exercised in Chrome with mocked API responses.
-- PR #29 merged DB integration suite: full `CI=true npm test` passed 142/142 locally, and GitHub Actions run `39517058359` passed dependency installation, the configured test suite and production build. Root/server/client audits reported zero vulnerabilities. The DB test syncs actual indexes, exercises HTTP endpoints with real Mongoose documents, verifies persistence after reconnect, and races API requests and direct inserts against the partial unique index.
-- PR #31 keyboard accessibility fix: GitHub Actions run `39517954129` passed dependency installation, 142/142 tests (including disposable MongoDB integration), and the production build. Chrome/Playwright at 320px verified focus entry, Tab/Shift+Tab containment, Escape close, focus restoration, successful-submit focus to the new case card, and 409-error focus containment; no horizontal overflow or page errors.
-- PR #33 accessible-feedback/focus contrast fix: GitHub Actions run `39518934358` passed dependency installation, 142/142 tests and production build. Chrome/Playwright checked success toasts as `status/polite/atomic`, errors and retry warnings as `alert/assertive/atomic`; issue-field text contrast 14.99:1 and border contrast 3.41:1. No overflow at 320px and a 640px narrow-layout proxy; issue dialog and controls remained inside viewport, with no JS page errors. The 640px run is a viewport proxy, not literal browser zoom or a screen-reader session.
-- PR #35 color-contrast fix: GitHub Actions run `39519380839` passed dependency installation, 142/142 tests and production build. Axe-core 4.10.3 reported 0 WCAG 2.1 A/AA violations on rendered home, customer order view and issue dialog after fixing the contrast findings; some contrast checks remain incomplete for manual review. Full-site screen-reader/browser-zoom verification is still pending.
-- PR #26 reproducible installs: root, server and client `package-lock.json` generated with npm 10.9.4 (lockfileVersion 3); `npm run install:all` executed clean `npm ci` installs on Node 22.22.2/npm 10.9.7. At that checkpoint, 124/124 tests, Vite production build, and all three audits passed. This verification ran in an isolated workspace, not via GitHub Actions.
-- Latest non-GitHub-Actions verification for the merged PR #23 + #24 source: full `npm test` passed 124/124; `npm run build` succeeded; `npm audit --prefix server` reported 0 vulnerabilities for Nodemailer `^10.1.7`. Chrome rendered home, desktop/mobile order history, and repeat-order cart with mocked API responses; no page errors, and 390px viewport width matched document scroll width. External MongoDB, SMTP delivery, Razorpay, and production deployment were not tested.
-- PR #44 guided local setup: GitHub Actions run `39523315762` passed dependency installation, 155/155 tests and production build. Missing values are collected in the local terminal; MongoDB URI, admin password, SMTP credentials and Razorpay values are masked. Enter skips values, existing settings are preserved, and the value-shape preflight prints no secrets. Live DB/provider connectivity remains unverified.
-- PR #42 local setup bootstrap: GitHub Actions run `39522866185` passed dependency installation, 153/153 tests and production build. `npm run setup:local` preserves existing values, refuses an env marked production, and generates a strong local JWT secret without printing it. SMTP/Razorpay values remain account-provided; no live provider validation is claimed.
-- PR #39 E2E configuration preflight: GitHub Actions run `39522119342` passed dependency installation, 148/148 tests and production build. The `npm --prefix server run qa:preflight` command validates local/test environment shape and rejects production context/placeholders/live Razorpay keys. It does not test DB, SMTP or Razorpay connectivity.
-- PR #40 authenticated order API integration: GitHub Actions run `39522344766` passed dependency installation, 148/148 tests and production build. The MongoDB 7.0.14 integration test exercised real Express order routes and database persistence for server-priced order creation, customer-only order history, unauthenticated/other-customer access denial, pending-payment delivery updates, rejection after payment, and invalid-order non-persistence. Razorpay and SMTP providers remain untested.
-- PR #37 accessibility follow-up: GitHub Actions run `39520883931` passed dependency installation, 142/142 tests and production build. A temporary Playwright + axe-core browser harness reported zero WCAG 2.1 A/AA violations across 31 scans after the contrast fixes, no overflow at seven tested viewport widths for home/menu/builder/populated-cart, working auth-dialog focus entry/trapping/Escape/restoration, working mobile-menu focus entry/return, 3px visible focus, reduced-motion preference enabled, and no JavaScript page errors. API responses were mocked; assistive technology, real 200% zoom, and live providers were not tested.
-- PR #22 source commit: `652c2bd7489372e24671cfd9f9dbefe78d4f52be` — GitHub Actions run `39448534587` passed dependency installation, the configured client/server test suite, and the production client build for the P0.3 readability, touch-target, and responsive inventory-field changes. Follow-up commits in PR #22 synchronize the status and roadmap documentation.
-- PR #21 price-confirmation head: `657607ce4d462cbedf95f504cdc24266dad5d6fc` — GitHub Actions run `39447782348` passed dependency installation, the configured test suite, and production build.
-- PR #18 code head: `e29bf1f78c9206c9d222d87dabb2c5bf5fb70aea`.
-- Pull-request check: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319853575 — passed.
-- Push check: https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39319845265 — passed.
-- Both checks completed dependency installation, configured tests/smoke checks and the production client build successfully.
-- They do not verify external MongoDB, Razorpay, SMTP or deployed-browser behaviour.
+## 3. Pull-request audit snapshot
 
-- Remaining accessibility QA: run actual NVDA/VoiceOver or equivalent screen-reader sessions; manually review axe checks marked incomplete; verify literal 200% browser zoom across key pages; and test remaining 320px order, issue, and payment-recovery states. PR #37 added mocked-browser keyboard checks for authentication and mobile navigation plus 31 axe-core 4.10.3 scans across home, menu, builder, populated cart, auth dialog, customer dashboard and admin dashboard: zero reported WCAG 2.1 A/AA violations after fixes. Home/menu/builder/populated-cart had no horizontal overflow at 320, 360, 390, 640, 768, 1024 or 1440 CSS-pixel viewport widths. The 640px viewport is not a literal 200% browser-zoom test. The production API deployment and database readiness are verified by live health/catalog checks. Real customer login/session persistence and a Test Mode payment showing Paid / Order received are now verified from the live UI screenshot. Real-provider webhook delivery/refund, live inventory state, SMTP delivery and screen-reader behaviour remain unverified; provider-mocked integration tests now exercise expired-reservation no-capture, late-capture and authorized/in-flight cases.
+A repository-wide pull-request list returned **121 PRs** in total at review time: **109 merged**, **11 open**, and **1 closed without merge** (#14, a superseded status-document PR).
 
-## Final setup and end-to-end verification — remaining gaps
+Open PRs:
+- **#48–#56 (9 Dependabot PRs):** updates to GitHub Actions, concurrently, dotenv, vite, mongodb-memory-server, @vitejs/plugin-react, mongoose and lucide-react. Several cross major-version boundaries. Review and test compatibility individually; do not blindly merge the group just because the current baseline CI passes.
+- **#111:** older featured-ingredient rendering follow-up. Its description overlaps the later merged ingredient fix in [#114](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/pull/114); verify the branch diff before closing it as superseded.
+- **#115:** older distinct-photo follow-up. Its description overlaps [#119](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/pull/119); verify the branch diff before closing it as superseded.
 
-1. Test Mode checkout has now reached Paid / Order received in the live UI screenshot. Do not treat this as live-mode readiness. Verify the specific paid test order's provider record and inventory effect through a safe authenticated/admin workflow when available; do not re-pay it.
-2. Continue testing transaction-capable MongoDB stock contention, sold-out items, late captures and expired reservations. CI run [39950832004](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/39950832004) now covers no-capture release, captured-payment reconciliation and authorized-payment deferral with a mocked provider.
-3. Validate a correctly signed live Test Mode webhook, duplicate/out-of-order delivery, ambiguous verification, multiple captures, refund/retry recovery, SMTP sends, and the complete browser/admin order-state journey using test data only. Keep live payment keys disabled.
-4. Run the browser journey: register → email verification → login → choose/build pizza → enter address → create order → payment → customer order history → admin fulfillment.
-5. Confirm pending payment recovery after reload; test cancelled expired orders and captured payments routed to manual review without asking the customer to pay twice.
-6. Verify SMTP email verification/reset/low-stock notification and provider outage behaviour.
-7. Test customer/admin Socket.IO updates, reconnect, logout/session expiry, and make sure private order events stay scoped to the right sessions.
-8. Basic production HTTPS, canonical origin, CORS/credentials, health/database readiness, deployed version, startup logs and a real authenticated session cookie have been verified. Provider-backed email and payment flows remain outstanding.
-9. Complete rendered-browser accessibility checks: contrast, keyboard-only order journey, focus visibility, screen-reader loading announcements, text zoom, and layout at 320px/200% zoom.
+No open PR was merged or closed as part of this documentation refresh. The pull-request list was audited by number, title, state and merge status; recent operational/UI PR descriptions and the current staff/order route files were also reviewed.
 
-## Local assessment runbook
+## 4. Known gaps — do not present these as done
 
-1. Copy root `.env.example` to `server/.env`; never commit secrets.
-2. Configure transaction-capable MongoDB, unique JWT secret, exact application/frontend URLs, SMTP and Razorpay Test Mode keys plus a separate webhook secret.
-3. Run `npm run install:all`.
-4. Run `npm run seed:inventory`.
-5. Set `ADMIN_EMAIL` and a strong `ADMIN_PASSWORD` in `server/.env`, then run `npm run seed:admin`.
-6. Run `npm run dev`.
-7. Verify frontend at `http://localhost:5173` and API health at `http://localhost:4000/api/health`.
-8. Run `npm test` and `npm run build`.
+1. **Actual business operations:** staff-role code exists, but real employees, operating hours, kitchen acceptance procedure, delivery boundaries/fees, and driver availability have not been configured or validated with a real restaurant. No third-party driver dispatch integration is claimed.
+2. **Live money:** the current verified checkout evidence is Test Mode. No production/live-money order has been verified. Keep live credentials disabled until the provider, legal/business details, refund process and live operational controls are approved and tested.
+3. **Webhook and refund providers:** code and automated tests exist; real provider-sent signed events, duplicate delivery against the deployed service, end-to-end refunds and failure recovery still require a controlled Test Mode exercise.
+4. **Customer notifications:** an email/notification path and scheduled low-stock job exist in code, but successful end-to-end delivery to a verified real inbox is not established by the latest smoke suite. SMS/OTP delivery is not claimed; Test Mode checkout may show simulated OTP.
+5. **Whole-role production journey:** the latest hosted browser smoke passed, but it has not been recorded as a complete authenticated production run from customer checkout through admin assignment, kitchen acceptance, dispatch and customer delivery update against the live provider.
+6. **Accessibility:** responsive/theme and automated contrast/focus work has landed. Actual screen-reader sessions, literal 200% browser zoom, and remaining manual edge states are not yet verified.
+7. **Pending customer/payment data:** do not click resume, cancel, refund, or mutate an existing production order during smoke testing without verifying ownership and intended state. Use clearly identified synthetic test accounts/orders and avoid destructive production-data operations.
 
-Do not describe this as fully end-to-end verified until the configuration-backed browser flow and real provider/database/email checks above pass. Use Razorpay Test Mode during assessment; do not enable live payment traffic yet.
+## 5. Next work — ordered by dependency
+
+### P0 — close the current release loop
+- Re-check Render deployment dep-dbeonugm7kps73eipdu0 and deployed smoke run [40163698500](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698500); confirm deployed runtime SHA and public health/catalog responses.
+- On a controlled synthetic Test Mode order, exercise customer order history, admin staff assignment, kitchen queue, dispatch handoff, delivery queue and final customer timeline. Confirm each actor's permissions and refresh/realtime behavior. Never call it a real delivery.
+- Check current branch state and close stale PRs #111/#115 only after comparing their complete diffs with merged #114/#119.
+
+### P1 — close external-service gaps
+- Verify a signed Razorpay Test Mode webhook reaches the deployed endpoint; confirm idempotent replay, nonterminal failure handling and late-capture reconciliation with test-only orders.
+- Confirm the selected HTTPS email provider, verified sender and actual inbox delivery for verification/reset notifications and operational alerts.
+- Test the guarded Test Mode refund and recovery workflow using eligible synthetic payment-review cases.
+- Run complete admin/kitchen/delivery/customer role tests and record actual outcomes, not mocked substitutes.
+
+### P2 — launch-readiness and quality
+- Complete the manual accessibility pass (screen reader, keyboard-only, 200% zoom, empty/error/loading states and narrow mobile).
+- Document operating hours, service PIN codes/radius, delivery fees/estimates, order acceptance rules, cancellation/refund policy, staff responsibilities and customer support procedures with the business owner.
+- Add operational observability and a recoverable process for failed email, webhook, refund, inventory and status-update actions.
+- Only after P0/P1 are green and business configuration is approved, conduct a separate Live Mode readiness review; do not automatically switch payment mode.
+
+## 6. Release discipline
+
+- Make small, targeted feature/fix branches; inspect actual source and Git state before editing.
+- Run relevant tests/builds and wait for CI; fix failures instead of merging around them.
+- Merge only reviewed changes, then verify Render deployment and hosted checks because the Render service has automatic deploy disabled.
+- Update this document and README when implementation or verification status changes. Say whether evidence is unit/integration, mocked browser, hosted browser, provider-backed, or actual business operation.
+- Never commit server/.env, provider/database credentials, private customer data or production exports; rotate any exposed secret using provider dashboard and hosting environment controls.
