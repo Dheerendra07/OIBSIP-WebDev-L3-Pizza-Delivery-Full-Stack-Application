@@ -54,19 +54,22 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   res.redirect(`${config.clientBaseUrl}/?verified=1`);
 });
 
-async function loginCommon(req, res, adminOnly) {
+async function loginCommon(req, res, mode = 'customer') {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const email = String(body.email || '').trim().toLowerCase(); const password = body.password;
   if (!validEmail(email) || typeof password !== 'string' || password.length > 72) return res.status(400).json({ error: 'Enter valid sign-in details' });
   const user = await User.findOne({ email }).select('+passwordHash');
   if (!user || !(await verifyPassword(password, user.passwordHash))) return res.status(401).json({ error: 'Email or password is incorrect' });
-  if (adminOnly && user.role !== 'admin') return res.status(403).json({ error: 'This account does not have admin access' });
-  if (!adminOnly && user.role !== 'user') return res.status(403).json({ error: 'Use the admin sign-in page for this account' });
+  if (user.active === false) return res.status(403).json({ error: 'This account has been disabled. Contact the administrator.' });
+  if (mode === 'admin' && user.role !== 'admin') return res.status(403).json({ error: 'This account does not have admin access' });
+  if (mode === 'staff' && !['kitchen', 'delivery'].includes(user.role)) return res.status(403).json({ error: 'This account does not have kitchen or delivery staff access' });
+  if (mode === 'customer' && user.role !== 'user') return res.status(403).json({ error: 'Use the appropriate team sign-in page for this account' });
   if (config.requireEmailVerification && !user.emailVerifiedAt) return res.status(403).json({ error: 'Verify your email before signing in' });
   issueSession(res, user); return res.json({ user: publicUser(user) });
 }
-export const login = asyncHandler(async (req, res) => loginCommon(req, res, false));
-export const adminLogin = asyncHandler(async (req, res) => loginCommon(req, res, true));
+export const login = asyncHandler(async (req, res) => loginCommon(req, res, 'customer'));
+export const adminLogin = asyncHandler(async (req, res) => loginCommon(req, res, 'admin'));
+export const staffLogin = asyncHandler(async (req, res) => loginCommon(req, res, 'staff'));
 export const logout = asyncHandler(async (req, res) => {
   // A stale or missing session must still be allowed to clear the browser cookie.
   try { await disconnectCurrentSessionSockets(req.headers.cookie); } catch { /* Cookie clearing remains the priority. */ }
