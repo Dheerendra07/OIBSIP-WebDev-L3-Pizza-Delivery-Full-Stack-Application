@@ -8,6 +8,7 @@ const payment = (overrides = {}) => ({
   amount: 27800,
   currency: 'INR',
   status: 'captured',
+  amount_refunded: 0,
   ...overrides,
 });
 const order = (overrides = {}) => ({
@@ -40,6 +41,37 @@ test('amount, currency and provider-order mismatches require review', () => {
   assert.deepEqual(classifyCapturedPayment(payment({ amount: 100 }), order()), { action: 'review', reason: 'captured_amount_mismatch' });
   assert.deepEqual(classifyCapturedPayment(payment({ currency: 'USD' }), order()), { action: 'review', reason: 'captured_currency_mismatch' });
   assert.deepEqual(classifyCapturedPayment(payment({ order_id: 'order_other' }), order()), { action: 'review', reason: 'provider_order_mismatch' });
+});
+
+test('captured payments with an existing partial refund are held for manual review', () => {
+  assert.deepEqual(
+    classifyCapturedPayment(payment({ amount_refunded: 5000 }), order()),
+    { action: 'review', reason: 'captured_payment_has_prior_refund' },
+  );
+});
+
+test('missing or malformed provider refund state fails closed', () => {
+  assert.deepEqual(
+    classifyCapturedPayment(payment({ amount_refunded: undefined }), order()),
+    { action: 'review', reason: 'captured_refund_state_unavailable' },
+  );
+  assert.deepEqual(
+    classifyCapturedPayment(payment({ amount_refunded: '0' }), order()),
+    { action: 'review', reason: 'captured_refund_state_unavailable' },
+  );
+});
+
+test('replayed capture webhook for an already-refunded order does not reopen it', () => {
+  assert.deepEqual(
+    classifyCapturedPayment(payment({ amount_refunded: 27800 }), order({
+      paymentStatus: 'refunded',
+      refundStatus: 'processed',
+      razorpayPaymentId: 'pay_test_123',
+      status: 'cancelled',
+      inventoryReserved: false,
+    })),
+    { action: 'already_processed' },
+  );
 });
 
 test('a capture after the stock hold is gone requires manual review', () => {

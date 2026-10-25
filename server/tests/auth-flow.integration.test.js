@@ -34,6 +34,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   let restoreRazorpayClientFactory = () => {};
   let razorpayOrderCreateCalls = 0;
   const providerPaymentsByOrderId = new Map();
+  const providerPaymentsById = new Map();
   const mockProviderOrderId = 'order_test_auth_e2e';
   const mockProviderPaymentId = 'pay_test_auth_e2e';
   t.after(async () => {
@@ -50,17 +51,21 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
     orders: {
       create: async ({ amount, currency }) => {
         razorpayOrderCreateCalls += 1;
-        return { id: mockProviderOrderId, amount, currency };
+        const id = razorpayOrderCreateCalls === 1
+          ? mockProviderOrderId
+          : `order_test_auth_e2e_${razorpayOrderCreateCalls}`;
+        return { id, amount, currency };
       },
       fetchPayments: async (orderId) => providerPaymentsByOrderId.get(orderId) || { items: [] },
     },
     payments: {
-      fetch: async (id) => ({
+      fetch: async (id) => providerPaymentsById.get(id) || ({
         id,
         order_id: mockProviderOrderId,
         amount: 52700,
         currency: 'INR',
         status: 'captured',
+        amount_refunded: 0,
       }),
     },
   }));
@@ -228,7 +233,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   }
   providerPaymentsByOrderId.set('order_expired_empty', { items: [] });
   providerPaymentsByOrderId.set('order_expired_captured', {
-    items: [{ id: 'pay_expired_captured', order_id: 'order_expired_captured', amount: 27800, currency: 'INR', status: 'captured' }],
+    items: [{ id: 'pay_expired_captured', order_id: 'order_expired_captured', amount: 27800, currency: 'INR', status: 'captured', amount_refunded: 0 }],
   });
   providerPaymentsByOrderId.set('order_expired_authorized', {
     items: [{ id: 'pay_expired_authorized', order_id: 'order_expired_authorized', amount: 27800, currency: 'INR', status: 'authorized' }],
@@ -403,6 +408,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
           amount: 52700,
           currency: 'INR',
           status: 'captured',
+          amount_refunded: 0,
         },
       },
     },
@@ -436,6 +442,67 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(replayBody.duplicate, true);
   assert.equal(await PaymentWebhookReceipt.countDocuments({ eventId: 'integration-payment-captured-1' }), 1);
   assert.equal((await Order.findById(createdOrder.id).lean()).razorpayPaymentId, mockProviderPaymentId);
+
+  // A provider capture that already has a partial refund must not become a
+  // kitchen-ready order. Verify this through the real HTTP app and isolated DB.
+  const priorRefundCheckout = await fetch(`${base}/api/orders`, {
+    method: 'POST',
+    headers: { ...headers, Cookie: cookie, 'Idempotency-Key': 'integration-prior-refund-checkout-0001' },
+    body: JSON.stringify({
+      items: [{ type: 'featured', pizzaId: 'margherita', quantity: 1 }],
+      deliveryDetails: createOrderPayload.deliveryDetails,
+    }),
+  });
+  assert.equal(priorRefundCheckout.status, 201);
+  const priorRefundOrder = (await priorRefundCheckout.json()).order;
+  const priorRefundSetup = await fetch(`${base}/api/payments/create-order`, {
+    method: 'POST',
+    headers: { ...headers, Cookie: cookie },
+    body: JSON.stringify({ orderId: priorRefundOrder.id }),
+  });
+  assert.equal(priorRefundSetup.status, 200);
+  const priorRefundPaymentOrder = await priorRefundSetup.json();
+  assert.equal(priorRefundPaymentOrder.amount, 27800);
+  const priorRefundPaymentId = 'pay_test_prior_refund';
+  providerPaymentsById.set(priorRefundPaymentId, {
+    id: priorRefundPaymentId,
+    order_id: priorRefundPaymentOrder.paymentOrderId,
+    amount: 27800,
+    currency: 'INR',
+    status: 'captured',
+    amount_refunded: 1000,
+  });
+  const priorRefundSignature = crypto.createHmac('sha256', env.RAZORPAY_KEY_SECRET)
+    .update(`${priorRefundPaymentOrder.paymentOrderId}|${priorRefundPaymentId}`)
+    .digest('hex');
+  const priorRefundVerification = await fetch(`${base}/api/payments/verify`, {
+    method: 'POST',
+    headers: { ...headers, Cookie: cookie },
+    body: JSON.stringify({
+      orderId: priorRefundOrder.id,
+      razorpay_order_id: priorRefundPaymentOrder.paymentOrderId,
+      razorpay_payment_id: priorRefundPaymentId,
+      razorpay_signature: priorRefundSignature,
+    }),
+  });
+  assert.equal(priorRefundVerification.status, 200);
+  const priorRefundVerificationBody = await priorRefundVerification.json();
+  assert.equal(priorRefundVerificationBody.order.status, 'payment_review');
+  assert.equal(priorRefundVerificationBody.order.paymentReviewRequired, true);
+  const heldPriorRefundOrder = await Order.findById(priorRefundOrder.id).lean();
+  assert.equal(heldPriorRefundOrder.paymentReviewReason, 'captured_payment_has_prior_refund');
+  assert.equal(heldPriorRefundOrder.paymentStatus, 'paid');
+  assert.equal(heldPriorRefundOrder.inventoryReserved, true, 'inventory remains held while the partial refund is reconciled');
+  assert.ok(heldPriorRefundOrder.stockReservationExpiresAt instanceof Date);
+  const { default: InventoryItemForPriorRefund } = await import('../src/models/InventoryItem.js');
+  assert.equal(
+    (await InventoryItemForPriorRefund.findOne({ key: 'base:classic' }).lean()).stock,
+    97,
+    'partial-refund capture must not be released to the ingredient pool or dispatched',
+  );
+  const priorRefundReviewReceipt = await PaymentWebhookReceipt.findOne({ eventId: `verification-${priorRefundPaymentId}` }).lean();
+  assert.equal(priorRefundReviewReceipt.status, 'review_required');
+  assert.equal(priorRefundReviewReceipt.reason, 'captured_payment_has_prior_refund');
 
   // Customer sessions cannot access the admin queue; the seeded admin can.
   const forbiddenAdminQueue = await fetch(`${base}/api/admin/orders`, {
