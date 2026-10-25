@@ -11,6 +11,7 @@ import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js
 import { mapRazorpayOrderCreationError } from '../utils/paymentProviderErrors.js';
 import { config } from '../config/env.js';
 import { queueOrderNotificationSafely } from '../services/orderNotifications.js';
+import { capturedPaymentRefundReviewReason } from '../utils/paymentWebhook.js';
 
 const isRequestObjectId = (value) => typeof value === 'string' && mongoose.isObjectIdOrHexString(value);
 
@@ -266,11 +267,12 @@ export const verifyPayment = asyncHandler(async (req, res) => {
   const providerAmountMismatch = !Number.isSafeInteger(providerPayment.amount) ||
     providerPayment.amount <= 0 || providerPayment.amount !== initial.total * 100;
   const providerCurrencyMismatch = providerPayment.currency !== 'INR';
+  const providerRefundStateReason = capturedPaymentRefundReviewReason(providerPayment);
   const providerReviewReason = providerAmountMismatch
     ? 'captured_amount_mismatch'
     : providerCurrencyMismatch
       ? 'captured_currency_mismatch'
-      : null;
+      : providerRefundStateReason;
 
   const session = await mongoose.startSession();
   try {
