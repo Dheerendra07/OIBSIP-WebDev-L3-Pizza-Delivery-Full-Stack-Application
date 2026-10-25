@@ -209,13 +209,17 @@ export const setStaffActive = asyncHandler(async (req, res) => {
   if ((staff.active !== false) === body.active) {
     return res.json({ staff: { id: String(staff._id), name: staff.name, email: staff.email, role: staff.role, active: body.active } });
   }
-  staff.active = body.active;
-  staff.sessionVersion = (staff.sessionVersion || 0) + 1;
-  await staff.save();
+  const updateResult = await User.updateOne(
+    { _id: staff._id, role: staff.role, active: { $ne: body.active } },
+    { $set: { active: body.active }, $inc: { sessionVersion: 1 } },
+  );
+  if (updateResult.modifiedCount !== 1) {
+    return res.status(409).json({ error: 'Staff access changed in another request. Refresh the team list and retry.' });
+  }
   if (!body.active) await disconnectUserSockets(staff._id);
   publishOpsRefresh();
   publishAdminRefresh();
-  res.json({ staff: { id: String(staff._id), name: staff.name, email: staff.email, role: staff.role, active: staff.active } });
+  res.json({ staff: { id: String(staff._id), name: staff.name, email: staff.email, role: staff.role, active: body.active } });
 });
 
 export const assignOrderStaff = asyncHandler(async (req, res) => {
