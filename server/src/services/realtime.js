@@ -175,10 +175,11 @@ export function attachRealtimeServer(httpServer) {
       const expiresAt = getSessionExpiry(payload);
       if (expiresAt === null) return next(new Error('Authentication required'));
 
-      const user = await User.findById(payload.sub).select('name email role active emailVerifiedAt sessionVersion');
+      const user = await User.findById(payload.sub).select('name email role active mustChangePassword emailVerifiedAt sessionVersion');
       if (
         !user ||
         user.active === false ||
+        user.mustChangePassword === true ||
         !user.emailVerifiedAt ||
         !isSessionVersionCurrent(payload.sv, user.sessionVersion) ||
         !['user', 'admin', 'kitchen', 'delivery'].includes(user.role)
