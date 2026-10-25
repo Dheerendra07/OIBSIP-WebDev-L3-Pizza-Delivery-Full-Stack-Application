@@ -144,7 +144,7 @@ export const checkPaymentProvider = asyncHandler(async (_req, res) => {
 });
 
 
-const validStaffEmail = (email) => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);
+const validStaffEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 export const listStaff = asyncHandler(async (_req, res) => {
   const staff = await User.find({ role: { $in: ['kitchen', 'delivery'] } })
@@ -160,7 +160,7 @@ export const listStaff = asyncHandler(async (_req, res) => {
 
 export const createStaff = asyncHandler(async (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
-  const name = typeof body.name === 'string' ? body.name.trim().replace(/\\s+/g, ' ') : '';
+  const name = typeof body.name === 'string' ? body.name.trim().replace(/\s+/g, ' ') : '';
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const password = body.password;
   const role = body.role;
