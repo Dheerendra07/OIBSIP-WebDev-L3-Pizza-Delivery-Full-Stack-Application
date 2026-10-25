@@ -52,6 +52,18 @@ async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreen
   await page.locator('.dashboard-metrics > div').first().waitFor({ state: 'visible', timeout: 15_000 });
   const dashboardEndcap = page.locator('[data-page-endcap="dashboard"]');
   await dashboardEndcap.waitFor({ state: 'visible', timeout: 15_000 });
+  const dashboardEditorialState = await dashboardEndcap.evaluate((el) => ({
+    eyebrow: el.querySelector('.page-endcap-main .eyebrow').innerText,
+    sparkleIcons: el.querySelectorAll('.page-endcap-main .eyebrow svg').length,
+    afterContent: getComputedStyle(el, '::after').content,
+    heading: el.querySelector('.page-endcap-main h2').innerText,
+    actionCount: el.querySelectorAll('.page-endcap-actions button').length,
+  }));
+  if (dashboardEditorialState.sparkleIcons !== 0 ||
+      dashboardEditorialState.afterContent !== 'none' ||
+      dashboardEditorialState.actionCount !== 2) {
+    throw new Error('Dashboard endcap should use restrained decoration and two working actions: ' + JSON.stringify(dashboardEditorialState));
+  }
   if (await dashboardEndcap.locator('.page-endcap-item').count() !== 3) {
     throw new Error('Customer dashboard must show all three contextual lower-page support cards.');
   }
@@ -454,12 +466,19 @@ try {
   ), null, { timeout: 5000 });
   const builderEndcapNight = await page.locator('[data-page-endcap="builder"]').evaluate((el) => ({
     backgroundImage: getComputedStyle(el).backgroundImage,
-    cardBackground: getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor,
+    background: getComputedStyle(el).backgroundColor,
+    rowBackground: getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor,
+    afterContent: getComputedStyle(el, '::after').content,
+    eyebrowIcons: el.querySelectorAll('.page-endcap-main .eyebrow svg').length,
   }));
-  if (builderEndcapNight.backgroundImage === 'none' || builderEndcapNight.cardBackground !== 'rgb(16, 32, 45)') {
-    throw new Error('Builder lower-page cards are not using the night palette: ' + JSON.stringify(builderEndcapNight));
+  if (builderEndcapNight.backgroundImage !== 'none' ||
+      builderEndcapNight.background !== 'rgb(16, 36, 51)' ||
+      builderEndcapNight.rowBackground !== 'rgba(0, 0, 0, 0)' ||
+      builderEndcapNight.afterContent !== 'none' ||
+      builderEndcapNight.eyebrowIcons !== 0) {
+    throw new Error('Builder lower-page endcap is not using the restrained editorial night system: ' + JSON.stringify(builderEndcapNight));
   }
-  pass('custom builder and lower-page cards use the premium night palette');
+  pass('custom builder uses flat night palette, editorial helper rows and no sparkle/ring decoration');
   await captureScreenshot(page, '12-builder-night-desktop.png');
   await auditResponsiveState(page, 'builder-night');
 
@@ -554,11 +573,23 @@ try {
   await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
   const menuEndcapNight = await menuEndcap.evaluate((el) => ({
-    cardBackground: getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor,
+    surface: getComputedStyle(el).backgroundColor,
+    surfaceImage: getComputedStyle(el).backgroundImage,
+    rowBackground: getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor,
+    rowBorder: getComputedStyle(el.querySelector('.page-endcap-item')).borderTopColor,
     cardText: getComputedStyle(el.querySelector('.page-endcap-item h3')).color,
+    detailText: getComputedStyle(el.querySelector('.page-endcap-item p')).color,
+    afterContent: getComputedStyle(el, '::after').content,
+    eyebrowIcons: el.querySelectorAll('.page-endcap-main .eyebrow svg').length,
   }));
-  if (menuEndcapNight.cardBackground !== 'rgb(16, 32, 45)' || menuEndcapNight.cardText !== 'rgb(237, 243, 246)') {
-    throw new Error('Menu lower-page cards are not readable in night mode: ' + JSON.stringify(menuEndcapNight));
+  if (menuEndcapNight.surface !== 'rgb(16, 36, 51)' ||
+      menuEndcapNight.surfaceImage !== 'none' ||
+      menuEndcapNight.rowBackground !== 'rgba(0, 0, 0, 0)' ||
+      menuEndcapNight.rowBorder !== 'rgb(43, 67, 83)' ||
+      menuEndcapNight.cardText !== 'rgb(237, 243, 246)' ||
+      menuEndcapNight.afterContent !== 'none' ||
+      menuEndcapNight.eyebrowIcons !== 0) {
+    throw new Error('Menu lower-page editorial rows are not readable in night mode: ' + JSON.stringify(menuEndcapNight));
   }
   await captureScreenshot(page, '09-menu-night-mobile.png');
   await auditResponsiveState(page, 'menu-night');
@@ -589,8 +620,18 @@ try {
   await auditResponsiveState(page, 'bag');
   await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
-  const cartEndcapNight = await cartEndcap.evaluate((el) => getComputedStyle(el.querySelector('.page-endcap-item')).backgroundColor);
-  if (cartEndcapNight !== 'rgb(16, 32, 45)') throw new Error('Bag lower-page cards are not using the night theme: ' + cartEndcapNight);
+  const cartEndcapNight = await cartEndcap.evaluate((el) => ({
+    surface: getComputedStyle(el).backgroundColor,
+    rowText: getComputedStyle(el.querySelector('.page-endcap-item h3')).color,
+    afterContent: getComputedStyle(el, '::after').content,
+    eyebrowIcons: el.querySelectorAll('.page-endcap-main .eyebrow svg').length,
+  }));
+  if (cartEndcapNight.surface !== 'rgb(16, 36, 51)' ||
+      cartEndcapNight.rowText !== 'rgb(237, 243, 246)' ||
+      cartEndcapNight.afterContent !== 'none' ||
+      cartEndcapNight.eyebrowIcons !== 0) {
+    throw new Error('Bag lower-page editorial surface is not using the restrained night theme: ' + JSON.stringify(cartEndcapNight));
+  }
   await captureScreenshot(page, '10-bag-night-mobile.png');
   await auditResponsiveState(page, 'bag-night');
   await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();

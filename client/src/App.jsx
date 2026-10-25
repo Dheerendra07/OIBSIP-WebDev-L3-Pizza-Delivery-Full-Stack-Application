@@ -1182,8 +1182,8 @@ export default function App() {
 function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', featuredCount = 0, ordersCount = 0, ordersStatus = 'idle', paymentMode = 'unknown', onRefresh }) {
     const content = {
         menu: {
-            eyebrow: 'A BETTER KIND OF PIZZA NIGHT',
-            title: 'Good pizza, no guesswork.',
+            eyebrow: 'ON THE MENU',
+            title: 'Find your next favourite.',
             description: catalogStatus === 'ready'
                 ? 'Menu prices and availability are connected to the live catalog. Pick a house favourite or build a combination that feels like yours.'
                 : 'Choose your next step. Current prices and availability will be confirmed from the live menu before checkout.',
@@ -1198,8 +1198,8 @@ function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', fea
             ],
         },
         builder: {
-            eyebrow: 'MADE A LITTLE MORE PERSONAL',
-            title: 'Your taste leads the way.',
+            eyebrow: 'CUSTOMISE YOUR PIZZA',
+            title: 'Make it yours.',
             description: 'Build the recipe you actually want. Ingredient choices and prices come from the menu, and the bag gives you one more chance to review everything.',
             primary: 'Review my bag',
             secondary: 'Browse house favourites',
@@ -1212,8 +1212,8 @@ function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', fea
             ],
         },
         cart: {
-            eyebrow: 'THE LAST LITTLE CHECK',
-            title: cartCount ? 'One last look before checkout.' : 'Your next favourite starts here.',
+            eyebrow: 'YOUR BAG',
+            title: cartCount ? 'Review your order before checkout.' : 'Start with a pizza you love.',
             description: catalogStatus === 'ready'
                 ? 'Your current menu data is loaded. The server checks the quote and availability again when you continue to checkout.'
                 : 'We will not treat demo prices as confirmed. Refresh the live menu before proceeding with checkout.',
@@ -1223,15 +1223,19 @@ function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', fea
             secondaryTarget: 'builder',
             items: [
                 { icon: ShoppingBag, title: cartCount ? `${cartCount} item${cartCount === 1 ? '' : 's'} in your bag` : 'Start with a favourite', detail: cartCount ? 'You can adjust quantities or remove an item before checkout.' : 'Add a house recipe or make a custom pizza to get started.' },
-                { icon: Truck, title: 'Delivery details', detail: 'Delivery information is attached to the checkout so the team can fulfil the order.' },
+                { icon: Truck, title: 'Delivery details', detail: 'Check the address and contact details before confirming the order.' },
                 { icon: ShieldCheck, title: paymentMode === 'test' ? 'Razorpay Test Mode' : paymentMode === 'live' ? 'Server-verified payment' : 'Payment mode check', detail: paymentMode === 'test' ? 'Test credentials only; this does not charge real money.' : paymentMode === 'live' ? 'The server confirms the provider result before the order is treated as paid.' : 'Checkout remains guarded until the payment mode is confirmed.' },
             ],
         },
         dashboard: {
-            eyebrow: 'YOUR PIZZA DIARY',
-            title: 'Your next slice is only a tap away.',
+            eyebrow: 'ORDER HISTORY',
+            title: ordersStatus === 'ready'
+                ? (ordersCount ? 'Your orders, all in one place.' : 'Your first order starts here.')
+                : 'Order updates, in one place.',
             description: ordersStatus === 'ready'
-                ? 'Your order history is loaded. Reorder a previous favourite or open an order to find updates and support options.'
+                ? (ordersCount
+                    ? 'Your order history is up to date. Reorder a favourite at today’s menu price or open an order for status updates and support.'
+                    : 'No orders are saved to your account yet. Once you place one, its status and support options will appear here.')
                 : ordersStatus === 'error'
                     ? 'Your order history could not be confirmed. Retry the history above instead of assuming it is empty.'
                     : 'Your order history and order updates are loading from your account.',
@@ -1240,14 +1244,14 @@ function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', fea
             primaryTarget: 'menu',
             secondaryTarget: 'orders',
             items: [
-                { icon: Clock3, title: 'Order updates', detail: 'Order status is refreshed as updates arrive from the service.' },
+                { icon: Clock3, title: ordersStatus === 'ready' ? (ordersCount ? `${ordersCount} order${ordersCount === 1 ? '' : 's'} on your account` : 'No orders yet') : 'Order history', detail: ordersStatus === 'error' ? 'Retry your history to load the latest order status.' : ordersStatus === 'ready' && !ordersCount ? 'Your order timeline will appear here after your first checkout.' : 'Open any order to see its latest status and stage history.' },
                 { icon: RefreshCw, title: 'Reorder a favourite', detail: 'Use Reorder on a past order to rebuild your bag with current prices.' },
                 { icon: MessageCircle, title: 'Need a hand?', detail: 'Open an order and choose Report an issue for missing items or delivery concerns.' },
             ],
         },
         admin: {
-            eyebrow: 'OPERATIONS, WITHOUT THE GUESSWORK',
-            title: 'Keep every handoff clear.',
+            eyebrow: 'ADMINISTRATION',
+            title: 'Keep stock, payments and hand-offs clear.',
             description: 'Use the live operations panels above for inventory, payment review, customer cases and kitchen progress. This shortcut refreshes the current operational data only.',
             primary: 'Refresh live data',
             secondary: 'Jump to incoming orders',
@@ -1280,7 +1284,7 @@ function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', fea
 
     return <section className={`section-wrap page-endcap page-endcap-${page}`} data-page-endcap={page} data-featured-count={page === 'home' ? featuredCount : undefined} aria-labelledby={`page-endcap-title-${page}`}>
         <div className="page-endcap-main">
-            <div className="eyebrow"><Sparkles size={13} aria-hidden="true"/> {content.eyebrow}</div>
+            <div className="eyebrow"><span className="page-endcap-eyebrow-mark" aria-hidden="true" />{content.eyebrow}</div>
             <h2 id={`page-endcap-title-${page}`}>{content.title}</h2>
             <p>{content.description}</p>
             <div className="page-endcap-actions">
