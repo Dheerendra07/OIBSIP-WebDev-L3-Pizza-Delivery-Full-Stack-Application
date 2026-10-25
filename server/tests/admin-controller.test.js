@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkPaymentProvider, updateInventory, updateOrderStatus } from '../src/controllers/adminController.js';
+import { checkPaymentProvider, updateInventory, updateOrderStatus, createStaff, setStaffActive, assignOrderStaff } from '../src/controllers/adminController.js';
 import { setRazorpayClientFactoryForIntegrationTests } from '../src/services/payments.js';
 
 function responseRecorder() {
@@ -88,5 +88,38 @@ test('admin payment-provider check sanitizes provider failures', async () => {
     assert.equal(JSON.stringify(res.payload).includes('PRIVATE_KEY_DATA'), false);
   } finally {
     restore();
+  }
+});
+
+
+test('staff provisioning rejects malformed account details before touching user storage', async () => {
+  const cases = [
+    [{ name: 'A', email: 'bad', password: 'StrongPass123', role: 'kitchen' }, 400, /Staff name/],
+    [{ name: 'Kitchen User', email: 'bad', password: 'StrongPass123', role: 'kitchen' }, 400, /valid staff email/],
+    [{ name: 'Kitchen User', email: 'kitchen@example.test', password: 'StrongPass123', role: 'admin' }, 400, /Kitchen staff or Delivery staff/],
+    [{ name: 'Kitchen User', email: 'kitchen@example.test', password: 'weak', role: 'kitchen' }, 400, /Password must be/],
+  ];
+  for (const [body, expectedStatus, expectedMessage] of cases) {
+    const res = responseRecorder();
+    let nextError;
+    await createStaff({ body }, res, (error) => { nextError = error; });
+    assert.equal(nextError, undefined);
+    assert.equal(res.statusCode, expectedStatus);
+    assert.match(res.payload.error, expectedMessage);
+  }
+});
+
+test('staff active and order assignment endpoints reject invalid identifiers or request shapes before database lookup', async () => {
+  for (const [handler, req] of [
+    [setStaffActive, { params: { id: 'invalid' }, body: { active: false } }],
+    [setStaffActive, { params: { id: '507f1f77bcf86cd799439011' }, body: { active: 'false' } }],
+    [assignOrderStaff, { params: { id: 'invalid' }, body: { kitchenStaffId: null } }],
+    [assignOrderStaff, { params: { id: '507f1f77bcf86cd799439011' }, body: {} }],
+  ]) {
+    const res = responseRecorder();
+    let nextError;
+    await handler(req, res, (error) => { nextError = error; });
+    assert.equal(nextError, undefined);
+    assert.equal(res.statusCode, 400);
   }
 });
