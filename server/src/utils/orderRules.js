@@ -119,3 +119,17 @@ export function validateOrderStatusTransition(order, nextStatus) {
   }
   return { allowed: true };
 }
+
+
+/**
+ * Keep payment and fulfillment modes aligned.
+ * Test Mode orders may exercise the workflow as a simulation only; they must never
+ * become real kitchen/delivery jobs. Live fulfilment requires a Live Mode order
+ * and a Live Mode application at the same time.
+ */
+export function resolveFulfillmentMode(appPaymentMode, orderPaymentMode) {
+  const persistedMode = orderPaymentMode || 'test';
+  if (appPaymentMode === 'test' && persistedMode === 'test') return 'simulated';
+  if (appPaymentMode === 'live' && persistedMode === 'live') return 'live';
+  return null;
+}
