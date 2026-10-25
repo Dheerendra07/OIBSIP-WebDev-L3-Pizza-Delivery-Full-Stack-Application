@@ -688,6 +688,23 @@ try {
       role: 'user',
     };
     const mockedSessionCookie = 'pizza_session=browser-smoke-session';
+    let activeMockedUser = null;
+    let qaCheckoutOrder = null;
+    let qaOpsOrder = null;
+    const staffLoginCases = {
+      kitchen: {
+        email: 'kitchen-qa@example.invalid',
+        temporaryPassword: 'TempKitchenPass123',
+        newPassword: 'KitchenPass2026',
+        user: { id: 'browser-smoke-kitchen', name: 'Browser QA Kitchen', role: 'kitchen', mustChangePassword: true },
+      },
+      delivery: {
+        email: 'delivery-qa@example.invalid',
+        temporaryPassword: 'TempDeliveryPass123',
+        newPassword: 'DeliveryPass2026',
+        user: { id: 'browser-smoke-delivery', name: 'Browser QA Delivery', role: 'delivery', mustChangePassword: true },
+      },
+    };
 
     await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.route('**/api/auth/login', async (route) => {
@@ -696,6 +713,7 @@ try {
         await route.fulfill({ status: 400, json: { error: 'Unexpected mock sign-in input.' } });
         return;
       }
+      activeMockedUser = mockedUser;
       await route.fulfill({
         status: 200,
         headers: {
@@ -704,16 +722,95 @@ try {
         json: { user: mockedUser },
       });
     });
+    await page.route('**/api/auth/staff/login', async (route) => {
+      const body = route.request().postDataJSON();
+      const entry = Object.values(staffLoginCases).find((candidate) =>
+        candidate.email === body?.email && candidate.temporaryPassword === body?.password,
+      );
+      if (!entry) {
+        await route.fulfill({ status: 401, json: { error: 'Invalid staff test credentials.' } });
+        return;
+      }
+      activeMockedUser = { ...entry.user, email: entry.email };
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'set-cookie': mockedSessionCookie + '; Path=/; HttpOnly; Secure; SameSite=Lax',
+        },
+        json: { user: activeMockedUser },
+      });
+    });
+    await page.route('**/api/auth/staff/change-password', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue();
+        return;
+      }
+      const body = route.request().postDataJSON();
+      const entry = staffLoginCases[activeMockedUser?.role];
+      if (!entry || body?.currentPassword !== entry.temporaryPassword ||
+          typeof body?.newPassword !== 'string' || body.newPassword.length < 10) {
+        await route.fulfill({ status: 400, json: { error: 'Invalid mocked staff password rotation.' } });
+        return;
+      }
+      activeMockedUser = { ...activeMockedUser, mustChangePassword: false };
+      await route.fulfill({ status: 200, json: { user: activeMockedUser } });
+    });
     await page.route('**/api/auth/me', async (route) => {
       const hasSession = (route.request().headers().cookie || '').includes(mockedSessionCookie);
       await route.fulfill({
-        status: hasSession ? 200 : 401,
-        json: hasSession ? { user: mockedUser } : { error: 'Sign in to continue' },
+        status: hasSession && activeMockedUser ? 200 : 401,
+        json: hasSession && activeMockedUser ? { user: activeMockedUser } : { error: 'Sign in to continue' },
       });
     });
-    await page.route('**/api/orders/my', (route) =>
-      route.fulfill({ status: 200, json: { orders: [] } }),
-    );
+    await page.route('**/api/orders/my', async (route) => {
+      const visibleOrder = activeMockedUser?.role === 'user'
+        ? qaOpsOrder?.status === 'delivered'
+          ? qaOpsOrder
+          : qaCheckoutOrder?.paymentStatus === 'paid' ? qaCheckoutOrder : null
+        : null;
+      await route.fulfill({ status: 200, json: { orders: visibleOrder ? [visibleOrder] : [] } });
+    });
+    await page.route('**/api/ops/orders**', async (route) => {
+      const request = route.request();
+      const pathname = new URL(request.url()).pathname;
+      const role = activeMockedUser?.role;
+      if (!['kitchen', 'delivery'].includes(role)) {
+        await route.fulfill({ status: 401, json: { error: 'Sign in to continue' } });
+        return;
+      }
+      if (pathname === '/api/ops/orders' && request.method() === 'GET') {
+        const visibleForRole = role === 'kitchen'
+          ? ['order_received', 'in_kitchen'].includes(qaOpsOrder?.status)
+          : ['in_kitchen', 'sent_to_delivery', 'delivered'].includes(qaOpsOrder?.status);
+        await route.fulfill({
+          status: 200,
+          json: { orders: visibleForRole && qaOpsOrder ? [qaOpsOrder] : [], role },
+        });
+        return;
+      }
+      if (pathname === '/api/ops/orders/browser-smoke-ops-order/status' && request.method() === 'PATCH') {
+        const body = request.postDataJSON();
+        const allowed = role === 'kitchen'
+          ? (qaOpsOrder?.status === 'order_received' && body?.status === 'in_kitchen') ||
+            (qaOpsOrder?.status === 'in_kitchen' && body?.status === 'sent_to_delivery')
+          : role === 'delivery' && qaOpsOrder?.status === 'sent_to_delivery' && body?.status === 'delivered';
+        if (!allowed || !qaOpsOrder) {
+          await route.fulfill({ status: 400, json: { error: 'The mocked staff transition is not allowed.' } });
+          return;
+        }
+        const now = new Date().toISOString();
+        qaOpsOrder = {
+          ...qaOpsOrder,
+          status: body.status,
+          ...(body.status === 'in_kitchen' ? { kitchenStartedAt: now } : {}),
+          ...(body.status === 'sent_to_delivery' ? { dispatchedAt: now } : {}),
+          ...(body.status === 'delivered' ? { deliveredAt: now } : {}),
+        };
+        await route.fulfill({ status: 200, json: { order: { ...qaOpsOrder, fulfillmentMode: 'simulated' } } });
+        return;
+      }
+      await route.fulfill({ status: 404, json: { error: 'Unexpected mocked operations route.' } });
+    });
     await page.route('**/api/issues/my', (route) =>
       route.fulfill({ status: 200, json: { issues: [] } }),
     );
@@ -722,6 +819,7 @@ try {
         await route.continue();
         return;
       }
+      activeMockedUser = null;
       await route.fulfill({
         status: 200,
         headers: {
@@ -808,7 +906,6 @@ try {
         ingredients: { base: 'whole-wheat', sauce: 'white-garlic', cheese: 'vegan', vegetables: ['mushroom', 'capsicum', 'tomato'] },
       },
     };
-    let qaCheckoutOrder = null;
     let qaOrderCreateCalls = 0;
     let qaOrderFetchCalls = 0;
     let qaDeliveryPatchCalls = 0;
@@ -915,6 +1012,12 @@ try {
           await route.fulfill({ status: 503, json: { error: 'QA simulated temporary verification outage.' } });
           return;
         }
+        qaCheckoutOrder = {
+          ...qaCheckoutOrder,
+          status: 'order_received',
+          paymentStatus: 'paid',
+          paidAt: new Date().toISOString(),
+        };
         await route.fulfill({
           status: 200,
           json: { order: { id: qaCheckoutOrderId, orderNumber: qaCheckoutOrder.orderNumber, status: 'order_received', paymentStatus: 'paid', paymentReviewRequired: false } },
@@ -1102,7 +1205,181 @@ try {
     await page.locator('.main-nav.open').getByRole('button', { name: 'Sign in', exact: true })
       .waitFor({ state: 'visible', timeout: 15_000 });
     pass('simulated logout clears the cookie and remains signed out after reload');
-    console.log('[INFO] These successful-auth browser checks use mocked auth endpoints; live production sign-in still needs the optional QA customer secrets.');
+
+    // Staff lifecycle drill: every auth, queue and stage request below is intercepted
+    // by Playwright. It never creates a production staff account or changes a real order.
+    qaOpsOrder = {
+      id: 'browser-smoke-ops-order',
+      orderNumber: 'PH-OPS-QA',
+      user: { name: 'Browser QA Customer', email: 'browser-qa@example.invalid' },
+      items: [{
+        name: 'Margherita Classic',
+        quantity: 1,
+        unitPrice: 249,
+        lineTotal: 249,
+        ingredients: { base: 'classic', sauce: 'classic-tomato', cheese: 'mozzarella', vegetables: ['tomato'] },
+      }],
+      deliveryDetails: {
+        recipientName: 'Browser QA Customer',
+        phone: '9876543210',
+        addressLine: '42 Model Town Street',
+        city: 'Meerut',
+        state: 'Uttar Pradesh',
+        postalCode: '250001',
+        landmark: 'Model Town',
+        instructions: 'Synthetic browser smoke order — not a real delivery.',
+      },
+      subtotal: 249,
+      deliveryFee: 29,
+      total: 278,
+      status: 'order_received',
+      paymentStatus: 'paid',
+      paymentMode: 'test',
+      paymentReviewRequired: false,
+      createdAt: new Date().toISOString(),
+      paidAt: new Date().toISOString(),
+      kitchenStartedAt: null,
+      dispatchedAt: null,
+      deliveredAt: null,
+      kitchenStaff: { id: staffLoginCases.kitchen.user.id, name: staffLoginCases.kitchen.user.name, active: true },
+      deliveryStaff: { id: staffLoginCases.delivery.user.id, name: staffLoginCases.delivery.user.name, active: true },
+    };
+
+    async function openStaffLogin(entry) {
+      await page.locator('.main-nav.open').getByRole('button', { name: 'Sign in', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Kitchen / delivery sign in', exact: true }).click();
+      await dialog.getByLabel('Email address').fill(entry.email);
+      await dialog.getByLabel('Password').fill(entry.temporaryPassword);
+      const loginResponsePromise = page.waitForResponse((response) =>
+        new URL(response.url()).pathname === '/api/auth/staff/login' &&
+        response.request().method() === 'POST',
+      );
+      await dialog.getByRole('button', { name: 'Sign in to operations', exact: true }).click();
+      const loginResponse = await loginResponsePromise;
+      if (loginResponse.status() !== 200) {
+        throw new Error('Mocked ' + entry.user.role + ' login returned HTTP ' + loginResponse.status() + '.');
+      }
+      await context.addCookies([{
+        name: 'pizza_session',
+        value: 'browser-smoke-session',
+        url: webUrl,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax',
+      }]);
+      await page.getByRole('heading', { name: 'Set your private password.', exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
+      await page.getByLabel('Temporary password').fill(entry.temporaryPassword);
+      await page.getByLabel('New password').fill(entry.newPassword);
+      await page.getByLabel('Confirm new password').fill(entry.newPassword);
+      const rotateResponsePromise = page.waitForResponse((response) =>
+        new URL(response.url()).pathname === '/api/auth/staff/change-password' &&
+        response.request().method() === 'POST',
+      );
+      await page.getByRole('button', { name: /Set password & open queue/ }).click();
+      const rotateResponse = await rotateResponsePromise;
+      if (rotateResponse.status() !== 200) {
+        throw new Error('Mocked ' + entry.user.role + ' first-login password rotation returned HTTP ' + rotateResponse.status() + '.');
+      }
+      const queueHeading = entry.user.role === 'kitchen' ? /Kitchen queue/ : /Your delivery/;
+      await page.getByRole('heading', { name: queueHeading }).waitFor({ state: 'visible', timeout: 15_000 });
+      await page.getByText('SANDBOX WORKFLOW', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+      await page.locator('.order-card[data-order-id="browser-smoke-ops-order"]').waitFor({ state: 'visible', timeout: 10_000 });
+      pass('mocked ' + entry.user.role + ' first sign-in forces a password change before showing the assigned queue');
+    }
+
+    async function signOutMockedStaff() {
+      const logoutResponsePromise = page.waitForResponse((response) =>
+        new URL(response.url()).pathname === '/api/auth/logout' &&
+        response.request().method() === 'POST',
+      );
+      await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+      const logoutResponse = await logoutResponsePromise;
+      if (logoutResponse.status() !== 200) throw new Error('Mocked staff sign-out failed.');
+      await context.clearCookies({ name: 'pizza_session' });
+      await page.locator('.account-button').waitFor({ state: 'hidden', timeout: 10_000 });
+      await page.getByRole('button', { name: 'Open menu', exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+      await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+      await page.locator('.main-nav.open').getByRole('button', { name: 'Sign in', exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+    }
+
+    const kitchenEntry = staffLoginCases.kitchen;
+    await openStaffLogin(kitchenEntry);
+    const kitchenOrder = page.locator('.order-card[data-order-id="browser-smoke-ops-order"]');
+    await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    await captureScreenshot(page, '16-mocked-kitchen-queue-night.png');
+    await auditResponsiveState(page, 'mocked-kitchen-queue-night');
+    await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+
+    const acceptResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/ops/orders/browser-smoke-ops-order/status' &&
+      response.request().method() === 'PATCH',
+    );
+    await kitchenOrder.getByRole('button', { name: 'Accept & start preparation', exact: true }).click();
+    const acceptResponse = await acceptResponsePromise;
+    if (acceptResponse.status() !== 200) throw new Error('Kitchen acceptance UI did not receive the mocked success response.');
+    await kitchenOrder.getByRole('button', { name: 'Mark prepared & hand to delivery', exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+    pass('kitchen can accept an assigned paid order and start preparation; customer-facing copy remains explicitly simulated');
+
+    const handoffResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/ops/orders/browser-smoke-ops-order/status' &&
+      response.request().method() === 'PATCH',
+    );
+    await kitchenOrder.getByRole('button', { name: 'Mark prepared & hand to delivery', exact: true }).click();
+    const handoffResponse = await handoffResponsePromise;
+    if (handoffResponse.status() !== 200 || qaOpsOrder.status !== 'sent_to_delivery' || !qaOpsOrder.dispatchedAt) {
+      throw new Error('Kitchen hand-off did not set the synthetic order to dispatched with a timestamp.');
+    }
+    await kitchenOrder.waitFor({ state: 'hidden', timeout: 10_000 });
+    pass('kitchen hand-off moves the synthetic order into the delivery queue and leaves kitchen queue clear');
+
+    await signOutMockedStaff();
+    const deliveryEntry = staffLoginCases.delivery;
+    await openStaffLogin(deliveryEntry);
+    const deliveryOrder = page.locator('.order-card[data-order-id="browser-smoke-ops-order"]');
+    await deliveryOrder.getByRole('button', { name: 'Confirm delivery completed', exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+    await captureScreenshot(page, '17-mocked-delivery-run-light.png');
+    await auditResponsiveState(page, 'mocked-delivery-run-light');
+
+    const deliveryResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/ops/orders/browser-smoke-ops-order/status' &&
+      response.request().method() === 'PATCH',
+    );
+    await deliveryOrder.getByRole('button', { name: 'Confirm delivery completed', exact: true }).click();
+    const deliveryResponse = await deliveryResponsePromise;
+    if (deliveryResponse.status() !== 200 || qaOpsOrder.status !== 'delivered' || !qaOpsOrder.deliveredAt) {
+      throw new Error('Delivery confirmation did not set the synthetic order to delivered with a timestamp.');
+    }
+    await page.getByRole('button', { name: /Completed/ }).click();
+    await page.locator('.order-card[data-order-id="browser-smoke-ops-order"]').waitFor({ state: 'visible', timeout: 10_000 });
+    pass('delivery staff confirms only a dispatched order and can find the completed order in its Completed filter');
+
+    await signOutMockedStaff();
+    await page.locator('.main-nav.open').getByRole('button', { name: 'Sign in', exact: true }).click();
+    await dialog.getByLabel('Email address').fill(mockedUser.email);
+    await dialog.getByLabel('Password').fill('MockOnlyPass123');
+    const returnCustomerLoginPromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/auth/login' &&
+      response.request().method() === 'POST',
+    );
+    await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
+    const returnCustomerLogin = await returnCustomerLoginPromise;
+    if (returnCustomerLogin.status() !== 200) throw new Error('Mock customer could not sign back in after staff workflow.');
+    await context.addCookies([{
+      name: 'pizza_session',
+      value: 'browser-smoke-session',
+      url: webUrl,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+    }]);
+    await page.getByRole('heading', { name: /Good to see you,.*Browser/i }).waitFor({ state: 'visible', timeout: 15_000 });
+    await page.getByText('PH-OPS-QA', { exact: false }).waitFor({ state: 'visible', timeout: 15_000 });
+    await page.getByText('TEST MODE · SIMULATED TRACKING', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+    pass('customer order history reflects the synthetic completed stage and clearly labels it as Test Mode simulation');
+    console.log('[INFO] Kitchen, delivery and customer end-to-end UI drills above use mocked HTTP routes and a synthetic in-memory order; no production order or staff account was created or changed.');
+    console.log('[INFO] Successful customer-auth checks use mocked endpoints unless optional PIZZA_QA_CUSTOMER_EMAIL/PIZZA_QA_CUSTOMER_PASSWORD secrets enable the separate live-session check.');
   }
 
   if (pageErrors.length) {
