@@ -25,6 +25,10 @@ function publicOrder(order) {
     status: order.status,
     paymentStatus: order.paymentStatus,
     paymentMode: order.paymentMode || 'test',
+    paidAt: order.paidAt || null,
+    kitchenStartedAt: order.kitchenStartedAt || null,
+    dispatchedAt: order.dispatchedAt || null,
+    deliveredAt: order.deliveredAt || null,
   };
 }
 
@@ -100,13 +104,13 @@ export const createOrder = asyncHandler(async (req, res) => {
 });
 export const myOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(50).lean();
-  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentMode: o.paymentMode || 'test', paymentReviewRequired: o.paymentReviewRequired, deliveryDetails: o.deliveryDetails, createdAt: o.createdAt, updatedAt: o.updatedAt })) });
+  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentMode: o.paymentMode || 'test', paymentReviewRequired: o.paymentReviewRequired, deliveryDetails: o.deliveryDetails, createdAt: o.createdAt, updatedAt: o.updatedAt, paidAt: o.paidAt, kitchenStartedAt: o.kitchenStartedAt, dispatchedAt: o.dispatchedAt, deliveredAt: o.deliveredAt })) });
 });
 export const getOrder = asyncHandler(async (req, res) => {
   if (!isRequestObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order identifier' });
   const filter = { _id: req.params.id }; if (req.user.role !== 'admin') filter.user = req.user._id;
   const order = await Order.findOne(filter).lean(); if (!order) return res.status(404).json({ error: 'Order not found' });
-  res.json({ order: { id: order._id, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, deliveryFee: order.deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus, paymentMode: order.paymentMode || 'test', paymentReviewRequired: order.paymentReviewRequired, deliveryDetails: order.deliveryDetails, createdAt: order.createdAt, updatedAt: order.updatedAt } });
+  res.json({ order: { id: order._id, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, deliveryFee: order.deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus, paymentMode: order.paymentMode || 'test', paymentReviewRequired: order.paymentReviewRequired, deliveryDetails: order.deliveryDetails, createdAt: order.createdAt, updatedAt: order.updatedAt, paidAt: order.paidAt, kitchenStartedAt: order.kitchenStartedAt, dispatchedAt: order.dispatchedAt, deliveredAt: order.deliveredAt } });
 });
 
 
