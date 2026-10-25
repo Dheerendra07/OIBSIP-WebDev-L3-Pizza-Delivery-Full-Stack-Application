@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock3, CreditCard, Flame, Leaf, LoaderCircle, LogIn, LogOut, Menu, Minus, Plus, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Truck, UserRound, X, CheckCircle2, CircleUserRound, PackageCheck, ChefHat, Boxes, RefreshCw, Mail, LockKeyhole, MessageCircle, Moon, Sun } from 'lucide-react';
+import { ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Clock3, CreditCard, Flame, Leaf, LoaderCircle, LogIn, LogOut, Menu, Minus, Plus, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles, Truck, UserRound, X, CheckCircle2, CircleUserRound, PackageCheck, ChefHat, Boxes, RefreshCw, Mail, LockKeyhole, MessageCircle, Moon, Sun, UsersRound as UsersRoundIcon } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { api, API_ORIGIN } from './api.js';
 import PizzaArtwork from './PizzaArtwork.jsx';
@@ -84,7 +84,11 @@ export default function App() {
     const [paymentProviderCheck, setPaymentProviderCheck] = useState({ status: 'idle', checkedAt: null, message: '' });
     const [paymentMode, setPaymentMode] = useState('loading');
     const adminLoaded = useRef(false);
-    const [adminData, setAdminData] = useState({ summary: null, inventory: [], orders: [], paymentReviews: [], issues: [] });
+    const [adminData, setAdminData] = useState({ summary: null, inventory: [], orders: [], paymentReviews: [], issues: [], staff: [] });
+    const [opsData, setOpsData] = useState({ orders: [], role: null });
+    const [opsStatus, setOpsStatus] = useState('idle');
+    const [opsError, setOpsError] = useState('');
+    const opsLoaded = useRef(false);
     const [issues, setIssues] = useState([]);
     const [issuesStatus, setIssuesStatus] = useState('idle');
     const [issuesError, setIssuesError] = useState('');
@@ -120,6 +124,7 @@ export default function App() {
     const [priceReview, setPriceReview] = useState(null);
     const [pendingRefundOrderId, setPendingRefundOrderId] = useState(null);
     const [pendingStatusOrderId, setPendingStatusOrderId] = useState(null);
+    const [pendingAssignmentOrderId, setPendingAssignmentOrderId] = useState(null);
     const [pendingVerification, setPendingVerification] = useState(() => {
         try {
             return parsePendingVerification(sessionStorage.getItem(PENDING_PAYMENT_STORAGE_KEY));
@@ -250,15 +255,16 @@ export default function App() {
         if (!adminLoaded.current) setAdminStatus('loading');
         setAdminError('');
         try {
-            const [summaryResponse, inventoryResponse, orderResponse, paymentResponse, issueResponse] = await Promise.all([
+            const [summaryResponse, inventoryResponse, orderResponse, paymentResponse, issueResponse, staffResponse] = await Promise.all([
                 api('/admin/summary'),
                 api('/admin/inventory'),
                 api('/admin/orders'),
                 api('/admin/payment-reviews'),
                 api('/admin/issues'),
+                api('/admin/staff'),
             ]);
             if (!Array.isArray(inventoryResponse.items) || !Array.isArray(orderResponse.orders) ||
-                !Array.isArray(paymentResponse.events) || !Array.isArray(issueResponse.issues)) {
+                !Array.isArray(paymentResponse.events) || !Array.isArray(issueResponse.issues) || !Array.isArray(staffResponse.staff)) {
                 throw new Error('Invalid admin dashboard response');
             }
             setAdminData({
@@ -267,6 +273,7 @@ export default function App() {
                 orders: orderResponse.orders,
                 paymentReviews: paymentResponse.events,
                 issues: issueResponse.issues,
+                staff: staffResponse.staff,
             });
             adminLoaded.current = true;
             setAdminStatus('ready');
@@ -274,6 +281,24 @@ export default function App() {
         } catch (error) {
             setAdminError('Live operations data could not be refreshed. Previous results, if any, remain visible.');
             if (!adminLoaded.current) setAdminStatus('error');
+            return false;
+        }
+    }, []);
+    const refreshOps = useCallback(async () => {
+        if (!opsLoaded.current) setOpsStatus('loading');
+        setOpsError('');
+        try {
+            const result = await api('/ops/orders');
+            if (!Array.isArray(result.orders) || !['kitchen', 'delivery'].includes(result.role)) {
+                throw new Error('Invalid operations queue response');
+            }
+            setOpsData({ orders: result.orders, role: result.role });
+            opsLoaded.current = true;
+            setOpsStatus('ready');
+            return true;
+        } catch (error) {
+            setOpsError('Your assigned queue could not be refreshed. No order status was changed.');
+            if (!opsLoaded.current) setOpsStatus('error');
             return false;
         }
     }, []);
@@ -335,23 +360,31 @@ export default function App() {
         pendingIssueFocusOrderId.current = null;
     }, [issues, issuesStatus]);
     useEffect(() => {
-        if (user?.role === 'admin' && page === 'admin') refreshAdmin();
-    }, [user, page, refreshAdmin]);
+        if (user?.role === 'admin' && page === 'admin') void refreshAdmin();
+        if (['kitchen', 'delivery'].includes(user?.role) && user.mustChangePassword !== true && page === user.role) void refreshOps();
+    }, [user, page, refreshAdmin, refreshOps]);
     useEffect(() => {
-        if (!user) return;
+        if (page !== 'home') return;
+        if (user?.role === 'kitchen') setPage('kitchen');
+        else if (user?.role === 'delivery') setPage('delivery');
+    }, [user?.role, page]);
+    useEffect(() => {
+        if (!user || (['kitchen', 'delivery'].includes(user.role) && user.mustChangePassword === true)) return;
         const socket = io(API_ORIGIN, { withCredentials: true });
         const synchronizeOrders = () => {
             if (user.role === 'admin') refreshAdmin();
+            else if (['kitchen', 'delivery'].includes(user.role)) refreshOps();
             else refreshOrders();
         };
         socket.on('connect', synchronizeOrders);
         socket.on('order:update', synchronizeOrders);
         socket.on('admin:refresh', synchronizeOrders);
+        socket.on('ops:refresh', synchronizeOrders);
         socket.on('connect_error', (error) => {
             console.warn('Live order updates unavailable:', error.message);
         });
         return () => socket.disconnect();
-    }, [user, refreshOrders, refreshAdmin]);
+    }, [user, refreshOrders, refreshAdmin, refreshOps]);
     const builderPrice = useMemo(() => { const find = (group, id) => catalog[group]?.find(x => x.id === id)?.price || 0; return 199 + find('bases', builder.base) + find('sauces', builder.sauce) + find('cheeses', builder.cheese) + builder.vegetables.reduce((sum, id) => sum + find('vegetables', id), 0); }, [catalog, builder]);
     const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
     const deliveryFee = subtotal >= 499 ? 0 : cart.length ? 29 : 0;
@@ -460,12 +493,13 @@ export default function App() {
             notify(result.message || 'Account created. You can now sign in.');
             setAuthMode('login');
         }
-        else if (authMode === 'login' || authMode === 'admin') {
-            const d = await api(authMode === 'admin' ? '/auth/admin/login' : '/auth/login', { method: 'POST', body: form });
+        else if (authMode === 'login' || authMode === 'admin' || authMode === 'staff') {
+            const loginPath = authMode === 'admin' ? '/auth/admin/login' : authMode === 'staff' ? '/auth/staff/login' : '/auth/login';
+            const d = await api(loginPath, { method: 'POST', body: form });
             setUser(d.user);
             setSessionStatus('ready');
             setAuthMode(null);
-            setPage(d.user.role === 'admin' ? 'admin' : 'dashboard');
+            setPage(d.user.role === 'admin' ? 'admin' : d.user.role === 'kitchen' ? 'kitchen' : d.user.role === 'delivery' ? 'delivery' : 'dashboard');
             notify(`Welcome${d.user.name ? `, ${d.user.name.split(' ')[0]}` : ''}!`);
         }
         else if (authMode === 'forgot') {
@@ -504,7 +538,11 @@ export default function App() {
                 ordersLoaded.current = false;
                 setOrdersStatus('idle');
                 setOrdersError('');
-                setAdminData({ summary: null, inventory: [], orders: [], paymentReviews: [] });
+                setAdminData({ summary: null, inventory: [], orders: [], paymentReviews: [], issues: [], staff: [] });
+                setOpsData({ orders: [], role: null });
+                setOpsStatus('idle');
+                setOpsError('');
+                opsLoaded.current = false;
                 adminLoaded.current = false;
                 setAdminStatus('idle');
                 setAdminError('');
@@ -930,6 +968,32 @@ export default function App() {
             setPendingStatusOrderId(null);
         }
     };
+    const assignOrderStaff = async (order, assignments) => {
+        setPendingAssignmentOrderId(order.id);
+        try {
+            const result = await api(`/admin/orders/${order.id}/assignments`, { method: 'PATCH', body: assignments });
+            await refreshAdmin();
+            notify(`${order.orderNumber} assignments saved${result.order.fulfillmentMode === 'simulated' ? ' · Test Mode only' : ''}`);
+        } catch (error) {
+            notify(error.message || 'The staff assignment could not be saved.', 'error');
+        } finally {
+            setPendingAssignmentOrderId(null);
+        }
+    };
+    const updateOpsStatus = async (order, status) => {
+        setPendingStatusOrderId(order.id);
+        try {
+            const result = await api(`/ops/orders/${order.id}/status`, { method: 'PATCH', body: { status } });
+            await refreshOps();
+            notify(result.order.fulfillmentMode === 'simulated'
+                ? `Simulated ${status.replaceAll('_', ' ')} saved for ${order.orderNumber}. No real kitchen or driver was contacted.`
+                : `${order.orderNumber} moved to ${status.replaceAll('_', ' ')}`);
+        } catch (error) {
+            notify(error.message || 'The order status could not be changed.', 'error');
+        } finally {
+            setPendingStatusOrderId(null);
+        }
+    };
     const updateIssue = async (issue, updates) => {
         setPendingAdminIssueId(issue.id);
         try {
@@ -1006,11 +1070,13 @@ export default function App() {
         }
     };
     const filteredPizzas = featured.filter(p => filter === 'All' || p.tag === filter);
+    const isOperationsStaff = ['kitchen', 'delivery'].includes(user?.role);
+    const operationsHome = user?.role === 'kitchen' ? 'kitchen' : user?.role === 'delivery' ? 'delivery' : user?.role === 'admin' ? 'admin' : 'dashboard';
     return <div className="app-shell">
     <div className="announcement"><span><Sparkles size={13}/> A little joy, delivered hot.</span><span className="announcement-right">Freshly made · Always worth the wait</span></div>
     <header className="site-header" data-mobile-auth-focus="dialog-first" data-payment-provider-check="readonly-admin-v1" data-auth-toast-fix="clear-stale-toast-v1"><a className="brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>PIZZA · MADE TO ORDER</small></span></a>
-      <nav className={`main-nav ${mobileMenu ? 'open' : ''}`}><button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button><button className={page === 'menu' ? 'active' : ''} onClick={() => navigate('menu')}>Our menu</button><button className={page === 'builder' ? 'active' : ''} onClick={() => navigate('builder')}>Build your own</button>{user && <button className={page === 'dashboard' ? 'active' : ''} onClick={() => navigate(user.role === 'admin' ? 'admin' : 'dashboard')}>{user.role === 'admin' ? 'Admin panel' : 'My orders'}</button>}{!user && <button className="mobile-auth-link" onClick={() => { openAuth('login'); authTriggerRef.current = mobileMenuTriggerRef.current; setMobileMenu(false); }}>Sign in</button>}</nav>
-      <div className="header-actions"><button className="bag-button" onClick={() => navigate('cart')}><ShoppingBag size={18}/><span>Bag</span><b>{cart.reduce((n, x) => n + x.quantity, 0)}</b></button><button type="button" className="theme-toggle" data-theme-toggle aria-label={theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'} title={theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'} aria-pressed={theme === 'dark'} onClick={toggleTheme}>{theme === 'light' ? <Moon size={17} aria-hidden="true"/> : <Sun size={17} aria-hidden="true"/>}<span className="sr-only">{theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'}</span></button>{user ? <><button className="account-button" onClick={() => navigate(user.role === 'admin' ? 'admin' : 'dashboard')}><CircleUserRound size={17}/><span>{user.name.split(' ')[0]}</span></button><IconButton className="logout-button" label="Sign out" disabled={pending || Boolean(pendingVerification)} onClick={signOut}><LogOut size={17}/></IconButton></> : <button className="sign-in" onClick={() => openAuth('login')}>Sign in <ArrowUpRight size={16}/></button>}<IconButton className="mobile-toggle" label={mobileMenu ? 'Close menu' : 'Open menu'} onClick={event => { if (!mobileMenu) mobileMenuTriggerRef.current = event.currentTarget; setMobileMenu(v => !v); }}>{mobileMenu ? <X size={20}/> : <Menu size={20}/>}</IconButton></div>
+      <nav className={`main-nav ${mobileMenu ? 'open' : ''}`}>{!isOperationsStaff && <><button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button><button className={page === 'menu' ? 'active' : ''} onClick={() => navigate('menu')}>Our menu</button><button className={page === 'builder' ? 'active' : ''} onClick={() => navigate('builder')}>Build your own</button></>}{user && <button className={page === operationsHome ? 'active' : ''} onClick={() => navigate(operationsHome)}>{user.role === 'admin' ? 'Admin panel' : user.role === 'kitchen' ? 'Kitchen queue' : user.role === 'delivery' ? 'Delivery run' : 'My orders'}</button>}{!user && <button className="mobile-auth-link" onClick={() => { openAuth('login'); authTriggerRef.current = mobileMenuTriggerRef.current; setMobileMenu(false); }}>Sign in</button>}</nav>
+      <div className="header-actions">{!isOperationsStaff && <button className="bag-button" onClick={() => navigate('cart')}><ShoppingBag size={18}/><span>Bag</span><b>{cart.reduce((n, x) => n + x.quantity, 0)}</b></button>}<button type="button" className="theme-toggle" data-theme-toggle aria-label={theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'} title={theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'} aria-pressed={theme === 'dark'} onClick={toggleTheme}>{theme === 'light' ? <Moon size={17} aria-hidden="true"/> : <Sun size={17} aria-hidden="true"/>}<span className="sr-only">{theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'}</span></button>{user ? <><button className="account-button" onClick={() => navigate(operationsHome)}><CircleUserRound size={17}/><span>{user.name.split(' ')[0]}</span></button><IconButton className="logout-button" label="Sign out" disabled={pending || Boolean(pendingVerification)} onClick={signOut}><LogOut size={17}/></IconButton></> : <button className="sign-in" onClick={() => openAuth('login')}>Sign in <ArrowUpRight size={16}/></button>}{!isOperationsStaff && <IconButton className="mobile-toggle" label={mobileMenu ? 'Close menu' : 'Open menu'} onClick={event => { if (!mobileMenu) mobileMenuTriggerRef.current = event.currentTarget; setMobileMenu(v => !v); }}>{mobileMenu ? <X size={20}/> : <Menu size={20}/>}</IconButton>}</div>
     </header>
 
     <main>
@@ -1050,14 +1116,39 @@ export default function App() {
 
     {page === 'dashboard' && <section className="section-wrap page-section"><div className="dashboard-top"><div><div className="eyebrow">YOUR PIZZA DIARY</div><h1>Good to see you, <em>{user?.name?.split(' ')[0] || 'friend'}.</em></h1><p>Every great day deserves a great slice.</p></div><button className="button button-light" onClick={() => navigate('menu')}>Order something lovely <ArrowRight size={16}/></button></div>{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <DashboardMetricSkeleton/> : <div className="dashboard-metrics"><div><span>ORDERS MADE</span><strong>{ordersStatus === 'ready' ? orders.length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'And counting' : 'Not available'}</small></div><div><span>ON THE WAY</span><strong>{ordersStatus === 'ready' ? orders.filter(o => ['order_received', 'in_kitchen', 'sent_to_delivery'].includes(o.status)).length.toString().padStart(2, '0') : '—'}</strong><small>{ordersStatus === 'ready' ? 'Good things incoming' : 'Not available'}</small></div><div><span>YOUR LAST ORDER</span><strong>{ordersStatus === 'ready' && orders[0] ? currency(orders[0].total) : '—'}</strong><small>{ordersStatus === 'ready' ? orders[0]?.orderNumber || 'Your first slice awaits' : 'Not available'}</small></div></div>}<div className="section-heading dashboard-heading"><div><h2>Order <em>updates.</em></h2><p>We’ll keep you in the loop. This list refreshes automatically.</p></div><button className="text-link" onClick={refreshOrders}><RefreshCw size={15}/> Refresh</button></div>{ordersError && ordersStatus === 'ready' && <InlineDataWarning message={ordersError} onRetry={refreshOrders} />}{issuesError && <InlineDataWarning message={issuesError} onRetry={refreshIssues} />}{(ordersStatus === 'loading' || ordersStatus === 'idle') ? <OrderListSkeleton count={2}/> : ordersStatus === 'error' ? <DataUnavailable title="Your orders haven’t loaded" message="We couldn’t confirm your order history. Please retry instead of assuming there are no orders." onRetry={refreshOrders}/> : orders.length ? <div className="orders-list">{orders.map(order => <OrderCard key={order.id} order={order} onReorder={repeatOrder} onResumePayment={resumePendingPayment} pending={pending} issue={issues.find(item => item.orderId === order.id)} onReportIssue={openIssueReport} onRefreshIssues={refreshIssues}/>)}</div> : <div className="empty-state compact-empty"><div className="empty-art">🥡</div><h2>The first one’s always special.</h2><p>Place an order and watch the magic happen here.</p><button className="button button-dark" onClick={() => navigate('menu')}>Explore the menu <ArrowRight size={17}/></button></div>}</section>}
 
-    {page === 'admin' && <section className="section-wrap page-section admin-page"><div className="admin-heading"><div><div className="eyebrow">BEHIND THE COUNTER</div><h1>Good food takes <em>good care.</em></h1><p>Live order events refresh the queue. Use Refresh data to recheck inventory and payment status.</p></div><button className="button button-light" onClick={refreshAdmin}><RefreshCw size={16}/> Refresh data</button></div>{!user || user.role !== 'admin' ? <div className="empty-state"><div className="empty-art">🔐</div><h2>Admin access only.</h2><p>Sign in through the separate admin sign-in flow.</p><button className="button button-dark" onClick={() => openAuth('admin')}>Admin sign in <ArrowRight size={16}/></button></div> : (adminStatus === 'loading' || adminStatus === 'idle') ? <AdminPanelsSkeleton/> : adminStatus === 'error' ? <DataUnavailable title="Operations data isn’t available" message="Inventory, order and payment-review data could not be confirmed. Retry to load the live dashboard." onRetry={refreshAdmin}/> : <>{adminError && <InlineDataWarning message={adminError} onRetry={refreshAdmin}/>}<div className="admin-metrics">{[{ label: 'Total orders', value: adminData.summary?.ordersTotal ?? '—', icon: ShoppingBag }, { label: 'Paid orders', value: adminData.summary?.paidOrders ?? '—', icon: BadgeCheck }, { label: 'Revenue', value: currency(adminData.summary?.revenue), icon: ArrowUpRight }, { label: 'Low-stock items', value: adminData.summary?.lowStock ?? '—', icon: Boxes }].map(item => <div className="admin-metric" key={item.label}><span><item.icon size={17}/>{item.label}</span><strong>{item.value}</strong></div>)}</div><div className="admin-panel payment-provider-panel"><div className="panel-heading"><div><h2>Razorpay {paymentMode === 'live' ? 'Live Mode' : paymentMode === 'test' ? 'Test Mode' : 'Payment'} connection</h2><p>Verify the configured API key pair with a read-only request. No order, payment, or refund is created.</p></div><button type="button" className="button button-light small-button" disabled={paymentProviderCheck.status === 'loading'} onClick={checkPaymentProvider}>{paymentProviderCheck.status === 'loading' ? 'Checking…' : 'Check connection'}</button></div><p className={`provider-check-message ${paymentProviderCheck.status}`} role={paymentProviderCheck.status === 'error' ? 'alert' : 'status'} aria-live={paymentProviderCheck.status === 'error' ? 'assertive' : 'polite'}>{paymentProviderCheck.status === 'connected' ? `Connected to Razorpay ${(paymentProviderCheck.mode || paymentMode) === 'live' ? 'Live' : 'Test'} Mode at ${new Date(paymentProviderCheck.checkedAt).toLocaleString()}. Webhook delivery is a separate check.` : paymentProviderCheck.status === 'error' ? paymentProviderCheck.message : paymentProviderCheck.status === 'loading' ? 'Checking the provider with a read-only request…' : 'Not checked yet. This check does not create a payment, charge, order, or refund.'}</p></div><div className="admin-panel"><div className="panel-heading"><div><h2>Inventory room</h2><p>Update stock counts and per-item alert thresholds.</p></div><Boxes size={20}/></div><div className="inventory-table"><div className="inventory-row inventory-header"><span>Item</span><span>In stock</span><span>Alert at</span><span>State</span></div>{adminData.inventory.length ? adminData.inventory.map(item => <InventoryRow key={item.key} item={item} onSave={updateInventory}/>) : <div className="empty-small">No inventory items were returned by the API.</div>}</div></div><div className="admin-panel"><div className="panel-heading"><div><h2>Payment review queue</h2><p>Signed webhook events needing manual reconciliation.</p></div><ShieldCheck size={20}/></div>{adminData.paymentReviews.length ? <div className="payment-review-list">{adminData.paymentReviews.map(event => <article className="payment-review-event" key={event.eventId}><div><strong>{event.eventType}</strong><small>{event.order?.orderNumber || 'Unmatched provider order'} · {new Date(event.receivedAt).toLocaleString()}</small></div><p>{event.reason?.replaceAll('_', ' ') || 'Manual review required'}</p><small>Provider order: {event.providerOrderId || 'not supplied'} · Payment: {event.paymentId || 'not supplied'}</small><small>Event ID: {event.eventId}</small>{event.order?.refundStatus === 'pending' && <p className="refund-status-note">Refund pending with Razorpay. Do not submit another refund.</p>}{event.order?.refundStatus === 'failed' && <p className="refund-status-note">Refund failed or was rejected. Manual provider review is required.</p>}{event.order?.id && event.order.status === 'payment_review' && event.order.paymentReviewRequired && event.order.paymentStatus === 'paid' && event.paymentId === event.order.razorpayPaymentId && event.reason !== 'multiple_captured_payments_for_order' && !adminData.paymentReviews.some(item => item.order?.id === event.order.id && item.paymentId && item.paymentId !== item.order?.razorpayPaymentId) && !['pending', 'processed', 'failed'].includes(event.order.refundStatus || 'none') && <div className="payment-review-actions"><small>{event.order.refundStatus === 'requested' ? 'A retry reuses the same provider idempotency key.' : 'Use only after reviewing the captured-payment exception.'}</small><button type="button" className="button button-light small-button" disabled={pendingRefundOrderId === event.order.id} onClick={() => requestReviewRefund(event)}>{pendingRefundOrderId === event.order.id ? 'Submitting…' : event.order.refundStatus === 'requested' ? 'Retry safely' : 'Issue full refund'}</button></div>}</article>)}</div> : <div className="empty-small">No payment webhook reviews are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Customer issue cases</h2><p>Track missing items, wrong items, quality concerns and delivery delays. Customer messages are visible to the customer.</p></div><MessageCircle size={20}/></div>{adminData.issues.length ? <div className="issue-case-list">{adminData.issues.map(issue => <AdminIssueCard key={issue.id} issue={issue} pending={pendingAdminIssueId === issue.id} onUpdate={updateIssue}/>)}</div> : <div className="empty-small">No customer issue reports are currently queued.</div>}</div><div className="admin-panel fulfillment-admin-panel"><div className="panel-heading"><div><h2>Kitchen &amp; dispatch</h2><p>Accept paid orders, start preparation, hand off for delivery and confirm completion.</p></div><ChefHat size={20}/></div><FulfillmentQueue orders={adminData.orders} paymentMode={paymentMode} catalog={catalog} onStatus={updateStatus} pendingStatusOrderId={pendingStatusOrderId}/></div></>}</section>}
+    {page === 'admin' && <section className="section-wrap page-section admin-page"><div className="admin-heading"><div><div className="eyebrow">BEHIND THE COUNTER</div><h1>Good food takes <em>good care.</em></h1><p>Live order events refresh the queue. Use Refresh data to recheck inventory and payment status.</p></div><button className="button button-light" onClick={refreshAdmin}><RefreshCw size={16}/> Refresh data</button></div>{!user || user.role !== 'admin' ? <div className="empty-state"><div className="empty-art">🔐</div><h2>Admin access only.</h2><p>Sign in through the separate admin sign-in flow.</p><button className="button button-dark" onClick={() => openAuth('admin')}>Admin sign in <ArrowRight size={16}/></button></div> : (adminStatus === 'loading' || adminStatus === 'idle') ? <AdminPanelsSkeleton/> : adminStatus === 'error' ? <DataUnavailable title="Operations data isn’t available" message="Inventory, order and payment-review data could not be confirmed. Retry to load the live dashboard." onRetry={refreshAdmin}/> : <>{adminError && <InlineDataWarning message={adminError} onRetry={refreshAdmin}/>}<div className="admin-metrics">{[{ label: 'Total orders', value: adminData.summary?.ordersTotal ?? '—', icon: ShoppingBag }, { label: 'Paid orders', value: adminData.summary?.paidOrders ?? '—', icon: BadgeCheck }, { label: 'Revenue', value: currency(adminData.summary?.revenue), icon: ArrowUpRight }, { label: 'Low-stock items', value: adminData.summary?.lowStock ?? '—', icon: Boxes }].map(item => <div className="admin-metric" key={item.label}><span><item.icon size={17}/>{item.label}</span><strong>{item.value}</strong></div>)}</div><div className="admin-panel payment-provider-panel"><div className="panel-heading"><div><h2>Razorpay {paymentMode === 'live' ? 'Live Mode' : paymentMode === 'test' ? 'Test Mode' : 'Payment'} connection</h2><p>Verify the configured API key pair with a read-only request. No order, payment, or refund is created.</p></div><button type="button" className="button button-light small-button" disabled={paymentProviderCheck.status === 'loading'} onClick={checkPaymentProvider}>{paymentProviderCheck.status === 'loading' ? 'Checking…' : 'Check connection'}</button></div><p className={`provider-check-message ${paymentProviderCheck.status}`} role={paymentProviderCheck.status === 'error' ? 'alert' : 'status'} aria-live={paymentProviderCheck.status === 'error' ? 'assertive' : 'polite'}>{paymentProviderCheck.status === 'connected' ? `Connected to Razorpay ${(paymentProviderCheck.mode || paymentMode) === 'live' ? 'Live' : 'Test'} Mode at ${new Date(paymentProviderCheck.checkedAt).toLocaleString()}. Webhook delivery is a separate check.` : paymentProviderCheck.status === 'error' ? paymentProviderCheck.message : paymentProviderCheck.status === 'loading' ? 'Checking the provider with a read-only request…' : 'Not checked yet. This check does not create a payment, charge, order, or refund.'}</p></div><div className="admin-panel"><div className="panel-heading"><div><h2>Inventory room</h2><p>Update stock counts and per-item alert thresholds.</p></div><Boxes size={20}/></div><div className="inventory-table"><div className="inventory-row inventory-header"><span>Item</span><span>In stock</span><span>Alert at</span><span>State</span></div>{adminData.inventory.length ? adminData.inventory.map(item => <InventoryRow key={item.key} item={item} onSave={updateInventory}/>) : <div className="empty-small">No inventory items were returned by the API.</div>}</div></div><div className="admin-panel"><div className="panel-heading"><div><h2>Payment review queue</h2><p>Signed webhook events needing manual reconciliation.</p></div><ShieldCheck size={20}/></div>{adminData.paymentReviews.length ? <div className="payment-review-list">{adminData.paymentReviews.map(event => <article className="payment-review-event" key={event.eventId}><div><strong>{event.eventType}</strong><small>{event.order?.orderNumber || 'Unmatched provider order'} · {new Date(event.receivedAt).toLocaleString()}</small></div><p>{event.reason?.replaceAll('_', ' ') || 'Manual review required'}</p><small>Provider order: {event.providerOrderId || 'not supplied'} · Payment: {event.paymentId || 'not supplied'}</small><small>Event ID: {event.eventId}</small>{event.order?.refundStatus === 'pending' && <p className="refund-status-note">Refund pending with Razorpay. Do not submit another refund.</p>}{event.order?.refundStatus === 'failed' && <p className="refund-status-note">Refund failed or was rejected. Manual provider review is required.</p>}{event.order?.id && event.order.status === 'payment_review' && event.order.paymentReviewRequired && event.order.paymentStatus === 'paid' && event.paymentId === event.order.razorpayPaymentId && event.reason !== 'multiple_captured_payments_for_order' && !adminData.paymentReviews.some(item => item.order?.id === event.order.id && item.paymentId && item.paymentId !== item.order?.razorpayPaymentId) && !['pending', 'processed', 'failed'].includes(event.order.refundStatus || 'none') && <div className="payment-review-actions"><small>{event.order.refundStatus === 'requested' ? 'A retry reuses the same provider idempotency key.' : 'Use only after reviewing the captured-payment exception.'}</small><button type="button" className="button button-light small-button" disabled={pendingRefundOrderId === event.order.id} onClick={() => requestReviewRefund(event)}>{pendingRefundOrderId === event.order.id ? 'Submitting…' : event.order.refundStatus === 'requested' ? 'Retry safely' : 'Issue full refund'}</button></div>}</article>)}</div> : <div className="empty-small">No payment webhook reviews are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Customer issue cases</h2><p>Track missing items, wrong items, quality concerns and delivery delays. Customer messages are visible to the customer.</p></div><MessageCircle size={20}/></div>{adminData.issues.length ? <div className="issue-case-list">{adminData.issues.map(issue => <AdminIssueCard key={issue.id} issue={issue} pending={pendingAdminIssueId === issue.id} onUpdate={updateIssue}/>)}</div> : <div className="empty-small">No customer issue reports are currently queued.</div>}</div><div className="admin-panel staff-management-panel"><div className="panel-heading"><div><h2>Kitchen &amp; delivery team</h2><p>Create named team accounts, disable access instantly and assign staff to orders.</p></div><UsersRoundIcon size={20}/></div><StaffManagement staff={adminData.staff} onRefresh={refreshAdmin} onNotify={notify}/></div><div className="admin-panel fulfillment-admin-panel"><div className="panel-heading"><div><h2>Kitchen &amp; dispatch</h2><p>Assign each order to named staff before the next hand-off.</p></div><ChefHat size={20}/></div><FulfillmentQueue orders={adminData.orders} staff={adminData.staff} role="admin" paymentMode={paymentMode} catalog={catalog} onStatus={updateStatus} onAssign={assignOrderStaff} pendingStatusOrderId={pendingStatusOrderId} pendingAssignmentOrderId={pendingAssignmentOrderId}/></div></>}</section>}
+
+    {['kitchen', 'delivery'].includes(page) && <section className="section-wrap page-section admin-page staff-operations-page">
+      {user?.mustChangePassword === true
+        ? <StaffPasswordChangeForm onComplete={async nextUser => {
+            setUser(nextUser);
+            notify('Password updated. Your staff account is ready.');
+            setOpsStatus('loading');
+            await refreshOps();
+          }}/>
+        : <>
+          <div className="admin-heading">
+            <div><div className="eyebrow">{user?.role === 'kitchen' ? 'KITCHEN WORKSTATION' : 'DELIVERY RUN SHEET'}</div>
+              <h1>{user?.role === 'kitchen' ? <>Kitchen <em>queue.</em></> : <>Your delivery <em>run.</em></>}</h1>
+              <p>{user?.role === 'kitchen' ? 'Only orders assigned to your staff account appear here. Accept preparation, then hand off to an active delivery partner.' : 'Only orders assigned to your delivery account appear here. Confirm drop-off after the kitchen dispatches the order.'}</p>
+            </div>
+            <button className="button button-light" onClick={refreshOps} disabled={opsStatus === 'loading'}><RefreshCw size={16}/>{opsStatus === 'loading' ? 'Refreshing…' : 'Refresh queue'}</button>
+          </div>
+          {opsError && <InlineDataWarning message={opsError} onRetry={refreshOps}/>}
+          {opsStatus === 'loading' || opsStatus === 'idle'
+            ? <AdminPanelsSkeleton/>
+            : opsStatus === 'error'
+              ? <DataUnavailable title="Your assigned queue is unavailable" message="We could not verify the current staff queue. Retry; no order state has been changed." onRetry={refreshOps}/>
+              : <div className="admin-panel fulfillment-admin-panel"><FulfillmentQueue orders={opsData.orders} role={user?.role} paymentMode={paymentMode} catalog={catalog} onStatus={updateOpsStatus} pendingStatusOrderId={pendingStatusOrderId}/></div>}
+        </>}
+    </section>}
     {['menu', 'builder', 'cart', 'dashboard', 'admin'].includes(page) && <PageEndcap page={page} navigate={navigate} cartCount={cart.reduce((n, item) => n + item.quantity, 0)} catalogStatus={catalogStatus} featuredCount={featured.length} ordersCount={orders.length} ordersStatus={ordersStatus} paymentMode={paymentMode} onRefresh={refreshAdmin}/>}
     </main>
-    <footer className="site-footer"><div className="footer-main"><a className="brand footer-brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>PIZZA · MADE TO ORDER</small></span></a><p>House favourites and made-to-order recipes.<br />From the live menu to your doorstep.</p><nav className="footer-nav" aria-label="Footer navigation"><span className="footer-nav-label">Explore</span><button type="button" onClick={() => navigate('home')}>Home</button><button type="button" onClick={() => navigate('menu')}>Menu</button><button type="button" onClick={() => navigate('builder')}>Build a pizza</button><button type="button" onClick={() => navigate('cart')}>Bag ({cart.reduce((n, item) => n + item.quantity, 0)})</button>{user && <button type="button" onClick={() => navigate(user.role === 'admin' ? 'admin' : 'dashboard')}>{user.role === 'admin' ? 'Operations' : 'My orders'}</button>}</nav><button className="back-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Back to the top <ArrowUpRight size={16}/></button></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Pizza House. House favourites, made to order.</span><div><span>Live menu pricing</span><span className="footer-dot">·</span><span>Payment verified before confirmation</span></div></div></footer>
+    <footer className="site-footer"><div className="footer-main"><a className="brand footer-brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>PIZZA · MADE TO ORDER</small></span></a><p>House favourites and made-to-order recipes.<br />From the live menu to your doorstep.</p><nav className="footer-nav" aria-label="Footer navigation">{isOperationsStaff ? <><span className="footer-nav-label">Workspace</span><button type="button" onClick={() => navigate(operationsHome)}>{user.role === 'kitchen' ? 'Kitchen queue' : 'Delivery run'}</button></> : <><span className="footer-nav-label">Explore</span><button type="button" onClick={() => navigate('home')}>Home</button><button type="button" onClick={() => navigate('menu')}>Menu</button><button type="button" onClick={() => navigate('builder')}>Build a pizza</button><button type="button" onClick={() => navigate('cart')}>Bag ({cart.reduce((n, item) => n + item.quantity, 0)})</button>{user && <button type="button" onClick={() => navigate(user.role === 'admin' ? 'admin' : 'dashboard')}>{user.role === 'admin' ? 'Operations' : 'My orders'}</button>}</>}</nav><button className="back-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Back to the top <ArrowUpRight size={16}/></button></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Pizza House. House favourites, made to order.</span><div><span>Live menu pricing</span><span className="footer-dot">·</span><span>Payment verified before confirmation</span></div></div></footer>
     <Toast toast={toast} onClose={() => setToast(null)}/>
     {priceReview && <PriceReviewDialog review={priceReview} catalog={catalog} pending={pending} onAccept={acceptPriceReview} onCancel={declinePriceReview}/>}
     {issueReportOrder && <IssueReportDialog order={issueReportOrder} form={issueForm} setForm={setIssueForm} pending={pendingIssue} returnFocusRef={issueReportTriggerRef} onSubmit={submitIssueReport} onCancel={() => { if (!pendingIssue) { setIssueReportOrder(null); setIssueForm(NEW_ISSUE_FORM); } }}/>}
-    {authMode && <div className="modal-backdrop" role="presentation" onMouseDown={e => e.target === e.currentTarget && setAuthMode(null)}><div className="auth-modal" ref={authDialogRef} role="dialog" aria-modal="true" aria-labelledby="auth-title" tabIndex={-1}><IconButton className="modal-close" label="Close dialog" onClick={() => setAuthMode(null)}><X size={19}/></IconButton><div className="auth-brand-mark">P<span>.</span></div><div className="eyebrow">{authMode === 'admin' ? 'TEAM ACCESS' : 'COME ON IN'}</div><h2 id="auth-title">{authMode === 'register' ? 'Make yourself at home.' : authMode === 'forgot' ? 'A fresh start.' : authMode === 'reset' ? 'New password, new slice.' : authMode === 'admin' ? 'Welcome back, team.' : 'Your table is waiting.'}</h2><p>{authMode === 'register' ? 'Create an account to follow every lovely order.' : authMode === 'forgot' ? 'We’ll send a secure reset link if your account exists.' : authMode === 'reset' ? 'Choose a strong new password to get back in.' : authMode === 'admin' ? 'Sign in with your separately provisioned admin account.' : 'Sign in for order updates and a little more pizza joy.'}</p><form onSubmit={submitAuth}>{authMode === 'register' && <Field label="Your name" icon={UserRound} placeholder="How should we call you?" autoComplete="name" required minLength={2} maxLength={80} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/>}{authMode === 'forgot' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={emailOnly} onChange={e => setEmailOnly(e.target.value)}/>}{!['forgot'].includes(authMode) && authMode !== 'reset' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/>}{(authMode === 'login' || authMode === 'register' || authMode === 'admin' || authMode === 'reset') && <Field label={authMode === 'reset' ? 'New password' : 'Password'} icon={LockKeyhole} type="password" placeholder={authMode === 'reset' ? '10+ characters, mixed case and a number' : 'At least 10 characters'} required minLength={10} autoComplete={authMode === 'login' || authMode === 'admin' ? 'current-password' : 'new-password'} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}/>}{authMode === 'login' && <button type="button" className="forgot-link" onClick={() => setAuthMode('forgot')}>Forgot password?</button>}<button disabled={pending} className="button button-dark full-button auth-submit">{pending ? <LoaderCircle size={17} className="spin"/> : authMode === 'reset' ? <LockKeyhole size={17}/> : authMode === 'forgot' ? <Mail size={17}/> : authMode === 'admin' ? <ShieldCheck size={17}/> : authMode === 'register' ? <UserRound size={17}/> : <LogIn size={17}/>} {pending ? 'Please wait…' : authMode === 'register' ? 'Create my account' : authMode === 'forgot' ? 'Send reset link' : authMode === 'reset' ? 'Update password' : authMode === 'admin' ? 'Sign in as admin' : 'Sign in'}</button></form>{authMode === 'login' ? <div className="auth-switch">New around here? <button onClick={() => setAuthMode('register')}>Create an account</button><button className="admin-link" onClick={() => setAuthMode('admin')}>Team sign in</button></div> : authMode === 'register' ? <div className="auth-switch">Already part of the house? <button onClick={() => setAuthMode('login')}>Sign in</button></div> : authMode === 'admin' ? <div className="auth-switch">Customer account? <button onClick={() => setAuthMode('login')}>Customer sign in</button></div> : <div className="auth-switch"><button onClick={() => setAuthMode('login')}>Back to sign in</button></div>}<small className="auth-privacy"><ShieldCheck size={13}/> Your details stay protected. We never store card numbers.</small></div></div>}
+    {authMode && <div className="modal-backdrop" role="presentation" onMouseDown={e => e.target === e.currentTarget && setAuthMode(null)}><div className="auth-modal" ref={authDialogRef} role="dialog" aria-modal="true" aria-labelledby="auth-title" tabIndex={-1}><IconButton className="modal-close" label="Close dialog" onClick={() => setAuthMode(null)}><X size={19}/></IconButton><div className="auth-brand-mark">P<span>.</span></div><div className="eyebrow">{['admin', 'staff'].includes(authMode) ? 'TEAM ACCESS' : 'COME ON IN'}</div><h2 id="auth-title">{authMode === 'register' ? 'Make yourself at home.' : authMode === 'forgot' ? 'A fresh start.' : authMode === 'reset' ? 'New password, new slice.' : authMode === 'admin' ? 'Welcome back, admin.' : authMode === 'staff' ? 'Welcome to the team.' : 'Your table is waiting.'}</h2><p>{authMode === 'register' ? 'Create an account to follow every lovely order.' : authMode === 'forgot' ? 'We’ll send a secure reset link if your account exists.' : authMode === 'reset' ? 'Choose a strong new password to get back in.' : authMode === 'admin' ? 'Sign in with your administrator account.' : authMode === 'staff' ? 'Kitchen and delivery accounts are provisioned by your administrator.' : 'Sign in for order updates and a little more pizza joy.'}</p><form onSubmit={submitAuth}>{authMode === 'register' && <Field label="Your name" icon={UserRound} placeholder="How should we call you?" autoComplete="name" required minLength={2} maxLength={80} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}/>}{authMode === 'forgot' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={emailOnly} onChange={e => setEmailOnly(e.target.value)}/>}{!['forgot'].includes(authMode) && authMode !== 'reset' && <Field label="Email address" icon={Mail} type="email" placeholder="you@example.com" required autoComplete="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}/>}{(authMode === 'login' || authMode === 'register' || authMode === 'admin' || authMode === 'staff' || authMode === 'reset') && <Field label={authMode === 'reset' ? 'New password' : 'Password'} icon={LockKeyhole} type="password" placeholder={authMode === 'reset' ? '10+ characters, mixed case and a number' : 'At least 10 characters'} required minLength={10} autoComplete={authMode === 'login' || authMode === 'admin' || authMode === 'staff' ? 'current-password' : 'new-password'} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}/>}{['login', 'staff'].includes(authMode) && <button type="button" className="forgot-link" onClick={() => setAuthMode('forgot')}>Forgot password?</button>}<button disabled={pending} className="button button-dark full-button auth-submit">{pending ? <LoaderCircle size={17} className="spin"/> : authMode === 'reset' ? <LockKeyhole size={17}/> : authMode === 'forgot' ? <Mail size={17}/> : authMode === 'admin' || authMode === 'staff' ? <ShieldCheck size={17}/> : authMode === 'register' ? <UserRound size={17}/> : <LogIn size={17}/>} {pending ? 'Please wait…' : authMode === 'register' ? 'Create my account' : authMode === 'forgot' ? 'Send reset link' : authMode === 'reset' ? 'Update password' : authMode === 'admin' ? 'Sign in as admin' : authMode === 'staff' ? 'Sign in to operations' : 'Sign in'}</button></form>{authMode === 'login' ? <div className="auth-switch">New around here? <button onClick={() => setAuthMode('register')}>Create an account</button><button className="admin-link" onClick={() => setAuthMode('admin')}>Admin sign in</button><button className="admin-link" onClick={() => setAuthMode('staff')}>Kitchen / delivery sign in</button></div> : authMode === 'register' ? <div className="auth-switch">Already part of the house? <button onClick={() => setAuthMode('login')}>Sign in</button></div> : authMode === 'admin' || authMode === 'staff' ? <div className="auth-switch">Customer account? <button onClick={() => setAuthMode('login')}>Customer sign in</button></div> : <div className="auth-switch"><button onClick={() => setAuthMode('login')}>Back to sign in</button></div>}<small className="auth-privacy"><ShieldCheck size={13}/> Your details stay protected. We never store card numbers.</small></div></div>}
   </div>;
 }
 function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', featuredCount = 0, ordersCount = 0, ordersStatus = 'idle', paymentMode = 'unknown', onRefresh }) {
@@ -1439,7 +1530,144 @@ function orderRecipeSummary(item, catalog) {
         ...(Array.isArray(recipe.vegetables) ? recipe.vegetables.map(id => optionName('vegetables', id)) : []),
     ].filter(Boolean).join(' · ') || 'Recipe details unavailable';
 }
-function OrderCard({ order, admin = false, onStatus, onReorder, onResumePayment, pending = false, statusPending = false, issue, onReportIssue, onRefreshIssues, catalog = DEFAULT_CATALOG }) {
+function OrderStaffAssignment({ order, staff = [], pending = false, onSave }) {
+    const [kitchenStaffId, setKitchenStaffId] = useState(order.kitchenStaff?.id || order.kitchenStaff?._id || '');
+    const [deliveryStaffId, setDeliveryStaffId] = useState(order.deliveryStaff?.id || order.deliveryStaff?._id || '');
+    useEffect(() => {
+        setKitchenStaffId(order.kitchenStaff?.id || order.kitchenStaff?._id || '');
+        setDeliveryStaffId(order.deliveryStaff?.id || order.deliveryStaff?._id || '');
+    }, [order.kitchenStaff?.id, order.deliveryStaff?.id]);
+    const activeOptions = (role) => {
+        const list = staff.filter(person => person.role === role && person.active);
+        const currentId = role === 'kitchen' ? kitchenStaffId : deliveryStaffId;
+        const current = staff.find(person => person.id === currentId);
+        if (current && !list.some(person => person.id === current.id)) list.unshift(current);
+        return list;
+    };
+    const currentKitchenId = order.kitchenStaff?.id || order.kitchenStaff?._id || '';
+    const currentDeliveryId = order.deliveryStaff?.id || order.deliveryStaff?._id || '';
+    const dirty = kitchenStaffId !== currentKitchenId || deliveryStaffId !== currentDeliveryId;
+    if (!['order_received', 'in_kitchen', 'sent_to_delivery'].includes(order.status)) return null;
+    return <div className="order-assignment-panel">
+        <div className="order-assignment-heading"><strong>Order ownership</strong><small>Assign an active person before the next hand-off.</small></div>
+        <div className="order-assignment-fields">
+            <label><span>Kitchen owner</span><select value={kitchenStaffId} disabled={pending || !['order_received', 'in_kitchen'].includes(order.status)} onChange={event => setKitchenStaffId(event.target.value)} aria-label={'Kitchen owner for ' + order.orderNumber}>
+                <option value="">Unassigned</option>{activeOptions('kitchen').map(person => <option key={person.id} value={person.id} disabled={!person.active}>{person.name}{person.active ? '' : ' · disabled'}</option>)}
+            </select></label>
+            <label><span>Delivery partner</span><select value={deliveryStaffId} disabled={pending} onChange={event => setDeliveryStaffId(event.target.value)} aria-label={'Delivery partner for ' + order.orderNumber}>
+                <option value="">Unassigned</option>{activeOptions('delivery').map(person => <option key={person.id} value={person.id} disabled={!person.active}>{person.name}{person.active ? '' : ' · disabled'}</option>)}
+            </select></label>
+        </div>
+        <button type="button" className="button button-light small-button" disabled={!dirty || pending} onClick={() => onSave(order, { ...(kitchenStaffId !== currentKitchenId ? { kitchenStaffId: kitchenStaffId || null } : {}), ...(deliveryStaffId !== currentDeliveryId ? { deliveryStaffId: deliveryStaffId || null } : {}) })}>{pending ? 'Saving assignments…' : 'Save assignments'}</button>
+    </div>;
+}
+
+function StaffManagement({ staff = [], onRefresh, onNotify }) {
+    const [form, setForm] = useState({ name: '', email: '', password: '', role: 'kitchen' });
+    const [saving, setSaving] = useState(false);
+    const [pendingId, setPendingId] = useState(null);
+    const [showCreate, setShowCreate] = useState(false);
+    const create = async event => {
+        event.preventDefault();
+        if (saving) return;
+        setSaving(true);
+        try {
+            const result = await api('/admin/staff', { method: 'POST', body: form });
+            setForm({ name: '', email: '', password: '', role: 'kitchen' });
+            setShowCreate(false);
+            onNotify('Staff account created for ' + result.staff.name + '. Share the initial password privately and have them change it before unsupervised use.');
+            await onRefresh();
+        } catch (error) {
+            onNotify(error.message || 'Staff account could not be created.', 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+    const setActive = async person => {
+        const active = !person.active;
+        if (!window.confirm(active
+            ? 'Re-enable ' + person.name + '\'s ' + person.role + ' access?'
+            : 'Disable ' + person.name + '\'s access now? Their current session will be revoked; any assigned orders will need reassignment.')) return;
+        setPendingId(person.id);
+        try {
+            await api('/admin/staff/' + person.id + '/active', { method: 'PATCH', body: { active } });
+            onNotify(person.name + '\'s account ' + (active ? 'enabled' : 'disabled') + '.');
+            await onRefresh();
+        } catch (error) {
+            onNotify(error.message || 'Staff access could not be updated.', 'error');
+        } finally {
+            setPendingId(null);
+        }
+    };
+    return <div className="staff-management">
+        <div className="staff-management-top"><div><strong>{staff.filter(person => person.active).length} active team members</strong><p>Kitchen and delivery access are separate from customer accounts and admin access.</p></div><button type="button" className="button button-dark small-button" onClick={() => setShowCreate(value => !value)}>{showCreate ? 'Close form' : 'Add team member'} <ArrowUpRight size={14}/></button></div>
+        {showCreate && <form className="staff-create-form" onSubmit={create}>
+            <label>Full name<input required minLength={2} maxLength={80} value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="Team member name"/></label>
+            <label>Work email<input required type="email" autoComplete="off" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} placeholder="name@yourbusiness.com"/></label>
+            <label>Initial password<input required type="password" minLength={10} autoComplete="new-password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} placeholder="10+ chars, upper/lowercase and number"/></label>
+            <label>Access role<select value={form.role} onChange={event => setForm(current => ({ ...current, role: event.target.value }))}><option value="kitchen">Kitchen staff</option><option value="delivery">Delivery staff</option></select></label>
+            <p className="staff-create-note">This account is created by an administrator, without an email invitation. Share its initial password privately; do not reuse your own password.</p>
+            <button type="submit" className="button button-dark" disabled={saving}>{saving ? 'Creating account…' : 'Create staff account'}</button>
+        </form>}
+        <div className="staff-roster">
+            {staff.length ? staff.map(person => <article className={'staff-roster-row ' + (!person.active ? 'is-disabled' : '')} key={person.id}>
+                <span className={'staff-role-icon ' + person.role}>{person.role === 'kitchen' ? <ChefHat size={17}/> : <Truck size={17}/>}</span>
+                <div className="staff-roster-identity"><strong>{person.name}</strong><small>{person.email}</small></div>
+                <span className={'staff-access-state ' + (person.active ? 'active' : 'inactive')}>{person.active ? 'Active' : 'Disabled'}</span>
+                <button type="button" className="button button-light small-button" disabled={pendingId === person.id} onClick={() => setActive(person)}>{pendingId === person.id ? 'Saving…' : person.active ? 'Disable' : 'Enable'}</button>
+            </article>) : <div className="staff-roster-empty"><strong>No kitchen or delivery accounts yet.</strong><p>Add a named staff account to start assigning paid orders.</p></div>}
+        </div>
+    </div>;
+}
+
+function StaffPasswordChangeForm({ onComplete }) {
+    const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const submit = async event => {
+        event.preventDefault();
+        if (saving) return;
+        setError('');
+        if (form.newPassword !== form.confirmPassword) {
+            setError('The new passwords do not match.');
+            return;
+        }
+        if (form.newPassword === form.currentPassword) {
+            setError('Choose a new password different from your temporary password.');
+            return;
+        }
+        setSaving(true);
+        try {
+            const result = await api('/auth/staff/change-password', {
+                method: 'POST',
+                body: { currentPassword: form.currentPassword, newPassword: form.newPassword },
+            });
+            setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+            await onComplete(result.user);
+        } catch (requestError) {
+            setError(requestError.message || 'The password could not be updated.');
+        } finally {
+            setSaving(false);
+        }
+    };
+    return <div className="staff-password-gate">
+        <div className="staff-password-mark"><ShieldCheck size={22}/></div>
+        <span className="eyebrow">FIRST SIGN-IN SECURITY</span>
+        <h2>Set your private password.</h2>
+        <p>This team account was created by your administrator. Change the temporary password before opening any customer or operational information.</p>
+        <form className="staff-password-form" onSubmit={submit}>
+            <label>Temporary password<input type="password" autoComplete="current-password" required minLength={1} value={form.currentPassword} onChange={event => setForm(value => ({ ...value, currentPassword: event.target.value }))}/></label>
+            <label>New password<input type="password" autoComplete="new-password" required minLength={10} value={form.newPassword} onChange={event => setForm(value => ({ ...value, newPassword: event.target.value }))} placeholder="10+ characters, upper/lowercase and number"/></label>
+            <label>Confirm new password<input type="password" autoComplete="new-password" required minLength={10} value={form.confirmPassword} onChange={event => setForm(value => ({ ...value, confirmPassword: event.target.value }))}/></label>
+            {error && <p className="staff-password-error" role="alert">{error}</p>}
+            <button className="button button-dark" type="submit" disabled={saving}>{saving ? 'Securing your account…' : 'Set password & open queue'} <ArrowRight size={16}/></button>
+        </form>
+        <small>Your current session will be refreshed automatically after the password is saved.</small>
+    </div>;
+}
+
+function OrderCard({ order, admin = false, staffRole = null, staff = [], onStatus, onAssign, statusPending = false, assignmentPending = false, onReorder, onResumePayment, pending = false, issue, onReportIssue, onRefreshIssues, catalog = DEFAULT_CATALOG }) {
+    const customerView = !admin && !staffRole;
     const current = ORDER_STEPS.findIndex(s => s.id === order.status);
     const paid = order.paymentStatus === 'paid';
     const refunded = order.paymentStatus === 'refunded';
@@ -1451,7 +1679,7 @@ function OrderCard({ order, admin = false, onStatus, onReorder, onResumePayment,
             : order.status === 'sent_to_delivery' ? 'delivered' : null;
     const nextAction = {
         in_kitchen: 'Accept & start preparation',
-        sent_to_delivery: 'Mark ready & hand to delivery',
+        sent_to_delivery: 'Mark prepared & hand to delivery',
         delivered: 'Confirm delivery completed',
     }[next] || '';
     const stageTimes = {
@@ -1460,22 +1688,29 @@ function OrderCard({ order, admin = false, onStatus, onReorder, onResumePayment,
         sent_to_delivery: order.dispatchedAt,
         delivered: order.deliveredAt,
     };
-    const canRepeat = !admin && !reviewNeeded && ['delivered', 'cancelled'].includes(order.status) &&
+    const canRepeat = customerView && !reviewNeeded && ['delivered', 'cancelled'].includes(order.status) &&
         Array.isArray(order.items) && order.items.length > 0;
-    const canResumePayment = !admin && !reviewNeeded && order.status === 'pending_payment' && order.paymentStatus === 'pending' &&
+    const canResumePayment = customerView && !reviewNeeded && order.status === 'pending_payment' && order.paymentStatus === 'pending' &&
         typeof onResumePayment === 'function' && Boolean(order.id);
-    const canReportIssue = !admin && paid && !reviewNeeded && !refunded &&
+    const canReportIssue = customerView && paid && !reviewNeeded && !refunded &&
         ['order_received', 'in_kitchen', 'sent_to_delivery', 'delivered'].includes(order.status);
+    const hasDeliveryStaff = Boolean(order.deliveryStaff?.id || order.deliveryStaff?._id);
+    const canKitchenAdvance = staffRole === 'kitchen' &&
+        (order.status === 'order_received' || (order.status === 'in_kitchen' && hasDeliveryStaff));
+    const canDeliveryAdvance = staffRole === 'delivery' && order.status === 'sent_to_delivery';
+    const activeKitchenAssigned = Boolean(order.kitchenStaff?.id || order.kitchenStaff?._id) && order.kitchenStaff?.active !== false;
+    const activeDeliveryAssigned = Boolean(order.deliveryStaff?.id || order.deliveryStaff?._id) && order.deliveryStaff?.active !== false;
+    const canAdvance = (admin && (next === 'in_kitchen' ? activeKitchenAssigned : ['sent_to_delivery', 'delivered'].includes(next) ? activeDeliveryAssigned : false)) || canKitchenAdvance || canDeliveryAdvance;
 
     return <article className="order-card" data-order-id={order.id} data-order-payment-mode={simulated ? 'test' : 'live'} tabIndex={-1}>
         <div className="order-card-top">
             <div className="order-card-identity">
                 <span className="eyebrow">ORDER {order.orderNumber}</span>
                 <h3>{order.items?.map(i => String(i.quantity) + '× ' + i.name).join(', ') || 'Pizza order'}</h3>
-                <p className="order-card-meta">{admin && order.user ? order.user.name + ' · ' + order.user.email : formatOrderStageTime(order.createdAt)} <span aria-hidden="true">·</span> <strong>{currency(order.total)}</strong></p>
+                <p className="order-card-meta">{admin && order.user ? order.user.name + ' · ' + order.user.email : customerView ? formatOrderStageTime(order.createdAt) : 'Assigned to your staff account'} <span aria-hidden="true">·</span> <strong>{currency(order.total)}</strong></p>
                 {order.deliveryDetails && <div className="order-delivery-details">
                     <small><strong>Deliver to:</strong> {order.deliveryDetails.recipientName} · {order.deliveryDetails.addressLine}, {order.deliveryDetails.city}, {order.deliveryDetails.state} {order.deliveryDetails.postalCode}</small>
-                    <small><strong>Mobile:</strong> {admin ? <a href={'tel:' + order.deliveryDetails.phone}>{order.deliveryDetails.phone}</a> : order.deliveryDetails.phone}</small>
+                    <small><strong>Mobile:</strong> {admin || staffRole === 'delivery' ? <a href={'tel:' + order.deliveryDetails.phone}>{order.deliveryDetails.phone}</a> : order.deliveryDetails.phone}</small>
                     {order.deliveryDetails.landmark && <small><strong>Landmark:</strong> {order.deliveryDetails.landmark}</small>}
                     {order.deliveryDetails.instructions && <small><strong>Delivery note:</strong> {order.deliveryDetails.instructions}</small>}
                 </div>}
@@ -1503,11 +1738,11 @@ function OrderCard({ order, admin = false, onStatus, onReorder, onResumePayment,
                             </div>;
                         })}</div>
                         : <div className="pending-message"><Clock3 size={15}/> Waiting for a verified payment before kitchen preparation.</div>}
-        {!admin && paid && simulated && !reviewNeeded && !refunded && !cancelled && <div className="test-order-notice" role="note">
+        {customerView && paid && simulated && !reviewNeeded && !refunded && !cancelled && <div className="test-order-notice" role="note">
             <strong>TEST MODE · SIMULATED TRACKING</strong>
             <p>Status updates verify the app only. No real kitchen or delivery partner has been contacted for this order.</p>
         </div>}
-        {admin && <div className="order-prep-ticket">
+        {(admin || staffRole) && <div className="order-prep-ticket">
             <div className="order-prep-ticket-heading"><span>PREPARATION TICKET</span><span>{order.items?.length || 0} line items</span></div>
             {order.items?.map((item, index) => <div className="order-prep-line" key={String(item.name) + '-' + index}>
                 <div><strong>{item.quantity}× {item.name}</strong><small>{orderRecipeSummary(item, catalog)}</small></div>
@@ -1515,7 +1750,9 @@ function OrderCard({ order, admin = false, onStatus, onReorder, onResumePayment,
             </div>)}
             {order.deliveryDetails?.instructions && <p className="order-prep-delivery-note"><strong>Delivery note:</strong> {order.deliveryDetails.instructions}</p>}
         </div>}
-        {!admin && issue && <div className={'issue-status-card issue-status-' + issue.status} tabIndex={-1}>
+        {admin && paid && !reviewNeeded && !refunded && !['delivered', 'cancelled'].includes(order.status) &&
+            <OrderStaffAssignment order={order} staff={staff} pending={assignmentPending} onSave={onAssign}/>}
+        {customerView && issue && <div className={'issue-status-card issue-status-' + issue.status} tabIndex={-1}>
             <div className="issue-status-copy">
                 <span className="eyebrow">CASE {issue.reference}</span>
                 <strong>{issue.status === 'resolved' ? 'Marked resolved' : issue.status === 'under_review' ? 'Team is reviewing this case' : 'Report received'}</strong>
@@ -1528,19 +1765,21 @@ function OrderCard({ order, admin = false, onStatus, onReorder, onResumePayment,
             <p>{issue?.status === 'resolved' ? 'A new issue with this order? Open another case.' : 'Something missing, incorrect or not right? Tell us what happened.'}</p>
             <button type="button" className="button button-light small-button" onClick={event => onReportIssue?.(order, event.currentTarget)}><MessageCircle size={16}/>{issue?.status === 'resolved' ? 'Report another problem' : 'Report a problem'}</button>
         </div>}
-        {admin && next && paid && !reviewNeeded && <div className="order-admin-actions">
-            <div><span>Next operational step</span><small>{simulated ? 'Sandbox only · no physical dispatch' : 'Admin-confirmed live fulfillment'}</small></div>
-            <button type="button" className="button button-light small-button" disabled={statusPending} onClick={() => onStatus(order, next)}>
-                {statusPending ? 'Saving status…' : (simulated ? 'Simulate: ' : '') + nextAction}
+        {canAdvance && next && paid && !reviewNeeded && <div className="order-admin-actions">
+            <div><span>{admin ? 'Next operational step' : staffRole === 'kitchen' ? 'Kitchen action' : 'Delivery action'}</span><small>{simulated ? 'Sandbox only · no physical dispatch' : 'Verified Live Mode order'}</small></div>
+            <button type="button" className="button button-light small-button" disabled={statusPending || (staffRole === 'kitchen' && order.status === 'in_kitchen' && !hasDeliveryStaff)} onClick={() => onStatus(order, next)}>
+                {statusPending ? 'Saving status…' : admin && simulated ? 'Simulate: ' + nextAction : nextAction}
                 {!statusPending && <ArrowRight size={15}/>}
             </button>
         </div>}
+        {staffRole === 'kitchen' && order.status === 'in_kitchen' && !hasDeliveryStaff && <p className="fulfillment-waiting-note">A delivery partner must be assigned before this order can be handed off.</p>}
+        {staffRole === 'delivery' && order.status === 'in_kitchen' && <p className="fulfillment-waiting-note">Waiting for the kitchen to hand off this order. The delivery action becomes available after dispatch.</p>}
         {canResumePayment && <div className="order-repeat-actions order-resume-payment"><p>This order is still unpaid. Resume the saved server quote; no new order is created.</p><button type="button" className="button button-dark small-button" disabled={pending} onClick={() => onResumePayment(order)}><CreditCard size={16}/> Resume checkout</button></div>}
         {canRepeat && <div className="order-repeat-actions"><p>Want this one again? We’ll use the current menu and prices, not the old total.</p><button type="button" className="button button-light small-button" onClick={() => onReorder?.(order)}><RefreshCw size={16}/> Order again</button></div>}
     </article>;
 }
 
-function FulfillmentQueue({ orders = [], paymentMode = 'test', catalog = DEFAULT_CATALOG, onStatus, pendingStatusOrderId }) {
+function FulfillmentQueue({ orders = [], staff = [], role = 'admin', paymentMode = 'test', catalog = DEFAULT_CATALOG, onStatus, onAssign, pendingStatusOrderId, pendingAssignmentOrderId }) {
     const [filter, setFilter] = useState('active');
     const selectedMode = paymentMode === 'live' ? 'live' : 'test';
     const modeOrders = orders.filter(order => (order.paymentMode || 'test') === selectedMode);
@@ -1549,28 +1788,38 @@ function FulfillmentQueue({ orders = [], paymentMode = 'test', catalog = DEFAULT
         !order.paymentReviewRequired &&
         order.status !== 'payment_review' &&
         order.status !== 'cancelled' &&
-        !['pending_payment'].includes(order.status) &&
         ORDER_STEPS.some(step => step.id === order.status),
     );
     const counts = Object.fromEntries(ORDER_STEPS.map(step => [step.id, eligibleOrders.filter(order => order.status === step.id).length]));
-    const options = [
+    const options = role === 'delivery' ? [
+        { id: 'active', label: 'My run sheet', count: eligibleOrders.filter(order => ['in_kitchen', 'sent_to_delivery'].includes(order.status)).length },
+        { id: 'in_kitchen', label: 'Awaiting hand-off', count: counts.in_kitchen },
+        { id: 'sent_to_delivery', label: 'Out for delivery', count: counts.sent_to_delivery },
+        { id: 'delivered', label: 'Completed', count: counts.delivered },
+    ] : role === 'kitchen' ? [
+        { id: 'active', label: 'Kitchen queue', count: eligibleOrders.length },
+        { id: 'order_received', label: 'Needs acceptance', count: counts.order_received },
+        { id: 'in_kitchen', label: 'In preparation', count: counts.in_kitchen },
+    ] : [
         { id: 'active', label: 'Active queue', count: eligibleOrders.filter(order => order.status !== 'delivered').length },
         { id: 'order_received', label: 'Needs kitchen', count: counts.order_received },
         { id: 'in_kitchen', label: 'In preparation', count: counts.in_kitchen },
         { id: 'sent_to_delivery', label: 'On the way', count: counts.sent_to_delivery },
         { id: 'delivered', label: 'Completed', count: counts.delivered },
     ];
-    const visibleOrders = eligibleOrders.filter(order => filter === 'active' ? order.status !== 'delivered' : order.status === filter)
-        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    const waitingForPayment = modeOrders.filter(order => order.paymentStatus !== 'paid' && !['cancelled', 'payment_review'].includes(order.status)).length;
+    const visibleOrders = eligibleOrders.filter(order => {
+        if (filter !== 'active') return order.status === filter;
+        return role === 'admin' ? order.status !== 'delivered' : role === 'delivery' ? ['in_kitchen', 'sent_to_delivery'].includes(order.status) : true;
+    }).sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+    const waitingForPayment = role === 'admin' ? modeOrders.filter(order => order.paymentStatus !== 'paid' && !['cancelled', 'payment_review'].includes(order.status)).length : 0;
 
     return <div className="fulfillment-console">
         <div className={'fulfillment-mode-banner ' + (selectedMode === 'test' ? 'is-simulated' : 'is-live')}>
             <span className="fulfillment-banner-kicker">{selectedMode === 'test' ? 'SANDBOX WORKFLOW' : 'LIVE OPERATIONS'}</span>
             <strong>{selectedMode === 'test' ? 'Test orders · simulated kitchen and delivery' : 'Verified live orders · kitchen and dispatch'}</strong>
             <p>{selectedMode === 'test'
-                ? 'Move test orders through each stage to verify the customer timeline. No kitchen ticket is sent to a real kitchen and no driver is dispatched.'
-                : 'Only paid orders completed in Live Mode can enter this queue. Every stage change is saved and reflected in customer order tracking.'}</p>
+                ? 'Test Mode lets staff validate their assigned stages only. No real kitchen ticket is sent and no driver is contacted.'
+                : 'Only paid orders with matching Live Mode can enter real operations. Your queue contains only orders assigned to your staff account.'}</p>
         </div>
         <div className="fulfillment-stage-summary">
             {ORDER_STEPS.map((step, index) => <div className={'fulfillment-stage-count stage-' + index} key={step.id}>
@@ -1580,16 +1829,16 @@ function FulfillmentQueue({ orders = [], paymentMode = 'test', catalog = DEFAULT
             </div>)}
         </div>
         <div className="fulfillment-queue-toolbar">
-            <div><h3>Fulfillment queue</h3><p>Choose a stage to focus the team’s next actions.</p></div>
+            <div><h3>{role === 'kitchen' ? 'Assigned kitchen orders' : role === 'delivery' ? 'Assigned delivery orders' : 'Fulfillment queue'}</h3><p>{role === 'admin' ? 'Assign each order to named staff before hand-off.' : 'You can only update orders assigned to your own staff account.'}</p></div>
             <div className="fulfillment-filter-row" role="group" aria-label="Filter orders by fulfillment stage">
                 {options.map(option => <button type="button" key={option.id} className={'fulfillment-filter ' + (filter === option.id ? 'is-active' : '')} aria-pressed={filter === option.id} onClick={() => setFilter(option.id)}>{option.label}<span>{option.count}</span></button>)}
             </div>
         </div>
         {visibleOrders.length
-            ? <div className="orders-list fulfillment-order-list">{visibleOrders.map(order => <OrderCard key={order.id} order={order} admin catalog={catalog} onStatus={onStatus} statusPending={pendingStatusOrderId === order.id}/>)}</div>
-            : <div className="fulfillment-empty"><span>{filter === 'delivered' ? '✓' : '↗'}</span><strong>{filter === 'delivered' ? 'No completed orders in this mode yet' : filter === 'active' ? 'The active queue is clear' : 'No orders at this stage'}</strong><p>{filter === 'active' ? 'Paid, eligible orders will appear here after payment verification.' : 'When an order reaches this stage, it will appear here with its next operational action.'}</p></div>}
+            ? <div className="orders-list fulfillment-order-list">{visibleOrders.map(order => <OrderCard key={order.id} order={order} admin={role === 'admin'} staffRole={['kitchen', 'delivery'].includes(role) ? role : null} staff={staff} catalog={catalog} onStatus={onStatus} onAssign={onAssign} statusPending={pendingStatusOrderId === order.id} assignmentPending={pendingAssignmentOrderId === order.id}/>)}</div>
+            : <div className="fulfillment-empty"><span>{filter === 'delivered' ? '✓' : '↗'}</span><strong>{filter === 'delivered' ? 'No completed orders in this queue yet' : filter === 'active' ? 'Your assigned queue is clear' : 'No assigned orders at this stage'}</strong><p>{role === 'admin' ? 'Paid, eligible orders appear here after payment verification.' : 'An administrator must assign an order to your staff account before it appears here.'}</p></div>}
         {waitingForPayment > 0 && <p className="fulfillment-waiting-note">{waitingForPayment} order{waitingForPayment === 1 ? '' : 's'} are waiting for verified payment and are intentionally excluded from kitchen preparation.</p>}
-        {orders.some(order => (order.paymentMode || 'test') !== selectedMode) && <p className="fulfillment-waiting-note">Orders from the other payment mode are kept out of this queue. Test payments are never promoted into real fulfillment.</p>}
+        {orders.some(order => (order.paymentMode || 'test') !== selectedMode) && <p className="fulfillment-waiting-note">Orders from the other payment mode are excluded. Test payments are never promoted into real fulfillment.</p>}
     </div>;
 }
 

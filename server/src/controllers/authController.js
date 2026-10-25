@@ -9,7 +9,7 @@ import { config } from '../config/env.js';
 import { disconnectCurrentSessionSockets, disconnectUserSockets } from '../services/realtime.js';
 
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-const publicUser = (user) => ({ id: user.id, name: user.name, email: user.email, role: user.role });
+const publicUser = (user) => ({ id: user.id, name: user.name, email: user.email, role: user.role, mustChangePassword: user.mustChangePassword === true });
 
 export const register = asyncHandler(async (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
@@ -54,19 +54,56 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   res.redirect(`${config.clientBaseUrl}/?verified=1`);
 });
 
-async function loginCommon(req, res, adminOnly) {
+async function loginCommon(req, res, mode = 'customer') {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const email = String(body.email || '').trim().toLowerCase(); const password = body.password;
   if (!validEmail(email) || typeof password !== 'string' || password.length > 72) return res.status(400).json({ error: 'Enter valid sign-in details' });
   const user = await User.findOne({ email }).select('+passwordHash');
   if (!user || !(await verifyPassword(password, user.passwordHash))) return res.status(401).json({ error: 'Email or password is incorrect' });
-  if (adminOnly && user.role !== 'admin') return res.status(403).json({ error: 'This account does not have admin access' });
-  if (!adminOnly && user.role !== 'user') return res.status(403).json({ error: 'Use the admin sign-in page for this account' });
+  if (user.active === false) return res.status(403).json({ error: 'This account has been disabled. Contact the administrator.' });
+  if (mode === 'admin' && user.role !== 'admin') return res.status(403).json({ error: 'This account does not have admin access' });
+  if (mode === 'staff' && !['kitchen', 'delivery'].includes(user.role)) return res.status(403).json({ error: 'This account does not have kitchen or delivery staff access' });
+  if (mode === 'customer' && user.role !== 'user') return res.status(403).json({ error: 'Use the appropriate team sign-in page for this account' });
   if (config.requireEmailVerification && !user.emailVerifiedAt) return res.status(403).json({ error: 'Verify your email before signing in' });
   issueSession(res, user); return res.json({ user: publicUser(user) });
 }
-export const login = asyncHandler(async (req, res) => loginCommon(req, res, false));
-export const adminLogin = asyncHandler(async (req, res) => loginCommon(req, res, true));
+export const login = asyncHandler(async (req, res) => loginCommon(req, res, 'customer'));
+export const adminLogin = asyncHandler(async (req, res) => loginCommon(req, res, 'admin'));
+
+export const staffLogin = asyncHandler(async (req, res) => loginCommon(req, res, 'staff'));
+
+export const changeStaffPassword = asyncHandler(async (req, res) => {
+  if (!['kitchen', 'delivery'].includes(req.user?.role)) {
+    return res.status(403).json({ error: 'Only kitchen and delivery staff can use this password-rotation endpoint' });
+  }
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const currentPassword = body.currentPassword;
+  const newPassword = body.newPassword;
+  if (typeof currentPassword !== 'string' || currentPassword.length < 1 ||
+      typeof newPassword !== 'string' || !isStrongEnough(newPassword)) {
+    return res.status(400).json({ error: 'Enter your current password and a new password of 10–72 characters with uppercase, lowercase and a number' });
+  }
+  const user = await User.findById(req.user._id).select('+passwordHash');
+  if (!user || user.active === false) return res.status(403).json({ error: 'This staff account is disabled' });
+  if (!(await verifyPassword(currentPassword, user.passwordHash))) {
+    return res.status(401).json({ error: 'Current password is incorrect' });
+  }
+  if (await verifyPassword(newPassword, user.passwordHash)) {
+    return res.status(400).json({ error: 'Choose a new password different from your current password' });
+  }
+
+  const update = await User.updateOne(
+    { _id: user._id, role: user.role, active: { $ne: false }, sessionVersion: user.sessionVersion },
+    { $set: { passwordHash: await hashPassword(newPassword), mustChangePassword: false }, $inc: { sessionVersion: 1 } },
+  );
+  if (update.modifiedCount !== 1) {
+    return res.status(409).json({ error: 'Your account changed in another request. Sign in again and retry.' });
+  }
+  const refreshedUser = await User.findById(user._id).select('name email role active mustChangePassword emailVerifiedAt sessionVersion');
+  if (!refreshedUser || refreshedUser.active === false) return res.status(403).json({ error: 'This staff account is disabled' });
+  issueSession(res, refreshedUser);
+  res.json({ message: 'Password updated. Your staff account is ready to use.', user: publicUser(refreshedUser) });
+});
 export const logout = asyncHandler(async (req, res) => {
   // A stale or missing session must still be allowed to clear the browser cookie.
   try { await disconnectCurrentSessionSockets(req.headers.cookie); } catch { /* Cookie clearing remains the priority. */ }

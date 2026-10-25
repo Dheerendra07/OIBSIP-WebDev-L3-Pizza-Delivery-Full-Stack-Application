@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { register, login, adminLogin, forgotPassword, resetPassword } from '../src/controllers/authController.js';
+import { register, login, adminLogin, staffLogin, changeStaffPassword, forgotPassword, resetPassword } from '../src/controllers/authController.js';
 import User from '../src/models/User.js';
 import { config } from '../src/config/env.js';
 
@@ -77,7 +77,7 @@ test('registration remains usable without an SMTP verification dependency when v
 });
 
 test('customer and admin login return a client error when credentials are absent', async () => {
-  for (const handler of [login, adminLogin]) {
+  for (const handler of [login, adminLogin, staffLogin]) {
     const res = responseRecorder();
     let nextError;
     await handler({ body: undefined }, res, (error) => { nextError = error; });
@@ -218,3 +218,20 @@ test('password-reset token persistence failures use the generic response and att
   }
 });
 
+
+
+test('staff password rotation rejects non-staff roles and malformed bodies before database access', async () => {
+  const customerResponse = responseRecorder();
+  let customerError;
+  await changeStaffPassword({ user: { role: 'user' }, body: {} }, customerResponse, error => { customerError = error; });
+  assert.equal(customerError, undefined);
+  assert.equal(customerResponse.statusCode, 403);
+
+  for (const body of [undefined, null, [], {}, { currentPassword: 'x', newPassword: 'weak' }]) {
+    const res = responseRecorder();
+    let nextError;
+    await changeStaffPassword({ user: { role: 'kitchen', _id: '507f1f77bcf86cd799439011' }, body }, res, error => { nextError = error; });
+    assert.equal(nextError, undefined);
+    assert.equal(res.statusCode, 400);
+  }
+});

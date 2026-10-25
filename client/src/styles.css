@@ -2287,3 +2287,99 @@ html[data-theme="dark"] .test-order-notice p{color:#dac69c}
  .timeline-step small{font-size:8px}
  .timeline-step time{font-size:7px}
 }
+
+
+/* Team accounts and per-order ownership — dense operational UI with clear contrast. */
+.staff-management{display:grid;gap:17px}
+.staff-management-top{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:15px 17px;border:1px solid #dce6eb;border-radius:13px;background:#f7fafb}
+.staff-management-top strong{display:block;color:#233d4b;font-size:13px}
+.staff-management-top p{margin:5px 0 0;color:#6b818e;font-size:11px;line-height:1.5}
+.staff-management-top .button{flex-shrink:0}
+.staff-create-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;padding:18px;border:1px solid #dce6eb;border-radius:15px;background:#fbfdfe}
+.staff-create-form label,.order-assignment-fields label{display:grid;gap:7px;color:#395565;font-size:11px;font-weight:800;min-width:0}
+.staff-create-form input,.staff-create-form select,.order-assignment-fields select{width:100%;min-width:0;min-height:43px;padding:10px 11px;border:1px solid #c8d8e1;border-radius:9px;background:#fff;color:#1c3544;font:inherit;font-weight:500}
+.staff-create-form input:focus-visible,.staff-create-form select:focus-visible,.order-assignment-fields select:focus-visible{outline:2px solid #df6a51;outline-offset:2px}
+.staff-create-note{grid-column:1/-1;margin:0;color:#806b4b;font-size:10px;line-height:1.6}
+.staff-create-form>.button{grid-column:1/-1;justify-self:start;min-height:44px;border-radius:10px}
+.staff-roster{display:grid;gap:9px}
+.staff-roster-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:12px;border:1px solid #dce6eb;border-radius:13px;background:#fff;min-width:0}
+.staff-role-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#edf4f7;color:#527184}
+.staff-role-icon.kitchen{background:#fff0e9;color:#bc4d35}
+.staff-role-icon.delivery{background:#eaf4ee;color:#367552}
+.staff-roster-identity{display:grid;gap:4px;min-width:0}
+.staff-roster-identity strong{color:#213b4a;font-size:12px;overflow-wrap:anywhere}
+.staff-roster-identity small{color:#6f8491;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+.staff-access-state{font-size:10px;font-weight:800;white-space:nowrap}
+.staff-access-state:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:#29915d}
+.staff-access-state.inactive:before{background:#a9b5bd}
+.staff-access-state.active{color:#28774c}
+.staff-access-state.inactive{color:#7e8d96}
+.staff-roster-row.is-disabled{background:#f7f9fa;opacity:.83}
+.staff-roster-row .button{min-height:36px}
+.staff-roster-empty{padding:20px;border:1px dashed #cad9e1;border-radius:13px;text-align:center;background:#f8fbfc}
+.staff-roster-empty strong{color:#294453;font-size:12px}
+.staff-roster-empty p{margin:6px 0 0;color:#728793;font-size:11px;line-height:1.5}
+.order-assignment-panel{display:grid;gap:12px;margin-top:16px;padding:15px;border:1px solid #dce6eb;border-radius:13px;background:#fbfdfe}
+.order-assignment-heading{display:grid;gap:5px}
+.order-assignment-heading strong{color:#284453;font-size:12px}
+.order-assignment-heading small{color:#718793;font-size:10px;line-height:1.5}
+.order-assignment-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.order-assignment-fields label>span{text-transform:uppercase;letter-spacing:.08em;font-size:9px;color:#6b8390}
+.order-assignment-panel>.button{min-height:40px;justify-self:start;border-radius:9px}
+.staff-operations-page .admin-heading{margin-bottom:22px}
+.staff-operations-page .admin-heading h1{margin:12px 0 9px}
+html[data-theme="dark"] .staff-management-top{border-color:#2d4655;background:#112431}
+html[data-theme="dark"] .staff-management-top strong,html[data-theme="dark"] .staff-roster-identity strong,html[data-theme="dark"] .order-assignment-heading strong{color:#f0f5f7}
+html[data-theme="dark"] .staff-management-top p,html[data-theme="dark"] .staff-roster-identity small,html[data-theme="dark"] .order-assignment-heading small{color:#9fb4c1}
+html[data-theme="dark"] .staff-create-form,html[data-theme="dark"] .order-assignment-panel{border-color:#2d4655;background:#10212d}
+html[data-theme="dark"] .staff-create-form label,html[data-theme="dark"] .order-assignment-fields label{color:#c3d2dc}
+html[data-theme="dark"] .staff-create-form input,html[data-theme="dark"] .staff-create-form select,html[data-theme="dark"] .order-assignment-fields select{background:#091923;color:#f1f5f8;border-color:#3b5666}
+html[data-theme="dark"] .staff-create-note{color:#d4bc8b}
+html[data-theme="dark"] .staff-roster-row{background:#101f2c;border-color:#2c4554}
+html[data-theme="dark"] .staff-role-icon{background:#1a3342;color:#b7ceda}
+html[data-theme="dark"] .staff-role-icon.kitchen{background:#392820;color:#ff9a80}
+html[data-theme="dark"] .staff-role-icon.delivery{background:#1b342b;color:#9cdbb1}
+html[data-theme="dark"] .staff-access-state.active{color:#8bd7a6}
+html[data-theme="dark"] .staff-access-state.inactive{color:#a2b2bd}
+html[data-theme="dark"] .staff-roster-empty{background:#101f2c;border-color:#355061}
+html[data-theme="dark"] .staff-roster-empty strong{color:#f0f5f7}
+html[data-theme="dark"] .staff-roster-empty p{color:#9fb4c1}
+html[data-theme="dark"] .order-assignment-fields label>span{color:#9fb4c1}
+@media(max-width:600px){
+ .staff-management-top{align-items:stretch;flex-direction:column}
+ .staff-management-top .button{width:100%}
+ .staff-create-form,.order-assignment-fields{grid-template-columns:minmax(0,1fr)}
+ .staff-create-form>.button{width:100%}
+ .staff-roster-row{grid-template-columns:38px minmax(0,1fr) auto;gap:9px;padding:10px}
+ .staff-role-icon{width:36px;height:36px}
+ .staff-roster-row .staff-access-state{grid-column:2}
+ .staff-roster-row .button{grid-column:3;grid-row:1/3;align-self:center}
+ .order-assignment-panel>.button{width:100%}
+}
+
+
+/* Mandatory staff password rotation gate. */
+.staff-password-gate{
+  display:grid;gap:14px;width:min(100%,660px);margin:20px auto;padding:clamp(22px,4vw,38px);
+  border:1px solid #d8e4ea;border-radius:22px;background:linear-gradient(145deg,#fff 0%,#f5f9fb 100%);
+  box-shadow:0 18px 42px rgba(16,39,55,.08);
+}
+.staff-password-mark{display:grid;place-items:center;width:48px;height:48px;border:1px solid #f0c7bb;border-radius:15px;background:#fff0ea;color:#c44d35}
+.staff-password-gate>.eyebrow{margin-top:4px}
+.staff-password-gate h2{margin:0;font-family:var(--serif,Georgia,serif);font-size:clamp(25px,4vw,34px);line-height:1.15;letter-spacing:-.035em;color:#1d3544}
+.staff-password-gate>p{margin:0;color:#687f8d;font-size:12px;line-height:1.7;max-width:520px}
+.staff-password-form{display:grid;gap:13px;margin-top:5px}
+.staff-password-form label{display:grid;gap:7px;color:#385463;font-size:11px;font-weight:800}
+.staff-password-form input{width:100%;min-height:46px;border:1px solid #cad9e1;border-radius:10px;padding:11px 13px;background:#fff;color:#203948;font:inherit;font-size:13px;font-weight:500}
+.staff-password-form input:focus-visible{outline:2px solid #dd644b;outline-offset:2px}
+.staff-password-form .button{min-height:48px;border-radius:11px;justify-self:start}
+.staff-password-form .staff-password-error{margin:0;color:#ab3528;font-size:11px;line-height:1.5}
+.staff-password-gate>small{color:#798e9a;font-size:10px;line-height:1.55}
+html[data-theme="dark"] .staff-password-gate{border-color:#2c4655;background:linear-gradient(145deg,#112330,#0d1c27);box-shadow:0 20px 50px rgba(0,0,0,.26)}
+html[data-theme="dark"] .staff-password-mark{border-color:#6c3f35;background:#35241f;color:#ff9a80}
+html[data-theme="dark"] .staff-password-gate h2{color:#f2f6f8}
+html[data-theme="dark"] .staff-password-gate>p,html[data-theme="dark"] .staff-password-gate>small{color:#9fb4c1}
+html[data-theme="dark"] .staff-password-form label{color:#c3d2dc}
+html[data-theme="dark"] .staff-password-form input{background:#091923;border-color:#3a5666;color:#f1f5f8}
+html[data-theme="dark"] .staff-password-form .staff-password-error{color:#ff9b8a}
+@media(max-width:600px){.staff-password-gate{padding:22px 17px;border-radius:17px}.staff-password-form .button{width:100%;justify-content:center}}
