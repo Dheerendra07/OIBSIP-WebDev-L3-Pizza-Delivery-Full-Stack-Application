@@ -9,7 +9,7 @@ router.get('/verify-email/:token', verifyEmail);
 router.post('/login', authLimiter, login);
 router.post('/admin/login', authLimiter, adminLogin);
 router.post('/staff/login', authLimiter, staffLogin);
-router.post('/staff/change-password', requireAuth, changeStaffPassword);
+router.post('/staff/change-password', authLimiter, requireAuth, changeStaffPassword);
 router.post('/logout', logout);
 router.get('/me', requireAuth, me);
 router.post('/forgot-password', authLimiter, forgotPassword);
