@@ -2656,3 +2656,20 @@ html[data-theme="dark"] .notification-health-metric.is-warning>strong{color:#ff9
 html[data-theme="dark"] .notification-dead-letters,html[data-theme="dark"] .notification-dead-row{border-color:#2b4353}
 @media(max-width:800px){.notification-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.notification-health-panel{padding:16px}.notification-health-grid{gap:8px}.notification-health-metric{padding:11px}.notification-health-metric>strong{font-size:24px}.notification-dead-row{grid-template-columns:1fr;gap:8px}}
+
+
+/* Editorial home hero: let the food photography carry the page, not decorative UI. */
+.hero-art{height:470px;display:flex;align-items:center;justify-content:center;padding:8px}
+.hero-pizza{width:min(100%,440px);height:420px;border-radius:18px;transform:none;overflow:hidden;background:#e8ddd1;box-shadow:0 22px 48px rgba(30,37,42,.14)}
+.hero-pizza-photo{border:0;border-radius:18px;box-shadow:none;object-position:center}
+.hero-pizza-artwork{width:82%;height:82%;left:9%;top:9%}
+.hero-pizza.has-photo .hero-pizza-artwork{opacity:0}
+.hero-halo,.hero-ring,.floating-note,.pizza-stamp,.art-spark{display:none!important}
+.hero-proof{gap:22px;padding-top:18px;border-top:1px solid var(--line);max-width:390px}
+.hero-proof .stars{display:flex;align-items:center;gap:6px;color:var(--brand);font-size:11px}
+.hero-proof small{font-size:11px;color:var(--muted);line-height:1.5}
+.hero-proof strong{font-size:25px;letter-spacing:-.04em;color:var(--ink)}
+.menu-preview .section-heading h2{letter-spacing:-.035em}
+@media(max-width:800px){.hero-art{height:380px;padding:4px}.hero-pizza{height:360px;max-width:520px}}
+@media(max-width:520px){.hero-art{height:285px;padding:0}.hero-pizza{height:270px;border-radius:14px}.hero-pizza-photo{border-radius:14px}.hero-pizza-artwork{width:88%;height:88%;left:6%;top:6%}.hero-proof{gap:14px;margin-top:18px}}
+html[data-theme="dark"] .hero-pizza{background:#14232d;box-shadow:0 24px 48px rgba(0,0,0,.35)}
