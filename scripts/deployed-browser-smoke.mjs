@@ -781,7 +781,7 @@ try {
       if (pathname === '/api/ops/orders' && request.method() === 'GET') {
         const visibleForRole = role === 'kitchen'
           ? ['order_received', 'in_kitchen'].includes(qaOpsOrder?.status)
-          : ['in_kitchen', 'sent_to_delivery'].includes(qaOpsOrder?.status);
+          : ['in_kitchen', 'sent_to_delivery', 'delivered'].includes(qaOpsOrder?.status);
         await route.fulfill({
           status: 200,
           json: { orders: visibleForRole && qaOpsOrder ? [qaOpsOrder] : [], role },
