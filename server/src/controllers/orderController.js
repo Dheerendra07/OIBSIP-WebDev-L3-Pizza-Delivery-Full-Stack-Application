@@ -182,6 +182,19 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
   }
   try {
     const paymentOrder = await razorpay.orders.create({ amount: reserved.total * 100, currency: 'INR', receipt: reserved.orderNumber, notes: { internalOrderId: reserved.id } });
+    // The provider response is not the source of truth for the customer charge.
+    // Never open checkout unless the returned order matches the server quote.
+    if (!paymentOrder ||
+        typeof paymentOrder.id !== 'string' ||
+        !paymentOrder.id.trim() ||
+        !Number.isSafeInteger(paymentOrder.amount) ||
+        paymentOrder.amount !== reserved.total * 100 ||
+        paymentOrder.currency !== 'INR') {
+      throw Object.assign(new Error('Razorpay returned an invalid checkout order response'), {
+        statusCode: 502,
+        code: 'INVALID_PROVIDER_ORDER_RESPONSE',
+      });
+    }
     reserved.razorpayOrderId = paymentOrder.id; reserved.paymentOrderCreationInProgress = false; await reserved.save();
     publishAdminRefresh();
     publishOrderUpdate(reserved);
