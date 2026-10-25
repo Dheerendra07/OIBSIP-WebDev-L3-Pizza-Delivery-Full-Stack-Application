@@ -187,7 +187,7 @@ export const createStaff = asyncHandler(async (req, res) => {
   let staff;
   try {
     staff = await User.create({
-      name, email, passwordHash: await hashPassword(password), role, active: true,
+      name, email, passwordHash: await hashPassword(password), role, active: true, mustChangePassword: true,
       // Admin-provisioned accounts can sign in immediately. A staff invitation/
       // password-rotation flow remains a separate deployment step.
       emailVerifiedAt: new Date(),
