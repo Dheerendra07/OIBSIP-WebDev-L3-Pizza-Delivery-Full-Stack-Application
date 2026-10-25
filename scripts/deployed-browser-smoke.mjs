@@ -111,6 +111,16 @@ try {
   await legacyPage.close();
 
   const page = await context.newPage();
+  // The browser drill intentionally exercises a synthetic Test Mode checkout.
+  // Mock the mode explicitly instead of relying on the live Render config request
+  // to finish while the API service may be deploying. No provider call is real.
+  await page.route('**/api/config', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, json: { paymentMode: 'test' } });
+      return;
+    }
+    await route.continue();
+  });
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('requestfailed', (request) => {
     try {
