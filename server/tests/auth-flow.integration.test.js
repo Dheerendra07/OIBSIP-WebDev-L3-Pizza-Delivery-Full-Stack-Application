@@ -463,25 +463,102 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   const adminQueue = (await adminQueueResponse.json()).orders;
   assert.ok(adminQueue.some((order) => String(order.id) === String(createdOrder.id)), 'admin queue should contain the customer order');
 
-  // Test Mode orders can traverse the visible workflow only as simulations.
-  const testModeFulfillment = await fetch(`${base}/api/admin/orders/${createdOrder.id}/status`, {
+  // Provision separate kitchen and delivery accounts through the authenticated admin API.
+  const createKitchen = await fetch(base + '/api/admin/staff', {
+    method: 'POST',
+    headers: { ...headers, Cookie: adminCookie },
+    body: JSON.stringify({ name: 'Kitchen QA', email: 'kitchen-integration@example.test', password: 'KitchenPass123', role: 'kitchen' }),
+  });
+  assert.equal(createKitchen.status, 201);
+  const kitchenStaff = (await createKitchen.json()).staff;
+  assert.equal(kitchenStaff.role, 'kitchen');
+  assert.equal(kitchenStaff.active, true);
+
+  const createDelivery = await fetch(base + '/api/admin/staff', {
+    method: 'POST',
+    headers: { ...headers, Cookie: adminCookie },
+    body: JSON.stringify({ name: 'Delivery QA', email: 'delivery-integration@example.test', password: 'DeliveryPass123', role: 'delivery' }),
+  });
+  assert.equal(createDelivery.status, 201);
+  const deliveryStaff = (await createDelivery.json()).staff;
+  assert.equal(deliveryStaff.role, 'delivery');
+
+  const escalationAttempt = await fetch(base + '/api/admin/staff', {
+    method: 'POST',
+    headers: { ...headers, Cookie: adminCookie },
+    body: JSON.stringify({ name: 'Escalation QA', email: 'escalation-integration@example.test', password: 'KitchenPass123', role: 'admin' }),
+  });
+  assert.equal(escalationAttempt.status, 400, 'staff creation must never grant admin access');
+
+  const signInStaff = async (email, password, expectedRole) => {
+    const response = await fetch(base + '/api/auth/staff/login', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ email, password }),
+    });
+    assert.equal(response.status, 200, 'provisioned staff should be able to sign in');
+    const result = await response.json();
+    assert.equal(result.user.role, expectedRole);
+    const cookies = typeof response.headers.getSetCookie === 'function'
+      ? response.headers.getSetCookie()
+      : [response.headers.get('set-cookie')].filter(Boolean);
+    const session = cookies.find(value => value.startsWith('pizza_session='));
+    assert.ok(session);
+    return { user: result.user, cookie: session.split(';', 1)[0] };
+  };
+  const kitchenSession = await signInStaff('kitchen-integration@example.test', 'KitchenPass123', 'kitchen');
+  const deliverySession = await signInStaff('delivery-integration@example.test', 'DeliveryPass123', 'delivery');
+
+  const customerOpsDenied = await fetch(base + '/api/ops/orders', { headers: { Origin: webOrigin, Cookie: cookie } });
+  assert.equal(customerOpsDenied.status, 403, 'customer accounts must not access staff queues');
+  const kitchenAdminDenied = await fetch(base + '/api/admin/orders', { headers: { Origin: webOrigin, Cookie: kitchenSession.cookie } });
+  assert.equal(kitchenAdminDenied.status, 403, 'kitchen staff must not access the admin queue');
+
+  const assignResponse = await fetch(base + '/api/admin/orders/' + createdOrder.id + '/assignments', {
     method: 'PATCH',
     headers: { ...headers, Cookie: adminCookie },
+    body: JSON.stringify({ kitchenStaffId: kitchenStaff.id, deliveryStaffId: deliveryStaff.id }),
+  });
+  assert.equal(assignResponse.status, 200);
+  const assignedResult = await assignResponse.json();
+  assert.equal(assignedResult.order.kitchenStaff.name, 'Kitchen QA');
+  assert.equal(assignedResult.order.deliveryStaff.name, 'Delivery QA');
+  assert.equal(assignedResult.order.fulfillmentMode, 'simulated');
+
+  const kitchenQueue = await fetch(base + '/api/ops/orders', { headers: { Origin: webOrigin, Cookie: kitchenSession.cookie } });
+  assert.equal(kitchenQueue.status, 200);
+  assert.ok((await kitchenQueue.json()).orders.some(order => String(order.id) === String(createdOrder.id)), 'kitchen queue should contain its assigned order');
+
+  const prematureHandoff = await fetch(base + '/api/ops/orders/' + createdOrder.id + '/status', {
+    method: 'PATCH',
+    headers: { ...headers, Cookie: kitchenSession.cookie },
+    body: JSON.stringify({ status: 'sent_to_delivery' }),
+  });
+  assert.equal(prematureHandoff.status, 400, 'kitchen cannot skip directly from received to dispatch');
+
+  const startPreparation = await fetch(base + '/api/ops/orders/' + createdOrder.id + '/status', {
+    method: 'PATCH',
+    headers: { ...headers, Cookie: kitchenSession.cookie },
     body: JSON.stringify({ status: 'in_kitchen' }),
   });
-  assert.equal(testModeFulfillment.status, 200);
-  const simulatedResult = await testModeFulfillment.json();
-  assert.equal(simulatedResult.order.fulfillmentMode, 'simulated');
-  assert.equal(simulatedResult.order.status, 'in_kitchen');
-  assert.ok(simulatedResult.order.kitchenStartedAt);
-  const preparingOrder = await Order.findById(createdOrder.id).lean();
-  assert.equal(preparingOrder.status, 'in_kitchen');
-  assert.ok(preparingOrder.kitchenStartedAt);
-  assert.equal(preparingOrder.paymentStatus, 'paid');
+  assert.equal(startPreparation.status, 200);
+  const preparationResult = await startPreparation.json();
+  assert.equal(preparationResult.order.fulfillmentMode, 'simulated');
+  assert.ok(preparationResult.order.kitchenStartedAt);
 
-  const dispatchResponse = await fetch(`${base}/api/admin/orders/${createdOrder.id}/status`, {
+  const deliveryQueueBeforeDispatch = await fetch(base + '/api/ops/orders', { headers: { Origin: webOrigin, Cookie: deliverySession.cookie } });
+  assert.equal(deliveryQueueBeforeDispatch.status, 200);
+  assert.ok((await deliveryQueueBeforeDispatch.json()).orders.some(order => String(order.id) === String(createdOrder.id)), 'assigned delivery staff can see a kitchen-stage job');
+  const prematureDelivery = await fetch(base + '/api/ops/orders/' + createdOrder.id + '/status', {
     method: 'PATCH',
-    headers: { ...headers, Cookie: adminCookie },
+    headers: { ...headers, Cookie: deliverySession.cookie },
+    body: JSON.stringify({ status: 'delivered' }),
+  });
+  assert.equal(prematureDelivery.status, 400, 'delivery staff cannot mark an undispatched order delivered');
+
+  const dispatchResponse = await fetch(base + '/api/ops/orders/' + createdOrder.id + '/status', {
+    method: 'PATCH',
+    headers: { ...headers, Cookie: kitchenSession.cookie },
     body: JSON.stringify({ status: 'sent_to_delivery' }),
   });
   assert.equal(dispatchResponse.status, 200);
@@ -489,9 +566,13 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(dispatchResult.order.fulfillmentMode, 'simulated');
   assert.ok(dispatchResult.order.dispatchedAt);
 
-  const deliveredResponse = await fetch(`${base}/api/admin/orders/${createdOrder.id}/status`, {
+  const deliveryQueueAfterDispatch = await fetch(base + '/api/ops/orders', { headers: { Origin: webOrigin, Cookie: deliverySession.cookie } });
+  assert.equal(deliveryQueueAfterDispatch.status, 200);
+  assert.ok((await deliveryQueueAfterDispatch.json()).orders.some(order => String(order.id) === String(createdOrder.id)), 'driver queue should contain dispatched assigned orders');
+
+  const deliveredResponse = await fetch(base + '/api/ops/orders/' + createdOrder.id + '/status', {
     method: 'PATCH',
-    headers: { ...headers, Cookie: adminCookie },
+    headers: { ...headers, Cookie: deliverySession.cookie },
     body: JSON.stringify({ status: 'delivered' }),
   });
   assert.equal(deliveredResponse.status, 200);
@@ -499,7 +580,7 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(deliveredResult.order.fulfillmentMode, 'simulated');
   assert.ok(deliveredResult.order.deliveredAt);
 
-  const finalCustomerHistory = await fetch(`${base}/api/orders/my`, {
+  const finalCustomerHistory = await fetch(base + '/api/orders/my', {
     headers: { Origin: webOrigin, Cookie: cookie },
   });
   assert.equal(finalCustomerHistory.status, 200);
@@ -510,6 +591,18 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.ok(progressedOrder.kitchenStartedAt);
   assert.ok(progressedOrder.dispatchedAt);
   assert.ok(progressedOrder.deliveredAt);
+  assert.equal(progressedOrder.paymentStatus, 'paid');
+
+  const disableDriver = await fetch(base + '/api/admin/staff/' + deliveryStaff.id + '/active', {
+    method: 'PATCH',
+    headers: { ...headers, Cookie: adminCookie },
+    body: JSON.stringify({ active: false }),
+  });
+  assert.equal(disableDriver.status, 200);
+  assert.equal((await disableDriver.json()).staff.active, false);
+  const disabledQueue = await fetch(base + '/api/ops/orders', { headers: { Origin: webOrigin, Cookie: deliverySession.cookie } });
+  assert.equal(disabledQueue.status, 403, 'disabling a staff account must revoke its active session');
+
   // Provider rejects the configured Test Mode credential pair after the database reservation is committed.
   // Verify the safe 502 diagnosis, stock-release compensation, and same-order retry recovery.
   const failedProviderCheckout = await fetch(`${base}/api/orders`, {
