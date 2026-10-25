@@ -1,6 +1,6 @@
 # Pizza House — Project Status and Launch Roadmap
 
-**Last reviewed:** 2026-10-25 (updated after Render retry and PR cleanup)  
+**Last reviewed:** 2026-10-25 (after successful deployed smoke and PR #125)  
 **Repository:** [Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application)  
 **Canonical hosted app/API:** https://pizza-house-api.onrender.com  
 **Latest application/runtime commit:** d5ab86f8d4c64bba8b28f7b53669ef1eaf5baedc (PR #121)  
@@ -53,15 +53,15 @@ Merged to main as d5ab86f8d4c64bba8b28f7b53669ef1eaf5baedc.
 - [PR #116](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/pull/116) adds recipe-backed pizza detail views and cleans up the home journey.
 - [PR #95](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/pull/95), #107, #108 and #109 cover Night Mode and lower-page parity, footer, and photo-led catalog cards; hosted browser checks are linked from the relevant PRs and Actions runs.
 
-### Current CI / host checks for PR #121's application/runtime commit
-- **Pizza House CI:** [run 40163698652](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698652) — passed the configured tests and client production build.
-- **Pizza House Browser Smoke:** [run 40163698528](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698528) — passed the hosted website browser smoke.
-- **Deployed smoke checks:** [run 40163698500](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698500) — **failed**. Its retry loop made 20 attempts and continued to receive runtime SHA 6a15436b006765edf732cfa4f3b4ef11a419b192 instead of the expected staff-workflow commit d5ab86f8d4c64bba8b28f7b53669ef1eaf5baedc. This is a deployment/revision mismatch, not a passing verification.
-- **Original staff-runtime deploy:** dep-dbeonugm7kps73eipdu0 ended as `update_failed` at 2026-10-25 05:12 UTC. Its build and app startup logs were successful, but the deployed-smoke run [40163698500](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698500) correctly caught that production still served 6a15436 rather than the staff workflow code in d5ab86f.
-- **Latest Render release:** the queued retry dep-dbeosarsp5es73c954ag completed as `live` at 2026-10-25 05:12:56 UTC, targeting main commit a97c1debadd60d04b940a1cb0bbfb48a59dfde3c. This commit is documentation-only after d5ab86f, so it includes the staff runtime changes. The Render event history records the retry's successful `deploy_ended` event. The failed earlier deployment is retained as historical evidence, not the current release state.
-- **Deployed-smoke recheck:** run 40163698500 was explicitly re-run (attempt 2) after the successful retry; at the time of this status update it was still in progress. Do not mark the hosted runtime smoke as passed until that attempt completes successfully. The hosted browser smoke [40163698528](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698528) passed for the d5ab86f runtime source; it is not a substitute for the deployed API revision check.
-- Render's successful release logs show the Vite build, API startup, inventory bootstrap check (20 catalog ingredients, existing stock preserved), and preservation of the existing admin password. CI and browser smoke are automated evidence; they do not prove real Razorpay payments, provider webhooks/refunds, actual customer email delivery or real kitchen/driver operation.
-- CI and browser smoke are automated evidence. They do not by themselves prove real Razorpay payments, provider webhooks/refunds, customer email delivery, real staff usage or real restaurant fulfillment.
+### Current CI / host checks for the PR #121 application/runtime release
+
+- **Pizza House CI:** [run 40168730746](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40168730746) — **passed** on main commit `43cd9fdaa0409802b1dd5b26c21573ca4872ea50`; configured unit/integration tests and production client build are green.
+- **Pizza House Browser Smoke:** [run 40163698528](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698528) — **passed** for runtime source `d5ab86f8d4c64bba8b28f7b53669ef1eaf5baedc`. This is hosted browser evidence for the tested storefront/customer path; it is not a complete authenticated production kitchen/delivery journey.
+- **Deployed smoke checks:** [run 40168730760](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40168730760) — **passed** after PR #125 fixed revision-ancestry checking. The deployed checks confirmed healthy API/database readiness, catalog, credentialed CORS, unauthenticated session/provider guards, webhook method/signature guards, website/bundle and deployed/runtime revision consistency.
+- **PR #125 — deployed revision checker:** [PR #125](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/pull/125) is merged. It fetches current main history and accepts the deployed/tested SHAs in either ancestry direction, but still fails if they are unrelated or runtime files differ. This avoids a false failure when Render deploys a later docs-only commit after the runtime commit that triggered CI.
+- **Deployment history:** the first staff-runtime deploy `dep-dbeonugm7kps73eipdu0` ended as `update_failed`; its build/start logs succeeded, but the release did not become the verified production revision. Render's queued retry `dep-dbeosarsp5es73c954ag` completed as `live` at 2026-10-25 05:12:56 UTC, targeting docs-only commit `a97c1debadd60d04b940a1cb0bbfb48a59dfde3c`, which includes the staff runtime changes from `d5ab86f`. The initial deployed-smoke run [40163698500](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698500) remains a historical failure: while Render was restarting it returned transient 503 responses, then the old checker rejected the later docs-only revision. The follow-up check [40168730760](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40168730760) is the successful verification for the current release.
+- Render's successful startup logs show the Vite production build, API startup, inventory bootstrap checking 20 catalog ingredients while preserving existing stock, and preserving the existing admin password.
+- **What this proves—and what it does not:** the release is live and the current hosted service passes the deployed API/security/readiness smoke suite. CI and browser tests do not prove live-money checkout, a provider-delivered signed webhook/refund, verified customer email delivery, real staff use, or a real kitchen/driver delivery. Those remain separate launch gates.
 
 ## 3. Pull-request audit snapshot
 
@@ -84,7 +84,7 @@ The remaining open PRs are the nine Dependabot updates #48–#56 (actions/checko
 ## 5. Next work — ordered by dependency
 
 ### P0 — close the current release loop
-- Finish deployed smoke run [40163698500](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40163698500) attempt 2; confirm public health/catalog and deployed revision checks pass against the successful Render retry.
+- Keep the deployed revision smoke green after each future runtime release; latest verification [40168730760](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40168730760) passed against the current live release.
 - On a controlled synthetic Test Mode order, exercise customer order history, admin staff assignment, kitchen queue, dispatch handoff, delivery queue and final customer timeline. Confirm each actor's permissions and refresh/realtime behavior. Never call it a real delivery.
 - Keep the nine open Dependabot PRs isolated; review compatibility and CI individually, especially major-version upgrades.
 
