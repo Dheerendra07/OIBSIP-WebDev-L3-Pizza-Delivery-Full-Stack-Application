@@ -1375,7 +1375,7 @@ try {
       sameSite: 'Lax',
     }]);
     await page.getByRole('heading', { name: /Good to see you,.*Browser/i }).waitFor({ state: 'visible', timeout: 15_000 });
-    await page.getByText('PH-OPS-QA', { exact: false }).waitFor({ state: 'visible', timeout: 15_000 });
+    await page.getByText('PH-OPS-QA', { exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
     await page.getByText('TEST MODE · SIMULATED TRACKING', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
     pass('customer order history reflects the synthetic completed stage and clearly labels it as Test Mode simulation');
     console.log('[INFO] Kitchen, delivery and customer end-to-end UI drills above use mocked HTTP routes and a synthetic in-memory order; no production order or staff account was created or changed.');
