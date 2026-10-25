@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { register, login, adminLogin, forgotPassword, resetPassword } from '../src/controllers/authController.js';
+import { register, login, adminLogin, staffLogin, forgotPassword, resetPassword } from '../src/controllers/authController.js';
 import User from '../src/models/User.js';
 import { config } from '../src/config/env.js';
 
@@ -77,7 +77,7 @@ test('registration remains usable without an SMTP verification dependency when v
 });
 
 test('customer and admin login return a client error when credentials are absent', async () => {
-  for (const handler of [login, adminLogin]) {
+  for (const handler of [login, adminLogin, staffLogin]) {
     const res = responseRecorder();
     let nextError;
     await handler({ body: undefined }, res, (error) => { nextError = error; });
