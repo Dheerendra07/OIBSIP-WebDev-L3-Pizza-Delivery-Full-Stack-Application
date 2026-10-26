@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkPaymentProvider, updateInventory, updateOrderStatus, createStaff, setStaffActive, assignOrderStaff, sendAdminTestEmail } from '../src/controllers/adminController.js';
+import { checkPaymentProvider, updateInventory, updateOrderStatus, createStaff, setStaffActive, assignOrderStaff, sendAdminTestEmail, orderNotificationHealth } from '../src/controllers/adminController.js';
+import OrderNotification from '../src/models/OrderNotification.js';
 import { setRazorpayClientFactoryForIntegrationTests } from '../src/services/payments.js';
 
 function responseRecorder() {
@@ -202,4 +203,46 @@ test('admin test email sanitizes email-provider rejection details', async () => 
     assert.match(res.payload.error, /verified sender address/i);
     assert.equal(JSON.stringify(res.payload).includes('PRIVATE_PROVIDER_RESPONSE_BODY'), false);
   });
+});
+
+test('admin notification health reports retryable failures without exposing recipient or payload data', async () => {
+  const original = { countDocuments: OrderNotification.countDocuments, findOne: OrderNotification.findOne, find: OrderNotification.find };
+  const oldestQueuedAt = new Date('2026-10-26T10:00:00.000Z');
+  const lastAttemptAt = new Date('2026-10-26T10:05:00.000Z');
+  const nextAttemptAt = new Date('2026-10-26T10:06:00.000Z');
+  const deadRow = { order: { orderNumber: 'PH-DEAD-QA' }, attempts: 8, lastError: 'Email provider rejected the request (HTTP 422)', updatedAt: lastAttemptAt, recipientEmail: 'must-not-be-returned@example.test', payload: { private: 'must-not-be-returned' } };
+  const retryRow = { order: { orderNumber: 'PH-RETRY-QA' }, attempts: 2, deliveryStatus: 'queued', lastError: 'Email provider rejected the request (HTTP 422)', lastAttemptAt, nextAttemptAt, updatedAt: lastAttemptAt, recipientEmail: 'must-not-be-returned@example.test', payload: { private: 'must-not-be-returned' } };
+  OrderNotification.countDocuments = async (filter) => {
+    if (filter.deliveryStatus === 'queued' && filter.attempts?.$gt === 0) return 1;
+    if (filter.deliveryStatus === 'queued') return 3;
+    if (filter.deliveryStatus === 'sending') return 1;
+    if (filter.deliveryStatus === 'sent') return 4;
+    if (filter.deliveryStatus === 'dead') return 1;
+    throw new Error('Unexpected notification count filter');
+  };
+  OrderNotification.findOne = () => ({ sort() { return this; }, select() { return this; }, async lean() { return { createdAt: oldestQueuedAt }; } });
+  OrderNotification.find = (filter) => ({ sort() { return this; }, limit() { return this; }, select() { return this; }, populate() { return this; }, async lean() { return filter.deliveryStatus === 'dead' ? [deadRow] : [retryRow]; } });
+  try {
+    const res = responseRecorder();
+    await orderNotificationHealth({}, res, (error) => { throw error; });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.headers['Cache-Control'], 'no-store');
+    assert.equal(res.payload.counts.retrying, 1);
+    assert.equal(res.payload.recentFailures[0].orderNumber, 'PH-RETRY-QA');
+    assert.equal(res.payload.recentFailures[0].attempts, 2);
+    assert.equal(res.payload.recentFailures[0].deliveryStatus, 'queued');
+    assert.equal(res.payload.recentFailures[0].lastError, 'Email provider rejected the request (HTTP 422)');
+    assert.equal(res.payload.recentFailures[0].lastAttemptAt.toISOString(), lastAttemptAt.toISOString());
+    assert.equal(res.payload.recentFailures[0].nextAttemptAt.toISOString(), nextAttemptAt.toISOString());
+    assert.equal(res.payload.deadLetters[0].orderNumber, 'PH-DEAD-QA');
+    const serialized = JSON.stringify(res.payload);
+    assert.equal(serialized.includes('must-not-be-returned@example.test'), false);
+    assert.equal(serialized.includes('must-not-be-returned'), false);
+    assert.equal(serialized.includes('recipientEmail'), false);
+    assert.equal(serialized.includes('payload'), false);
+  } finally {
+    OrderNotification.countDocuments = original.countDocuments;
+    OrderNotification.findOne = original.findOne;
+    OrderNotification.find = original.find;
+  }
 });

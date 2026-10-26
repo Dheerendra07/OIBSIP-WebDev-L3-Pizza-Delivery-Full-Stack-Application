@@ -132,25 +132,37 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
 export const orderNotificationHealth = asyncHandler(async (_req, res) => {
   const now = new Date();
   const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const [queued, sending, sentLast24Hours, dead, oldestQueued, deadLetters] = await Promise.all([
+  const [queued, sending, sentLast24Hours, dead, retrying, oldestQueued, deadLetters, recentFailures] = await Promise.all([
     OrderNotification.countDocuments({ deliveryStatus: 'queued' }),
     OrderNotification.countDocuments({ deliveryStatus: 'sending' }),
     OrderNotification.countDocuments({ deliveryStatus: 'sent', sentAt: { $gte: dayAgo } }),
     OrderNotification.countDocuments({ deliveryStatus: 'dead' }),
+    OrderNotification.countDocuments({ deliveryStatus: 'queued', attempts: { $gt: 0 } }),
     OrderNotification.findOne({ deliveryStatus: 'queued' }).sort({ createdAt: 1 }).select('createdAt').lean(),
     OrderNotification.find({ deliveryStatus: 'dead' }).sort({ updatedAt: -1 }).limit(10)
       .select('order attempts lastError updatedAt').populate('order', 'orderNumber').lean(),
+    OrderNotification.find({ deliveryStatus: 'queued', attempts: { $gt: 0 } }).sort({ lastAttemptAt: -1 }).limit(10)
+      .select('order attempts lastError lastAttemptAt nextAttemptAt updatedAt').populate('order', 'orderNumber').lean(),
   ]);
   res.set('Cache-Control', 'no-store');
   res.json({
     checkedAt: now.toISOString(),
     deliveryConfigured: isMailConfigured(),
-    counts: { queued, sending, sentLast24Hours, dead },
+    counts: { queued, sending, sentLast24Hours, dead, retrying },
     oldestQueuedAt: oldestQueued?.createdAt || null,
     deadLetters: deadLetters.map((item) => ({
       orderNumber: item.order?.orderNumber || null,
       attempts: item.attempts,
       lastError: item.lastError || null,
+      updatedAt: item.updatedAt,
+    })),
+    recentFailures: recentFailures.map((item) => ({
+      orderNumber: item.order?.orderNumber || null,
+      attempts: item.attempts,
+      deliveryStatus: item.deliveryStatus,
+      lastError: item.lastError || null,
+      lastAttemptAt: item.lastAttemptAt || null,
+      nextAttemptAt: item.nextAttemptAt || null,
       updatedAt: item.updatedAt,
     })),
   });
