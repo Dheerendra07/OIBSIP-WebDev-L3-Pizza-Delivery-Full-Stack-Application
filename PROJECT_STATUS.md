@@ -10,6 +10,13 @@ Resend documents a 24-hour idempotency window; this helps reduce duplicate email
 
 **Current feature scope:** eight API-owned featured menu recipes, recipe/name-specific photo mappings with local-art fallback, and customer-confirmed delivery remain in the runtime. The browser run exercises UI plus synthetic/mocked checkout/auth/operations flows; it does not certify real-money Razorpay Live Mode, real kitchen operation or physical delivery. Product status remains **launch-preparation**, not certified for real-money or real delivery-business operation.
 
+## Payment refund webhook — signed HTTP replay regression closed
+
+- Test-only commit [851e68c](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/851e68ca72567c69847bcd6ef4fa8683d2162351) extends `server/tests/payment-webhook-http.integration.test.js` through the deployed app's real Express webhook route against an isolated MongoDB replica set.
+- A synthetic HMAC-signed `refund.processed` event is now asserted to move a payment-review order to `paymentStatus=refunded`, `refundStatus=processed`, and `status=cancelled`; clear its inventory reservation; and persist exactly one webhook receipt. Replaying the same event ID is treated as a duplicate; replaying the same provider refund under a new event ID must preserve the existing refund ID and refunded state.
+- [CI run 40378557749 passed 261/261 tests with 0 failures](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40378557749); [deployed API smoke 40378557607 passed](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40378557607). No runtime deployment was needed because this commit changes tests only.
+- **Boundary:** this is synthetic signed-event integration evidence, not a real Razorpay provider call or settlement confirmation. Actual provider-originated Test Mode webhook delivery and a provider-confirmed refund still need a controlled account-level test. Do not label the external integration gate closed based on this suite alone.
+
 ## Latest notification retry safeguard — Resend idempotency
 
 - Runtime commit [d7236bb](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/d7236bba83f16329ddcade70a529c435697d407f) is live on Render deployment [dep-dbfnscfavr4c73dh2qhg](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0).
