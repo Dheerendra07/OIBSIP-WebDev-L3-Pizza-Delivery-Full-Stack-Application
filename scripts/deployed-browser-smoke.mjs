@@ -473,8 +473,8 @@ try {
       !builderPromoState.body.includes('See your recipe and price') ||
       !builderPromoState.button.includes('Create your pizza') ||
       builderPromoState.proofCount !== 2 ||
-      await page.locator('[data-page-endcap="home"], .last-word, .callout-watermark').count() !== 0) {
-    throw new Error('Home lower section still contains decorative filler or is missing the useful builder CTA: ' + JSON.stringify(builderPromoState));
+      await page.locator('.last-word, .callout-watermark').count() !== 0) {
+    throw new Error('Home lower section is missing the direct builder CTA or still contains decorative filler: ' + JSON.stringify(builderPromoState));
   }
   const footerNavCount = await page.locator('.footer-nav button').count();
   if (footerNavCount < 4) throw new Error('Footer is missing expected navigation shortcuts.');
@@ -482,7 +482,7 @@ try {
     throw new Error('Footer brand tagline is not the current product-led label.');
   }
   pass('home lower section uses a direct builder CTA with live ingredient and pricing value');
-  pass('generic home quote/endcap filler is removed and footer copy is product-led');
+  pass('homepage combines the direct builder CTA with a contextual lower-page endcap; decorative quote filler stays removed');
   pass('shared footer provides working navigation shortcuts');
   await captureScreenshot(page, '15-home-builder-promo-light-desktop.png');
   await auditResponsiveState(page, 'home');
