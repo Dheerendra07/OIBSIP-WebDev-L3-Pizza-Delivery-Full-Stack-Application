@@ -2680,3 +2680,14 @@ html[data-theme="dark"] .notification-dead-letters,html[data-theme="dark"] .noti
 @media(max-width:800px){.hero-art{height:380px;padding:4px}.hero-pizza{height:360px;max-width:520px}}
 @media(max-width:520px){.hero-art{height:285px;padding:0}.hero-pizza{height:270px;border-radius:14px}.hero-pizza-photo{border-radius:14px}.hero-pizza-artwork{width:88%;height:88%;left:6%;top:6%}.hero-proof{gap:14px;margin-top:18px}}
 html[data-theme="dark"] .hero-pizza{background:#14232d;box-shadow:0 24px 48px rgba(0,0,0,.35)}
+
+
+/* Builder photo paint stability: keep the reference image visible immediately in either theme. */
+.builder-summary .summary-pizza-photo {
+  transform: none;
+  transition: none;
+}
+.builder-summary .summary-picture.has-photo .summary-pizza-photo {
+  opacity: 1;
+  transform: none;
+}
