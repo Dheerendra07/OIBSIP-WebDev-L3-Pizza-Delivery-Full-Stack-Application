@@ -27,14 +27,16 @@ test('recognizes Resend HTTP API credentials without SMTP', () => {
   assert.equal(isMailConfigured(env), true);
 });
 
-test('recognizes a complete SMTP fallback', () => {
-  const env = { SMTP_HOST: 'smtp.example.test', SMTP_USER: 'user', SMTP_PASS: 'secret' };
+test('SMTP readiness requires credentials and an explicit sender identity', () => {
+  const credentials = { SMTP_HOST: 'smtp.example.test', SMTP_USER: 'user', SMTP_PASS: 'secret' };
+  const env = { ...credentials, MAIL_FROM: 'Pizza House <orders@example.test>' };
   assert.equal(isSmtpMailConfigured(env), true);
   assert.equal(isResendMailConfigured(env), false);
   assert.equal(isMailConfigured(env), true);
-  assert.equal(isMailConfigured({ SMTP_HOST: 'smtp.example.test', SMTP_USER: 'user' }), false);
+  assert.equal(isSmtpMailConfigured(credentials), false);
+  assert.equal(isMailConfigured(credentials), false);
+  assert.equal(isMailConfigured({ SMTP_HOST: 'smtp.example.test', SMTP_USER: 'user', MAIL_FROM: env.MAIL_FROM }), false);
 });
-
 test('production configuration accepts Resend without SMTP fields', () => {
   assert.doesNotThrow(() => validateEnv({ ...productionEnv, RESEND_API_KEY: 're_test_example' }));
 });
