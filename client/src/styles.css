@@ -2691,3 +2691,59 @@ html[data-theme="dark"] .hero-pizza{background:#14232d;box-shadow:0 24px 48px rg
   opacity: 1;
   transform: none;
 }
+
+
+/* Clear payment-mode disclosure at checkout: readable in both themes and on mobile. */
+.payment-mode-notice {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 14px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.payment-mode-notice strong {
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .015em;
+}
+.payment-mode-notice span,
+.payment-mode-notice small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.payment-mode-notice.test {
+  border-color: #d8a65d;
+  background: #fff5e4;
+  color: #684311;
+}
+.payment-mode-notice.live {
+  border-color: #9abca7;
+  background: #edf7ef;
+  color: #21583a;
+}
+.payment-mode-notice.unavailable {
+  border-color: #d9a7a0;
+  background: #fff0ee;
+  color: #812e25;
+}
+html[data-theme="dark"] .payment-mode-notice.test {
+  border-color: #84683b;
+  background: #2a2419;
+  color: #f4d39a;
+}
+html[data-theme="dark"] .payment-mode-notice.live {
+  border-color: #426b51;
+  background: #17271e;
+  color: #b8e0c2;
+}
+html[data-theme="dark"] .payment-mode-notice.unavailable {
+  border-color: #80514b;
+  background: #2d1d1c;
+  color: #ffc5bd;
+}
