@@ -3126,3 +3126,48 @@ html[data-theme="dark"] .pizza-card .add-button:hover:not(:disabled) {
     transition: none !important;
   }
 }
+
+
+/* Step 4: simplify the home page message and make the lower navigation deliberate. */
+.hero-copy{max-width:610px}
+.hero h1{text-wrap:balance}
+.hero-description{max-width:440px}
+.hero-proof{width:max-content;max-width:100%;padding-top:18px;border-top:1px solid var(--border)}
+.promise-strip{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  align-items:center;
+  justify-content:stretch;
+  gap:clamp(14px,2vw,28px);
+  padding-inline:max(24px,calc((100% - 1152px)/2));
+}
+.promise-strip>div{min-width:0}
+.promise-strip b{font-size:12px;letter-spacing:-.01em}
+.promise-strip small{max-width:190px;line-height:1.45}
+.page-endcap-home .page-endcap-main h2{max-width:580px}
+.site-footer .footer-main{
+  display:grid;
+  grid-template-columns:minmax(160px,1.05fr) minmax(160px,.9fr) minmax(190px,1.15fr) auto;
+  align-items:center;
+  gap:clamp(14px,2vw,26px);
+}
+.site-footer .footer-main>p{margin:0}
+.site-footer .footer-nav{width:100%;max-width:none;margin:0;gap:4px 13px}
+.site-footer .back-top{margin-left:0;white-space:nowrap}
+@media(max-width:900px){
+  .promise-strip{grid-template-columns:repeat(2,minmax(0,1fr));padding-inline:24px;gap:20px}
+  .site-footer .footer-main{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:18px 24px}
+  .site-footer .footer-main>p{grid-column:1;grid-row:2;max-width:360px}
+  .site-footer .footer-nav{grid-column:1/-1;grid-row:3;padding-top:14px;border-top:1px solid #344d5e}
+  .site-footer .back-top{grid-column:2;grid-row:1;justify-self:end;align-self:start}
+}
+@media(max-width:520px){
+  .hero-proof{width:100%;justify-content:flex-start}
+  .promise-strip{grid-template-columns:minmax(0,1fr);padding:20px 18px;gap:15px}
+  .promise-strip>div{align-items:center}
+  .promise-strip small{max-width:none}
+  .site-footer .footer-main{grid-template-columns:minmax(0,1fr) auto;gap:15px}
+  .site-footer .footer-main>p{grid-column:1/-1;grid-row:2}
+  .site-footer .footer-nav{grid-column:1/-1;grid-row:3}
+  .site-footer .back-top{grid-column:2;grid-row:1}
+}

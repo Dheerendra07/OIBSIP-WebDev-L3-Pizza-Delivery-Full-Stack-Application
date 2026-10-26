@@ -3,6 +3,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck, ChevronDown, Cloc
 import { io } from 'socket.io-client';
 import { api, API_ORIGIN } from './api.js';
 import PizzaArtwork from './PizzaArtwork.jsx';
+import { PIZZA_CARD_PHOTOS, getPizzaCardPhoto } from './pizzaPhoto.js';
 import { getPizzaArtworkVariant } from './pizzaArtworkVariant.js';
 import { THEME_STORAGE_KEY, readThemePreference, nextTheme } from './theme.js';
 import { orderMatchesCart, classifyExistingCheckout, buildPendingCheckoutCart } from './checkout.js';
@@ -1138,7 +1139,7 @@ export default function App() {
     const isOperationsStaff = ['kitchen', 'delivery'].includes(user?.role);
     const operationsHome = user?.role === 'kitchen' ? 'kitchen' : user?.role === 'delivery' ? 'delivery' : user?.role === 'admin' ? 'admin' : 'dashboard';
     return <div className="app-shell" data-cart-photo-release="catalog-photo-v1" data-notification-health-release="admin-notifications-v1" data-payment-mode-disclosure-release="sandbox-otp-v1" data-payment-review-support-release="payment-support-v1">
-    <div className="announcement"><span><Sparkles size={13}/> A better way to choose your pizza.</span><span className="announcement-right">Live menu · Clear prices · Recipe details</span></div>
+    <div className="announcement"><span><Sparkles size={13}/> HOUSE RECIPES · BUILT YOUR WAY</span><span className="announcement-right">Live menu · Clear prices · Recipe details</span></div>
     <header className="site-header" data-mobile-auth-focus="dialog-first" data-payment-provider-check="readonly-admin-v1" data-auth-toast-fix="clear-stale-toast-v1"><a className="brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>LIVE MENU · CLEAR PRICES</small></span></a>
       <nav className={`main-nav ${mobileMenu ? 'open' : ''}`}>{!isOperationsStaff && <><button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button><button className={page === 'menu' ? 'active' : ''} onClick={() => navigate('menu')}>Our menu</button><button className={page === 'builder' ? 'active' : ''} onClick={() => navigate('builder')}>Build your own</button></>}{user && <button className={page === operationsHome ? 'active' : ''} onClick={() => navigate(operationsHome)}>{user.role === 'admin' ? 'Admin panel' : user.role === 'kitchen' ? 'Kitchen queue' : user.role === 'delivery' ? 'Delivery run' : 'My orders'}</button>}{!user && <button className="mobile-auth-link" onClick={() => { openAuth('login'); authTriggerRef.current = mobileMenuTriggerRef.current; setMobileMenu(false); }}>Sign in</button>}</nav>
       <div className="header-actions">{!isOperationsStaff && <button className="bag-button" onClick={() => navigate('cart')}><ShoppingBag size={18}/><span>Bag</span><b>{cart.reduce((n, x) => n + x.quantity, 0)}</b></button>}<button type="button" className="theme-toggle" data-theme-toggle aria-label={theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'} title={theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'} aria-pressed={theme === 'dark'} onClick={toggleTheme}>{theme === 'light' ? <Moon size={17} aria-hidden="true"/> : <Sun size={17} aria-hidden="true"/>}<span className="sr-only">{theme === 'light' ? 'Switch to night mode' : 'Switch to light mode'}</span></button>{user ? <><button className="account-button" onClick={() => navigate(operationsHome)}><CircleUserRound size={17}/><span>{user.name.split(' ')[0]}</span></button><IconButton className="logout-button" label="Sign out" disabled={pending || Boolean(pendingVerification)} onClick={signOut}><LogOut size={17}/></IconButton></> : <button className="sign-in" onClick={() => openAuth('login')}>Sign in <ArrowUpRight size={16}/></button>}{!isOperationsStaff && <IconButton className="mobile-toggle" label={mobileMenu ? 'Close menu' : 'Open menu'} onClick={event => { if (!mobileMenu) mobileMenuTriggerRef.current = event.currentTarget; setMobileMenu(v => !v); }}>{mobileMenu ? <X size={20}/> : <Menu size={20}/>}</IconButton>}</div>
@@ -1146,8 +1147,8 @@ export default function App() {
 
     <main>
     {sessionStatus === 'unavailable' && !user && <div className="section-wrap session-check-warning"><InlineDataWarning message="We couldn't verify your existing sign-in session. You may still be signed in; retry the check or sign in again." onRetry={() => void refreshMe()}/></div>}
-    {page === 'home' && <><section className="hero section-wrap"><div className="hero-copy"><div className="eyebrow"><span className="eyebrow-dot"/> MADE TO ORDER · PRICES SHOWN UP FRONT</div><h1>A better pizza<br/>starts with <em>your choice.</em></h1><p className="hero-description">Choose a house recipe or build your own. See ingredients and the current menu price before adding it to your bag.</p><div className="hero-actions"><button className="button button-dark" onClick={() => navigate('menu')}>Browse the menu <ArrowRight size={17}/></button><button className="text-link" onClick={() => navigate('builder')}>Build your pizza <ArrowUpRight size={16}/></button></div><div className="hero-proof"><div><div className="stars"><ShieldCheck size={14} aria-hidden="true"/> <span>Live menu</span></div><small>Ingredients and prices checked</small></div><div className="proof-divider"/><div><strong>{catalogStatus === 'ready' ? catalog.bases.length + catalog.sauces.length : '—'}</strong><small>base & sauce options</small></div></div></div><div className="hero-art" data-home-hero="premium-food-v1"><div className={`hero-pizza ${homeHeroPhotoLoaded ? 'has-photo' : ''}`}><PizzaArtwork variant="tomato" className="hero-pizza-artwork" />{!homeHeroPhotoFailed && <img className="hero-pizza-photo" data-home-hero-photo="premium-food-v1" src={PIZZA_CARD_PHOTOS.mushroom.src} alt={PIZZA_CARD_PHOTOS.mushroom.alt} loading="eager" fetchPriority="high" decoding="async" onLoad={() => setHomeHeroPhotoLoaded(true)} onError={() => { setHomeHeroPhotoFailed(true); setHomeHeroPhotoLoaded(false); }}/>}</div></div></section>
-      <section className="promise-strip"><div><span className="promise-icon"><Leaf size={20}/></span><div><b>Recipe details</b><small>See what's included</small></div></div><div><span className="promise-icon"><SlidersHorizontal size={20}/></span><div><b>Build your own</b><small>Choose each ingredient</small></div></div><div><span className="promise-icon"><CreditCard size={20}/></span><div><b>Clear pricing</b><small>Review totals before payment</small></div></div><div><span className="promise-icon"><ShieldCheck size={20}/></span><div><b>Server-checked orders</b><small>Price and payment validation</small></div></div></section>
+    {page === 'home' && <><section className="hero section-wrap"><div className="hero-copy"><div className="eyebrow"><span className="eyebrow-dot"/> MADE TO ORDER · PRICES SHOWN UP FRONT</div><h1>Good pizza.<br/>No <em>guesswork.</em></h1><p className="hero-description">Explore house recipes or create your own combination. Every menu card shows ingredients, current price and availability before you add it to your bag.</p><div className="hero-actions"><button className="button button-dark" onClick={() => navigate('menu')}>Explore the menu <ArrowRight size={17}/></button><button className="text-link" onClick={() => navigate('builder')}>Create your own <ArrowUpRight size={16}/></button></div><div className="hero-proof"><div><div className="stars"><ShieldCheck size={14} aria-hidden="true"/> <span>Live menu</span></div><small>Ingredients and prices checked</small></div><div className="proof-divider"/><div><strong>{catalogStatus === 'ready' ? catalog.bases.length + catalog.sauces.length : '—'}</strong><small>base & sauce options</small></div></div></div><div className="hero-art" data-home-hero="premium-food-v1"><div className={`hero-pizza ${homeHeroPhotoLoaded ? 'has-photo' : ''}`}><PizzaArtwork variant="tomato" className="hero-pizza-artwork" />{!homeHeroPhotoFailed && <img className="hero-pizza-photo" data-home-hero-photo="premium-food-v1" src={PIZZA_CARD_PHOTOS.mushroom.src} alt={PIZZA_CARD_PHOTOS.mushroom.alt} loading="eager" fetchPriority="high" decoding="async" onLoad={() => setHomeHeroPhotoLoaded(true)} onError={() => { setHomeHeroPhotoFailed(true); setHomeHeroPhotoLoaded(false); }}/>}</div></div></section>
+      <section className="promise-strip"><div><span className="promise-icon"><Leaf size={20}/></span><div><b>Recipe details</b><small>Know what goes in</small></div></div><div><span className="promise-icon"><SlidersHorizontal size={20}/></span><div><b>Your own recipe</b><small>Choose each ingredient</small></div></div><div><span className="promise-icon"><CreditCard size={20}/></span><div><b>Clear pricing</b><small>See the total before checkout</small></div></div><div><span className="promise-icon"><ShieldCheck size={20}/></span><div><b>Checkout review</b><small>Current total checked before payment</small></div></div></section>
       <section className="section-wrap menu-preview"><div className="section-heading"><div><div className="eyebrow">HOUSE FAVOURITES</div><h2>Find your <em>favourite.</em></h2><p>House recipes with clear ingredients and current menu prices.</p></div><button className="text-link" onClick={() => navigate('menu')}>The full menu <ArrowRight size={16}/></button></div>{catalogStatus === 'loading' ? <PizzaGridSkeleton count={3}/> : catalogStatus === 'error' ? <CatalogUnavailable onRetry={refreshCatalog} message={catalogError}/> : featured.length ? <div className="pizza-grid">{featured.slice(0, 3).map((pizza, i) => <PizzaCard key={pizza.id} pizza={pizza} catalog={catalog} index={i} onAdd={(quantity) => addFeatured(pizza, quantity)} onCustomize={() => navigate('builder')} onViewDetails={() => openPizzaDetails(pizza)}/>)}</div> : <CatalogEmpty onRetry={refreshCatalog} />}<div className="custom-callout" data-home-builder-promo><div className="callout-icon"><ChefHat size={27} aria-hidden="true"/></div><div className="custom-callout-copy"><span>BUILD YOUR OWN</span><h3>Make the recipe yours.</h3><p>Choose a base, sauce, cheese and toppings. Review the recipe and total before you add it to your bag.</p><div className="custom-callout-proof"><span><CheckCircle2 size={14}/> Live ingredient options</span><span><CheckCircle2 size={14}/> Price shown before checkout</span></div></div><button className="button button-light" onClick={() => navigate('builder')}>Create your pizza <ArrowRight size={17}/></button></div></section></>}
 
     {page === 'menu' && <section className="section-wrap page-section"><div className="page-intro"><div className="eyebrow">THE MENU</div><h1>House recipes.<br /><em>Clear choices.</em></h1><p>{catalogStatus === 'ready' ? `${featured.length} house recipes, with ingredients, current prices and availability shown before you order.` : 'Current recipe details, prices and availability are confirmed before checkout.'}</p></div>{catalogStatus === 'loading' ? <PizzaGridSkeleton count={6} full /> : catalogStatus === 'error' ? <CatalogUnavailable onRetry={refreshCatalog} message={catalogError}/> : <><div className="filter-row"><div className="filter-label"><SlidersHorizontal size={16}/> Filter recipes</div>{['All', 'BESTSELLER', 'FRESH PICK', 'SPICY', 'PLANT-BASED'].map(f => <button className={`filter-chip ${filter === f ? 'selected' : ''}`} key={f} onClick={() => setFilter(f)}>{f === 'All' ? 'Everything' : f}</button>)}</div>{filteredPizzas.length ? <div className="pizza-grid full-grid">{filteredPizzas.map((pizza, i) => <PizzaCard key={pizza.id} pizza={pizza} catalog={catalog} index={i} onAdd={(quantity) => addFeatured(pizza, quantity)} onCustomize={() => navigate('builder')} onViewDetails={() => openPizzaDetails(pizza)}/>)}</div> : <CatalogEmpty onRetry={filter === 'All' ? refreshCatalog : () => setFilter('All')} emptyFilter={filter !== 'All'}/>}<div className="menu-bottom"><span>Want control over every ingredient?</span><button className="text-link" onClick={() => navigate('builder')}>Build your own pizza <ArrowRight size={16}/></button></div></>}</section>}
@@ -1241,19 +1242,19 @@ export default function App() {
 function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', featuredCount = 0, ordersCount = 0, ordersStatus = 'idle', paymentMode = 'unknown', pizzaName = '', onRefresh }) {
     const content = {
         home: {
-            eyebrow: 'WELCOME TO PIZZA HOUSE',
-            title: 'Make the next slice yours.',
+            eyebrow: 'FROM MENU TO BAG',
+            title: 'Know what you’re ordering.',
             description: catalogStatus === 'ready'
-                ? 'Explore the current house recipes, check what goes into each one, or build a pizza around your own taste.'
-                : 'Browse the menu or start a custom recipe. Current ingredients and prices are confirmed from the live catalog before checkout.',
-            primary: 'Browse the menu',
-            secondary: 'Build your own',
+                ? 'Open a house recipe to check its ingredients, current price and availability. Or build a combination of your own, then review the total in your bag.'
+                : 'The menu and recipe builder are here to explore. Current ingredients, prices and availability must load before checkout can continue.',
+            primary: 'Explore house recipes',
+            secondary: 'Review your bag',
             primaryTarget: 'menu',
-            secondaryTarget: 'builder',
+            secondaryTarget: 'cart',
             items: [
-                { icon: Leaf, title: 'House recipes', detail: catalogStatus === 'ready' ? `${featuredCount} featured recipe${featuredCount === 1 ? '' : 's'} connected to the current menu.` : 'Featured recipes load from the live menu when available.' },
-                { icon: SlidersHorizontal, title: 'Made around you', detail: 'Choose a base, sauce, cheese and toppings in the custom pizza builder.' },
-                { icon: ShieldCheck, title: 'Clear checkout', detail: 'Review the current cart total and let the server verify the quote before payment.' },
+                { icon: Leaf, title: 'See the recipe first', detail: 'Open a menu card for its ingredients, current price and availability.' },
+                { icon: SlidersHorizontal, title: 'Make it your way', detail: 'Choose your base, sauce, cheese and up to five vegetable toppings.' },
+                { icon: ShieldCheck, title: 'Review before paying', detail: 'Your bag shows the total and checkout rechecks the order quote before payment.' },
             ],
         },
         'pizza-detail': {
@@ -1390,44 +1391,6 @@ function PageEndcap({ page, navigate, cartCount = 0, catalogStatus = 'idle', fea
     </section>;
 }
 
-// Licensed food photography is served from Pexels/Unsplash; the in-repo vector art remains a resilient fallback.
-const PIZZA_CARD_PHOTOS = {
-  mushroom: {
-    src: 'https://images.pexels.com/photos/4394619/pexels-photo-4394619.jpeg?auto=compress&cs=tinysrgb&w=1280',
-    alt: 'Freshly baked mushroom pizza with herbs',
-  },
-  spicy: {
-    src: 'https://images.pexels.com/photos/36295120/pexels-photo-36295120.jpeg?auto=compress&cs=tinysrgb&w=1280',
-    alt: 'Vegetarian pizza with olives and bell peppers',
-  },
-  pestoForest: {
-    src: 'https://images.pexels.com/photos/5639971/pexels-photo-5639971.jpeg?auto=compress&cs=tinysrgb&w=1280',
-    alt: 'Vegetarian pizza with mushrooms, olives and artichokes',
-  },
-  // Pexels: Roman Odintsov, "Pizza With Green and White Vegetables" (photo 5903095).
-  // This source was selected after the previous URL failed the hosted browser image-load gate.
-  roastedGarden: {
-    src: 'https://images.pexels.com/photos/5903095/pexels-photo-5903095.jpeg?cs=srgb&dl=pexels-roman-odintsov-5903095.jpg&fm=jpg',
-    alt: 'Roasted vegetable pizza with zucchini, eggplant and red peppers',
-  },
-  cornfire: {
-    src: 'https://images.pexels.com/photos/34382326/pexels-photo-34382326.jpeg?auto=compress&cs=tinysrgb&w=1280',
-    alt: 'Freshly baked vegetable pizza with olives and peppers',
-  },
-  oliveAtelier: {
-    src: 'https://images.pexels.com/photos/26341212/pexels-photo-26341212.jpeg?auto=compress&cs=tinysrgb&w=1280',
-    alt: 'Vegetable and mushroom pizza on a green background',
-  },
-  classic: {
-    src: 'https://images.unsplash.com/photo-1594007654729-407eedc4be65?auto=format&fit=crop&w=1280&q=85',
-    alt: 'Freshly baked pizza with tomato, cheese and basil',
-  },
-  rustic: {
-    src: 'https://images.pexels.com/photos/31450870/pexels-photo-31450870.jpeg?auto=compress&cs=tinysrgb&w=1280',
-    alt: 'Rustic pizza finished with fresh basil',
-  },
-};
-
 function getPizzaCardIngredientLabels(pizza, catalog) {
   const recipe = pizza?.ingredients;
   if (Array.isArray(recipe)) {
@@ -1443,35 +1406,6 @@ function getPizzaCardIngredientLabels(pizza, catalog) {
     ...(Array.isArray(recipe.vegetables) ? recipe.vegetables.map((id) => optionName('vegetables', id)) : []),
   ].filter(Boolean);
 }
-
-function getPizzaCardPhoto(pizza, index) {
-  const name = String(pizza?.name || '').toLowerCase();
-
-  // Pin the featured recipes first. Broad ingredient matching must not make
-  // different named pizzas reuse the same generic tomato-pizza photograph.
-  if (name.includes('margherita')) return PIZZA_CARD_PHOTOS.classic;
-  if (name.includes('garden party')) return PIZZA_CARD_PHOTOS.rustic;
-  if (name.includes('firecracker')) return PIZZA_CARD_PHOTOS.spicy;
-  if (name.includes('white garden')) return PIZZA_CARD_PHOTOS.mushroom;
-  if (name.includes('pesto forest')) return PIZZA_CARD_PHOTOS.pestoForest;
-  if (name.includes('roasted garden')) return PIZZA_CARD_PHOTOS.roastedGarden;
-  if (name.includes('cornfire')) return PIZZA_CARD_PHOTOS.cornfire;
-  if (name.includes('olive atelier')) return PIZZA_CARD_PHOTOS.oliveAtelier;
-
-  const recipe = pizza?.ingredients;
-  const ingredientNames = recipe && typeof recipe === 'object'
-    ? Object.entries(recipe).flatMap(([key, value]) => [key, ...(Array.isArray(value) ? value : [value])])
-        .filter((value) => typeof value === 'string').join(' ')
-    : '';
-  const searchable = `${name} ${ingredientNames}`;
-
-  if (/(mushroom|fung|pollo|chicken)/.test(searchable)) return PIZZA_CARD_PHOTOS.mushroom;
-  if (/(pepperoni|salami|sausage|jalape|chili|chilli|spicy|hot)/.test(searchable)) return PIZZA_CARD_PHOTOS.spicy;
-  if (/(tomato|basil)/.test(searchable)) return PIZZA_CARD_PHOTOS.classic;
-  if (/(garden|veggie|vegetable|olive|corn|spinach|plant-based)/.test(searchable)) return PIZZA_CARD_PHOTOS.rustic;
-  return [PIZZA_CARD_PHOTOS.classic, PIZZA_CARD_PHOTOS.rustic, PIZZA_CARD_PHOTOS.mushroom, PIZZA_CARD_PHOTOS.pepperoni][index % 4];
-}
-
 
 function CartLinePhoto({ item, index = 0 }) {
     const recipe = item?.type === 'custom'
