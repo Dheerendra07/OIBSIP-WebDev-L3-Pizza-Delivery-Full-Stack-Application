@@ -1011,11 +1011,27 @@ try {
         json: hasSession && activeMockedUser ? { user: activeMockedUser } : { error: 'Sign in to continue' },
       });
     });
+    await page.route('**/api/orders/browser-smoke-ops-order/confirm-delivery', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue();
+        return;
+      }
+      if (activeMockedUser?.role !== 'user' || qaOpsOrder?.status !== 'sent_to_delivery' || !qaOpsOrder?.deliveryConfirmationRequestedAt) {
+        await route.fulfill({ status: 409, json: { error: 'Customer confirmation is not available for this order.' } });
+        return;
+      }
+      const now = new Date().toISOString();
+      qaOpsOrder = { ...qaOpsOrder, status: 'delivered', deliveredAt: now, deliveryConfirmedAt: now };
+      await route.fulfill({
+        status: 200,
+        json: { order: { id: qaOpsOrder.id, orderNumber: qaOpsOrder.orderNumber, status: 'delivered', deliveredAt: now, deliveryConfirmedAt: now, paymentMode: 'test' } },
+      });
+    });
     await page.route('**/api/orders/my', async (route) => {
+      const confirmationIsPending = qaOpsOrder?.status === 'sent_to_delivery' && Boolean(qaOpsOrder?.deliveryConfirmationRequestedAt);
+      const customerOpsOrderIsVisible = qaOpsOrder?.status === 'delivered' || confirmationIsPending;
       const visibleOrder = activeMockedUser?.role === 'user'
-        ? qaOpsOrder?.status === 'delivered'
-          ? qaOpsOrder
-          : qaCheckoutOrder?.paymentStatus === 'paid' ? qaCheckoutOrder : null
+        ? customerOpsOrderIsVisible ? qaOpsOrder : qaCheckoutOrder?.paymentStatus === 'paid' ? qaCheckoutOrder : null
         : null;
       await route.fulfill({ status: 200, json: { orders: visibleOrder ? [visibleOrder] : [] } });
     });
@@ -1037,12 +1053,24 @@ try {
         });
         return;
       }
+      if (pathname === '/api/ops/orders/browser-smoke-ops-order/request-delivery-confirmation' && request.method() === 'POST') {
+        if (role !== 'delivery' || qaOpsOrder?.status !== 'sent_to_delivery' || qaOpsOrder?.deliveryConfirmationRequestedAt) {
+          await route.fulfill({ status: 409, json: { error: 'The mocked customer-confirmation request is not allowed.' } });
+          return;
+        }
+        qaOpsOrder = { ...qaOpsOrder, deliveryConfirmationRequestedAt: new Date().toISOString() };
+        await route.fulfill({
+          status: 200,
+          json: { order: { id: qaOpsOrder.id, orderNumber: qaOpsOrder.orderNumber, status: qaOpsOrder.status, deliveryConfirmationRequestedAt: qaOpsOrder.deliveryConfirmationRequestedAt, fulfillmentMode: 'simulated' } },
+        });
+        return;
+      }
       if (pathname === '/api/ops/orders/browser-smoke-ops-order/status' && request.method() === 'PATCH') {
         const body = request.postDataJSON();
-        const allowed = role === 'kitchen'
-          ? (qaOpsOrder?.status === 'order_received' && body?.status === 'in_kitchen') ||
-            (qaOpsOrder?.status === 'in_kitchen' && body?.status === 'sent_to_delivery')
-          : role === 'delivery' && qaOpsOrder?.status === 'sent_to_delivery' && body?.status === 'delivered';
+        const allowed = role === 'kitchen' && (
+          (qaOpsOrder?.status === 'order_received' && body?.status === 'in_kitchen') ||
+          (qaOpsOrder?.status === 'in_kitchen' && body?.status === 'sent_to_delivery')
+        );
         if (!allowed || !qaOpsOrder) {
           await route.fulfill({ status: 400, json: { error: 'The mocked staff transition is not allowed.' } });
           return;
@@ -1631,22 +1659,21 @@ try {
     const deliveryEntry = staffLoginCases.delivery;
     await openStaffLogin(deliveryEntry);
     const deliveryOrder = page.locator('.order-card[data-order-id="browser-smoke-ops-order"]');
-    await deliveryOrder.getByRole('button', { name: 'Confirm delivery completed', exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+    await deliveryOrder.getByRole('button', { name: 'Request customer confirmation', exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
     await captureScreenshot(page, '17-mocked-delivery-run-light.png');
     await auditResponsiveState(page, 'mocked-delivery-run-light');
 
-    const deliveryResponsePromise = page.waitForResponse((response) =>
-      new URL(response.url()).pathname === '/api/ops/orders/browser-smoke-ops-order/status' &&
-      response.request().method() === 'PATCH',
+    const deliveryRequestPromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/ops/orders/browser-smoke-ops-order/request-delivery-confirmation' &&
+      response.request().method() === 'POST',
     );
-    await deliveryOrder.getByRole('button', { name: 'Confirm delivery completed', exact: true }).click();
-    const deliveryResponse = await deliveryResponsePromise;
-    if (deliveryResponse.status() !== 200 || qaOpsOrder.status !== 'delivered' || !qaOpsOrder.deliveredAt) {
-      throw new Error('Delivery confirmation did not set the synthetic order to delivered with a timestamp.');
+    await deliveryOrder.getByRole('button', { name: 'Request customer confirmation', exact: true }).click();
+    const deliveryRequestResponse = await deliveryRequestPromise;
+    if (deliveryRequestResponse.status() !== 200 || qaOpsOrder.status !== 'sent_to_delivery' || !qaOpsOrder.deliveryConfirmationRequestedAt || qaOpsOrder.deliveredAt) {
+      throw new Error('Delivery partner request should notify the customer without marking the order delivered.');
     }
-    await page.getByRole('button', { name: /Completed/ }).click();
-    await page.locator('.order-card[data-order-id="browser-smoke-ops-order"]').waitFor({ state: 'visible', timeout: 10_000 });
-    pass('delivery staff confirms only a dispatched order and can find the completed order in its Completed filter');
+    await deliveryOrder.locator('.fulfillment-waiting-note').waitFor({ state: 'visible', timeout: 10_000 });
+    pass('delivery partner requests customer receipt confirmation; the order remains on the way until the customer confirms');
 
     await signOutMockedStaff();
     await page.locator('.main-nav.open').getByRole('button', { name: 'Sign in', exact: true }).click();
@@ -1671,6 +1698,18 @@ try {
     await page.getByText('PH-OPS-QA', { exact: true }).waitFor({ state: 'visible', timeout: 15_000 });
     await page.getByText('TEST MODE · SIMULATED TRACKING', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
     const customerQaOrder = page.locator('.order-card[data-order-id="browser-smoke-ops-order"]');
+    await customerQaOrder.locator('.delivery-confirmation-card[data-delivery-confirmation="requested"]').waitFor({ state: 'visible', timeout: 10_000 });
+    const customerConfirmResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/orders/browser-smoke-ops-order/confirm-delivery' &&
+      response.request().method() === 'POST',
+    );
+    await customerQaOrder.getByRole('button', { name: 'I received my order', exact: true }).click();
+    const customerConfirmResponse = await customerConfirmResponsePromise;
+    if (customerConfirmResponse.status() !== 200 || qaOpsOrder.status !== 'delivered' || !qaOpsOrder.deliveryConfirmedAt || !qaOpsOrder.deliveredAt) {
+      throw new Error('Only the authenticated customer confirmation should mark the synthetic order delivered.');
+    }
+    await customerQaOrder.locator('.delivery-confirmation-card').waitFor({ state: 'hidden', timeout: 10_000 });
+    pass('authenticated customer confirms receipt; delivery is marked complete only after their action');
     if (await customerQaOrder.locator('[data-order-card-item]').count() !== 1) {
       throw new Error('Customer order history is missing the catalog-backed item preview.');
     }
