@@ -66,9 +66,12 @@ export const resendVerificationEmail = asyncHandler(async (req, res) => {
   if (!user || user.role !== 'user') return res.json(response);
 
   const tokenData = createOpaqueToken();
-  user.emailVerificationTokenHash = tokenData.hash;
-  user.emailVerificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  await user.save();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const tokenWrite = await User.updateOne(
+    { _id: user._id, emailVerifiedAt: null },
+    { $set: { emailVerificationTokenHash: tokenData.hash, emailVerificationExpiresAt: expiresAt } },
+  );
+  if (tokenWrite.modifiedCount !== 1) return res.json(response);
 
   try {
     const url = verificationEmailUrl(tokenData.token);
