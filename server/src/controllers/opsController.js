@@ -29,6 +29,8 @@ function publicOpsOrder(order) {
     kitchenStartedAt: order.kitchenStartedAt || null,
     dispatchedAt: order.dispatchedAt || null,
     deliveredAt: order.deliveredAt || null,
+    deliveryConfirmationRequestedAt: order.deliveryConfirmationRequestedAt || null,
+    deliveryConfirmedAt: order.deliveryConfirmedAt || null,
     kitchenStaff: order.kitchenStaff ? { id: String(order.kitchenStaff._id ?? order.kitchenStaff), name: order.kitchenStaff.name || '' } : null,
     deliveryStaff: order.deliveryStaff ? { id: String(order.deliveryStaff._id ?? order.deliveryStaff), name: order.deliveryStaff.name || '' } : null,
   };
@@ -54,6 +56,43 @@ export const listOpsOrders = asyncHandler(async (req, res) => {
     .lean();
   res.set('Cache-Control', 'no-store');
   res.json({ orders: orders.map(publicOpsOrder), role: req.user.role, paymentMode: config.paymentMode });
+});
+
+export const requestDeliveryConfirmation = asyncHandler(async (req, res) => {
+  if (!mongoose.isObjectIdOrHexString(req.params.id)) return res.status(400).json({ error: 'Invalid order identifier' });
+  if (req.user.role !== 'delivery') return res.status(403).json({ error: 'Only the assigned delivery partner can request customer confirmation' });
+  const order = await Order.findById(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (!sameId(order.deliveryStaff, req.user._id)) return res.status(403).json({ error: 'This order is not assigned to your delivery account' });
+  if (order.paymentStatus !== 'paid' || order.paymentReviewRequired || order.status !== 'sent_to_delivery') {
+    return res.status(409).json({ error: 'Only dispatched paid orders without a payment hold can request delivery confirmation' });
+  }
+  if (order.deliveryConfirmationRequestedAt) {
+    return res.status(409).json({ error: 'Customer confirmation has already been requested for this order' });
+  }
+  const requestedAt = new Date();
+  const updatedOrder = await Order.findOneAndUpdate({
+    _id: order._id,
+    status: 'sent_to_delivery',
+    paymentStatus: 'paid',
+    paymentReviewRequired: { $ne: true },
+    deliveryStaff: req.user._id,
+    deliveryConfirmationRequestedAt: null,
+  }, { $set: { deliveryConfirmationRequestedAt: requestedAt } }, { new: true, runValidators: true });
+  if (!updatedOrder) return res.status(409).json({ error: 'The order changed while requesting confirmation. Refresh the delivery queue.' });
+  publishOrderUpdate(updatedOrder);
+  await queueOrderNotificationSafely(updatedOrder, 'delivery_confirmation_requested');
+  publishOpsRefresh();
+  publishAdminRefresh();
+  res.json({
+    order: {
+      id: String(updatedOrder._id),
+      orderNumber: updatedOrder.orderNumber,
+      status: updatedOrder.status,
+      deliveryConfirmationRequestedAt: updatedOrder.deliveryConfirmationRequestedAt,
+      fulfillmentMode: resolveFulfillmentMode(config.paymentMode, updatedOrder.paymentMode || 'test'),
+    },
+  });
 });
 
 export const updateOpsOrderStatus = asyncHandler(async (req, res) => {
@@ -87,8 +126,9 @@ export const updateOpsOrderStatus = asyncHandler(async (req, res) => {
     assignmentField = 'deliveryStaff';
     if (!sameId(order.deliveryStaff, req.user._id)) return res.status(403).json({ error: 'This order is not assigned to your delivery account' });
     if (order.status !== 'sent_to_delivery' || status !== 'delivered') {
-      return res.status(400).json({ error: 'Delivery staff can only confirm an order after it has been dispatched' });
+      return res.status(400).json({ error: 'Delivery staff must request customer receipt confirmation after dispatch; only the customer can confirm delivery' });
     }
+    return res.status(409).json({ error: 'Delivery staff cannot mark an order delivered directly. Request customer confirmation instead.' });
   } else {
     return res.status(403).json({ error: 'Kitchen or delivery staff access required' });
   }
