@@ -163,7 +163,8 @@ try {
       (await page.locator('[data-pizza-card-version="premium-photo-v1"]').count() >= 3) &&
       (await page.locator('[data-pizza-card-open="photo-hit-area-v1"]').count() >= 3) &&
       (await page.locator('[data-cart-photo-release="catalog-photo-v1"]').count() === 1) &&
-      (await page.locator('[data-notification-health-release="admin-notifications-v1"]').count() === 1);
+      (await page.locator('[data-notification-health-release="admin-notifications-v1"]').count() === 1) &&
+      (await page.locator('[data-payment-mode-disclosure="sandbox-otp-v1"]').count() === 1);
 
     premiumVisualState = await page.locator('[data-pizza-card-version="premium-photo-v1"]').evaluateAll((cards) => {
       const names = ['tomato', 'green', 'orange', 'cream'];
