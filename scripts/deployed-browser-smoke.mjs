@@ -504,6 +504,45 @@ try {
     expectedMenuRecipes.length,
     { timeout: 10_000 },
   );
+
+  // Trigger lazy loading for every recipe photo and record its real browser result.
+  // A unique src attribute is not proof that the remote image was actually delivered.
+  const menuPhotoLoadChecks = [];
+  for (let index = 0; index < expectedMenuRecipes.length; index += 1) {
+    const card = fullMenuCards.nth(index);
+    await card.scrollIntoViewIfNeeded();
+    await page.waitForFunction((cardIndex) => {
+      const currentCard = document.querySelectorAll('.pizza-grid.full-grid [data-pizza-card-version="premium-photo-v1"]')[cardIndex];
+      const image = currentCard?.querySelector('.pizza-card-photo');
+      return !image || (image.complete && image.naturalWidth > 0 && currentCard.classList.contains('has-photo'));
+    }, index, { timeout: 12_000 }).catch(() => {});
+    menuPhotoLoadChecks.push(await card.evaluate((element) => {
+      const image = element.querySelector('.pizza-card-photo');
+      const artwork = element.querySelector('.pizza-card-artwork');
+      const artworkRect = artwork?.getBoundingClientRect();
+      return {
+        id: element.getAttribute('data-pizza-id') || '',
+        name: element.querySelector('.pizza-card-title-button')?.textContent?.trim() || '',
+        assignedSource: element.getAttribute('data-pizza-photo-source') || '',
+        loadedSource: image?.currentSrc || '',
+        loaded: Boolean(image && image.complete && image.naturalWidth > 0 && element.classList.contains('has-photo')),
+        fallbackArtworkPresent: Boolean(artwork && artworkRect && artworkRect.width > 0 && artworkRect.height > 0),
+        imageState: !image ? 'fallback-active' : image.complete && image.naturalWidth > 0 ? 'loaded' : image.complete ? 'failed-or-empty' : 'still-pending',
+        naturalWidth: image?.naturalWidth || 0,
+      };
+    }));
+  }
+  const failedMenuPhotos = menuPhotoLoadChecks.filter((photo) => !photo.loaded);
+  if (failedMenuPhotos.length > 0) {
+    throw new Error('Actual menu photo delivery failed for one or more recipes: ' + JSON.stringify({
+      loadedCount: menuPhotoLoadChecks.length - failedMenuPhotos.length,
+      expectedCount: menuPhotoLoadChecks.length,
+      failedMenuPhotos,
+      allPhotoResults: menuPhotoLoadChecks,
+    }));
+  }
+  pass('all eight menu recipe photos load in the real browser after lazy-load scrolling; no SVG fallback is substituting for a missing photo');
+
   const fullMenuState = await fullMenuCards.evaluateAll((cards) => cards.map((card) => ({
     id: card.getAttribute('data-pizza-id') || '',
     name: card.querySelector('.pizza-card-title-button')?.textContent?.trim() || '',
