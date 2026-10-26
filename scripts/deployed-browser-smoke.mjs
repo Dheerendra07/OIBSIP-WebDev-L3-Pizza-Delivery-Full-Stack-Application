@@ -961,6 +961,40 @@ try {
     throw new Error('The cart thumbnail does not reflect the selected live menu item.');
   }
   pass('cart line renders a photo-backed thumbnail from the selected catalog item');
+
+  const inspectCartCheckoutTheme = async () => page.locator('[data-cart-page="premium-checkout-v1"]').evaluate((section) => {
+    const line = section.querySelector('.cart-line');
+    const delivery = section.querySelector('.delivery-details-panel');
+    const summary = section.querySelector('.order-summary');
+    const checkout = summary?.querySelector('.full-button');
+    return {
+      theme: document.documentElement.dataset.theme,
+      summaryTitle: summary?.querySelector('h2')?.textContent?.trim() || '',
+      summaryCopy: summary?.querySelector('.order-summary-copy')?.textContent?.trim() || '',
+      lineBackground: line ? getComputedStyle(line).backgroundImage : '',
+      lineRadius: line ? getComputedStyle(line).borderRadius : '',
+      deliveryBackground: delivery ? getComputedStyle(delivery).backgroundImage : '',
+      summaryBackground: summary ? getComputedStyle(summary).backgroundImage : '',
+      summaryTitleColor: summary ? getComputedStyle(summary.querySelector('h2')).color : '',
+      checkoutHeight: checkout?.getBoundingClientRect().height || 0,
+      lineRight: line?.getBoundingClientRect().right || 0,
+      summaryRight: summary?.getBoundingClientRect().right || 0,
+      viewportWidth: document.documentElement.clientWidth,
+    };
+  });
+  const cartLightVisual = await inspectCartCheckoutTheme();
+  if (cartLightVisual.theme !== 'light' ||
+      cartLightVisual.summaryTitle !== 'Order summary' ||
+      !cartLightVisual.summaryCopy.includes('your full total') ||
+      !cartLightVisual.lineBackground.includes('linear-gradient') ||
+      !cartLightVisual.deliveryBackground.includes('linear-gradient') ||
+      !cartLightVisual.summaryBackground.includes('linear-gradient') ||
+      cartLightVisual.checkoutHeight < 51.5 ||
+      cartLightVisual.lineRight > cartLightVisual.viewportWidth + 1 ||
+      cartLightVisual.summaryRight > cartLightVisual.viewportWidth + 1) {
+    throw new Error('Light-theme cart/checkout hierarchy or mobile fit failed: ' + JSON.stringify(cartLightVisual));
+  }
+  pass('cart and checkout show clear order-summary copy, premium item/address/total surfaces and a full-size CTA in light mode');
   const cartEndcap = page.locator('[data-page-endcap="cart"]');
   await cartEndcap.waitFor({ state: 'visible', timeout: 15_000 });
   if (await cartEndcap.locator('.page-endcap-item').count() !== 3) {
@@ -996,6 +1030,19 @@ try {
   await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
   pass('menu → bag → delivery form interaction in light and night themes');
+
+  const cartCheckoutNight = await inspectCartCheckoutTheme();
+  if (cartCheckoutNight.theme !== 'dark' ||
+      cartCheckoutNight.summaryTitleColor !== 'rgb(243, 246, 248)' ||
+      !cartCheckoutNight.lineBackground.includes('rgb(20, 38, 53)') ||
+      !cartCheckoutNight.deliveryBackground.includes('rgb(20, 38, 53)') ||
+      !cartCheckoutNight.summaryBackground.includes('rgb(20, 38, 53)') ||
+      cartCheckoutNight.checkoutHeight < 51.5 ||
+      cartCheckoutNight.lineRight > cartCheckoutNight.viewportWidth + 1 ||
+      cartCheckoutNight.summaryRight > cartCheckoutNight.viewportWidth + 1) {
+    throw new Error('Night-theme cart/checkout contrast or mobile fit failed: ' + JSON.stringify(cartCheckoutNight));
+  }
+  pass('cart, delivery form and order summary retain premium navy surfaces and readable hierarchy in night mode');
 
   // Recreate the stale-toast condition deliberately: a cart success message is live,
   // then a customer opens Sign in immediately. The dialog must dismiss the old toast.
