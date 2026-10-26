@@ -936,7 +936,7 @@ try {
       menuEndcapNight.surfaceImage.includes('rgb(16, 36, 51)') &&
       menuEndcapNight.surfaceImage.includes('rgb(11, 26, 38)');
   if (!menuUsesPremiumNavyGradient ||
-      menuEndcapNight.surface !== 'rgba(0, 0, 0, 0)' ||
+      menuEndcapNight.surface !== 'rgb(16, 36, 51)' ||
       menuEndcapNight.rowBackground !== 'rgba(0, 0, 0, 0)' ||
       menuEndcapNight.rowBorder !== 'rgb(43, 67, 83)' ||
       menuEndcapNight.cardText !== 'rgb(237, 243, 246)' ||
@@ -985,7 +985,7 @@ try {
       cartEndcapNight.surfaceImage.includes('rgb(16, 36, 51)') &&
       cartEndcapNight.surfaceImage.includes('rgb(11, 26, 38)');
   if (!cartUsesPremiumNavyGradient ||
-      cartEndcapNight.surface !== 'rgba(0, 0, 0, 0)' ||
+      cartEndcapNight.surface !== 'rgb(16, 36, 51)' ||
       cartEndcapNight.rowText !== 'rgb(237, 243, 246)' ||
       cartEndcapNight.afterContent !== 'none' ||
       cartEndcapNight.eyebrowIcons !== 0) {
