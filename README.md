@@ -4,14 +4,15 @@
 
 - **Hosted app:** https://pizza-house-api.onrender.com
 - **Current implementation, verification evidence and launch blockers:** [PROJECT_STATUS.md](PROJECT_STATUS.md)
-- **Latest hosted verification (26 Oct 2026):** [CI passed](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40319975066) · [deployed API smoke passed](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40319975198) · [real-browser smoke passed — 81 checks](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40319975244). Hosted checks deliberately simulate a failed primary builder image and verify a distinct fallback loads; customer auth and payment/operations journeys use mocks/synthetic data where noted and do not prove real email/SMS delivery or a real-money transaction.
+- **Latest CI for current app/runtime source (26 Oct 2026):** [Pizza House CI passed](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40337775122) on commit `61d3037`. Render deployment [dep-dbfm1c67bikc73e2se00 is live](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) for that same commit. Previous [hosted browser smoke — 81 checks](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40319975244) predates the current runtime and is historical evidence only; it is not a browser verification of this release. Automated/synthetic journeys do not prove real-money transactions, real email/SMS inbox delivery, or physical fulfillment.
 - **Product research and roadmap:** [docs/PRODUCT_DISCOVERY.md](docs/PRODUCT_DISCOVERY.md)
 - **Same-origin Render setup:** [docs/RENDER_SAME_ORIGIN_DEPLOYMENT.md](docs/RENDER_SAME_ORIGIN_DEPLOYMENT.md)
 
 ## What is implemented
 
 ### Customer ordering
-- Responsive React/Vite experience with Light and Night themes, a featured pizza menu, category filters, recipe-backed ingredient labels, pizza detail views, custom-pizza builder, cart and checkout.
+- **Menu expansion (26 Oct 2026):** Margherita Classic, Garden Party, Firecracker, White Garden, Pesto Forest, Roasted Garden, Cornfire and Olive Atelier. Featured items have name-specific food-photo mappings; the image layer is illustrative only and falls back to local vector art if remote photography fails. No new database or inventory schema was introduced.
+- Responsive React/Vite experience with Light and Night themes, an eight-item featured pizza menu served by the API, category filters, recipe-backed ingredient labels, clickable pizza detail views, custom-pizza builder, cart and checkout. Prices, recipe ingredients and availability remain server-owned; new menu recipes reference existing catalog options so inventory checks still apply.
 - The custom builder preview tries distinct food-photo sources if its preferred remote image fails, then retains an in-repo vector illustration if all remote photos are unavailable. Ingredient selection and server-derived recipe pricing remain separate from illustrative photography.
 - Customer registration, email verification, sign-in, logout, forgot/reset password, and cookie-based sessions.
 - When email verification is required, the sign-in dialog can request a replacement link. The endpoint uses a generic response that does not reveal whether an account exists, rotates the 24-hour token and invalidates the old link. Real inbox delivery still depends on provider configuration and must be verified separately.
