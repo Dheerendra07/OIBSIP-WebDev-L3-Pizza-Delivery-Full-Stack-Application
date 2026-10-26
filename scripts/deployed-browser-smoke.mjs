@@ -558,6 +558,11 @@ try {
 
   await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  // Theme changes animate the CTA background; wait for the settled computed style instead of sampling the transition's first frame.
+  await page.waitForFunction(() => {
+    const button = document.querySelector('[data-home-builder-promo] .button-light');
+    return button && getComputedStyle(button).backgroundColor === 'rgb(255, 210, 122)';
+  }, undefined, { timeout: 2_000 });
   const darkCardTheme = await inspectHomeCardTheme();
   if (darkCardTheme.theme !== 'dark' ||
       darkCardTheme.addBackground !== darkCardTheme.heroBackground ||
