@@ -106,15 +106,41 @@ export const createOrder = asyncHandler(async (req, res) => {
 });
 export const myOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(50).lean();
-  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentMode: o.paymentMode || 'test', paymentReviewRequired: o.paymentReviewRequired, deliveryDetails: o.deliveryDetails, createdAt: o.createdAt, updatedAt: o.updatedAt, paidAt: o.paidAt, kitchenStartedAt: o.kitchenStartedAt, dispatchedAt: o.dispatchedAt, deliveredAt: o.deliveredAt })) });
+  res.json({ orders: orders.map((o) => ({ id: o._id, orderNumber: o.orderNumber, items: o.items, subtotal: o.subtotal, deliveryFee: o.deliveryFee, total: o.total, status: o.status, paymentStatus: o.paymentStatus, paymentMode: o.paymentMode || 'test', paymentReviewRequired: o.paymentReviewRequired, deliveryDetails: o.deliveryDetails, createdAt: o.createdAt, updatedAt: o.updatedAt, paidAt: o.paidAt, kitchenStartedAt: o.kitchenStartedAt, dispatchedAt: o.dispatchedAt, deliveredAt: o.deliveredAt, deliveryConfirmationRequestedAt: o.deliveryConfirmationRequestedAt, deliveryConfirmedAt: o.deliveryConfirmedAt })) });
 });
 export const getOrder = asyncHandler(async (req, res) => {
   if (!isRequestObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order identifier' });
   const filter = { _id: req.params.id }; if (req.user.role !== 'admin') filter.user = req.user._id;
   const order = await Order.findOne(filter).lean(); if (!order) return res.status(404).json({ error: 'Order not found' });
-  res.json({ order: { id: order._id, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, deliveryFee: order.deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus, paymentMode: order.paymentMode || 'test', paymentReviewRequired: order.paymentReviewRequired, deliveryDetails: order.deliveryDetails, createdAt: order.createdAt, updatedAt: order.updatedAt, paidAt: order.paidAt, kitchenStartedAt: order.kitchenStartedAt, dispatchedAt: order.dispatchedAt, deliveredAt: order.deliveredAt } });
+  res.json({ order: { id: order._id, orderNumber: order.orderNumber, items: order.items, subtotal: order.subtotal, deliveryFee: order.deliveryFee, total: order.total, status: order.status, paymentStatus: order.paymentStatus, paymentMode: order.paymentMode || 'test', paymentReviewRequired: order.paymentReviewRequired, deliveryDetails: order.deliveryDetails, createdAt: order.createdAt, updatedAt: order.updatedAt, paidAt: order.paidAt, kitchenStartedAt: order.kitchenStartedAt, dispatchedAt: order.dispatchedAt, deliveredAt: order.deliveredAt, deliveryConfirmationRequestedAt: order.deliveryConfirmationRequestedAt, deliveryConfirmedAt: order.deliveryConfirmedAt } });
 });
 
+
+export const confirmDelivery = asyncHandler(async (req, res) => {
+  if (!isRequestObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order identifier' });
+  const order = await Order.findOne({ _id: req.params.id, user: req.user._id });
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (order.paymentStatus !== 'paid' || order.paymentReviewRequired || order.status !== 'sent_to_delivery') {
+    return res.status(409).json({ error: 'Only a dispatched paid order without a payment hold can be confirmed' });
+  }
+  if (!order.deliveryConfirmationRequestedAt) {
+    return res.status(409).json({ error: 'The delivery partner has not requested receipt confirmation yet' });
+  }
+  const confirmedAt = new Date();
+  const updatedOrder = await Order.findOneAndUpdate({
+    _id: order._id,
+    user: req.user._id,
+    status: 'sent_to_delivery',
+    paymentStatus: 'paid',
+    paymentReviewRequired: { $ne: true },
+    deliveryConfirmationRequestedAt: { $ne: null },
+  }, { $set: { status: 'delivered', deliveredAt: confirmedAt, deliveryConfirmedAt: confirmedAt, deliveryConfirmedBy: req.user._id } }, { new: true, runValidators: true });
+  if (!updatedOrder) return res.status(409).json({ error: 'The order changed while confirming receipt. Refresh your order history.' });
+  publishOrderUpdate(updatedOrder);
+  await queueOrderNotificationSafely(updatedOrder, 'status_changed');
+  publishAdminRefresh();
+  res.json({ order: { id: String(updatedOrder._id), orderNumber: updatedOrder.orderNumber, status: updatedOrder.status, deliveredAt: updatedOrder.deliveredAt, deliveryConfirmedAt: updatedOrder.deliveryConfirmedAt, paymentMode: updatedOrder.paymentMode || 'test' } });
+});
 
 export const updateDeliveryDetails = asyncHandler(async (req, res) => {
   if (!isRequestObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order identifier' });
