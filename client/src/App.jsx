@@ -1593,20 +1593,36 @@ function PizzaDetailView({ pizza, catalog, index = 0, returnLabel, onBack, onAdd
 
 function BuilderPhotoPreview({ photo, variant }) {
   const [photoLoaded, setPhotoLoaded] = useState(false);
-  const [photoFailed, setPhotoFailed] = useState(false);
+  const [failedSources, setFailedSources] = useState([]);
+  // The builder's first-choice photo is ingredient-aware, but external image
+  // hosts can fail independently. Try the other distinct food photos before
+  // falling back to the in-repo artwork so the summary stays photo-led.
+  const photoCandidates = [
+    photo,
+    PIZZA_CARD_PHOTOS.rustic,
+    PIZZA_CARD_PHOTOS.mushroom,
+    PIZZA_CARD_PHOTOS.pepperoni,
+    PIZZA_CARD_PHOTOS.classic,
+  ].filter((candidate, index, list) =>
+    candidate && list.findIndex((entry) => entry?.src === candidate.src) === index,
+  );
+  const activePhoto = photoCandidates.find((candidate) => !failedSources.includes(candidate.src));
 
-  return <div className={`summary-picture summary-picture--${variant} ${photoLoaded ? 'has-photo' : ''}`} data-builder-preview data-builder-preview-source={photo.src}>
+  return <div className={`summary-picture summary-picture--${variant} ${photoLoaded ? 'has-photo' : ''}`} data-builder-preview data-builder-preview-source={photo.src} data-builder-preview-photo-source={activePhoto?.src || ''}>
     <PizzaArtwork variant={variant} className="summary-pizza-artwork"/>
-    {!photoFailed && <img
+    {activePhoto && <img
       className="summary-pizza-photo"
       data-builder-preview-photo
-      src={photo.src}
-      alt={photo.alt}
+      src={activePhoto.src}
+      alt={activePhoto.alt}
       loading="eager"
       fetchPriority="high"
       decoding="async"
       onLoad={() => setPhotoLoaded(true)}
-      onError={() => { setPhotoFailed(true); setPhotoLoaded(false); }}
+      onError={() => {
+        setPhotoLoaded(false);
+        setFailedSources((current) => current.includes(activePhoto.src) ? current : [...current, activePhoto.src]);
+      }}
     />}
     <span className="summary-badge">VISUAL REFERENCE</span>
     <span className="summary-photo-note">Illustrative food photo · Your selected recipe is listed below</span>
