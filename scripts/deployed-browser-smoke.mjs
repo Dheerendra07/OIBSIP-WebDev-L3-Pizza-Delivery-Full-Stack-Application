@@ -469,8 +469,8 @@ try {
     button: el.querySelector('button')?.textContent?.trim() || '',
     proofCount: el.querySelectorAll('.custom-callout-proof span').length,
   }));
-  if (!builderPromoState.title.includes('pizza made around your cravings') ||
-      !builderPromoState.body.includes('See your recipe and price') ||
+  if (!builderPromoState.title.toLowerCase().includes('make the recipe yours') ||
+      !builderPromoState.body.toLowerCase().includes('review the recipe and total') ||
       !builderPromoState.button.includes('Create your pizza') ||
       builderPromoState.proofCount !== 2 ||
       await page.locator('.last-word, .callout-watermark').count() !== 0) {
