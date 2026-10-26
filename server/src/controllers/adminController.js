@@ -14,6 +14,7 @@ import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js
 import OrderNotification from '../models/OrderNotification.js';
 import { queueOrderNotificationSafely } from '../services/orderNotifications.js';
 import { isMailConfigured } from '../utils/emailConfig.js';
+import { sendMail } from '../services/email.js';
 
 export const summary = asyncHandler(async (_req, res) => {
   const [ordersTotal, paidOrders, revenue, pendingOrders, usersTotal, lowStock] = await Promise.all([
@@ -124,6 +125,56 @@ export const orderNotificationHealth = asyncHandler(async (_req, res) => {
       lastError: item.lastError || null,
       updatedAt: item.updatedAt,
     })),
+  });
+});
+
+export const sendAdminTestEmail = asyncHandler(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!isMailConfigured()) {
+    return res.status(503).json({ error: 'Email provider is not configured. Configure Resend or SMTP in Render before sending a test email.' });
+  }
+
+  const recipient = typeof req.user?.email === 'string' ? req.user.email.trim().toLowerCase() : '';
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) {
+    return res.status(409).json({ error: 'The signed-in administrator does not have a valid email address for this test.' });
+  }
+
+  const requestedAt = new Date();
+  const text = [
+    'Pizza House',
+    '',
+    'This is a test email requested by an authenticated Pizza House administrator.',
+    `Requested at: ${requestedAt.toISOString()}`,
+    '',
+    'The email provider accepted this request. Check the inbox and spam folder.',
+    'Provider acceptance does not confirm final inbox delivery.',
+  ].join('\\n');
+  const html = '<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;color:#223746;">' +
+    '<div style="max-width:560px;margin:20px auto;padding:24px;border:1px solid #dfe6ea;border-radius:12px;">' +
+    '<p style="margin:0 0 16px;color:#b84532;font-weight:700;letter-spacing:2px;font-size:12px;">PIZZA HOUSE</p>' +
+    '<h1 style="font-size:23px;line-height:1.3;">Email delivery test</h1>' +
+    '<p>An authenticated administrator requested this test message.</p>' +
+    '<p>The email provider accepted this request. Check the inbox and spam folder; provider acceptance does not confirm final inbox delivery.</p>' +
+    `<p style="font-size:12px;color:#738490;">Requested at: ${requestedAt.toISOString()}</p>` +
+    '</div></body></html>';
+
+  try {
+    await sendMail({
+      to: recipient,
+      subject: 'Pizza House email delivery test',
+      text,
+      html,
+    });
+  } catch {
+    return res.status(502).json({
+      error: 'The email provider could not accept the test message. Check its credentials and verified sender address, then retry.',
+    });
+  }
+
+  return res.json({
+    status: 'accepted',
+    acceptedAt: new Date().toISOString(),
+    message: 'Email provider accepted the test message. Check your inbox and spam folder; this does not guarantee final inbox delivery.',
   });
 });
 

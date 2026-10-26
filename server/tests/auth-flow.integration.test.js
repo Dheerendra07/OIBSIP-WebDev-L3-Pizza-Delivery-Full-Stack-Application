@@ -577,6 +577,46 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.ok(adminSession, 'admin login should issue a session cookie');
   const adminCookie = adminSession.split(';', 1)[0];
 
+  // Test the real authenticated HTTP route while stubbing only Resend's external API.
+  // A customer session is denied and the one accepted email is addressed to the admin login.
+  const originalTestEmailFetch = globalThis.fetch;
+  const testEmailRequests = [];
+  globalThis.fetch = async (input, options = {}) => {
+    const url = typeof input === 'string' ? input : input?.url;
+    if (url === 'https://api.resend.com/emails') {
+      testEmailRequests.push({ options, payload: JSON.parse(options.body) });
+      return new Response(JSON.stringify({ id: 'email_test_admin_flow' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    return originalTestEmailFetch(input, options);
+  };
+  try {
+    const customerDeniedTestEmail = await fetch(`${base}/api/admin/test-email`, {
+      method: 'POST',
+      headers: { ...headers, Cookie: cookie },
+      body: JSON.stringify({}),
+    });
+    assert.equal(customerDeniedTestEmail.status, 403, 'customer sessions must not send admin test emails');
+    assert.equal(testEmailRequests.length, 0, 'unauthorized requests must not call the email provider');
+
+    const adminTestEmail = await fetch(`${base}/api/admin/test-email`, {
+      method: 'POST',
+      headers: { ...headers, Cookie: adminCookie },
+      body: JSON.stringify({}),
+    });
+    assert.equal(adminTestEmail.status, 200);
+    const adminTestEmailBody = await adminTestEmail.json();
+    assert.equal(adminTestEmailBody.status, 'accepted');
+    assert.match(adminTestEmailBody.message, /does not guarantee final inbox delivery/i);
+    assert.equal(testEmailRequests.length, 1);
+    assert.deepEqual(testEmailRequests[0].payload.to, [env.ADMIN_EMAIL.toLowerCase()]);
+    assert.equal(testEmailRequests[0].payload.subject, 'Pizza House email delivery test');
+  } finally {
+    globalThis.fetch = originalTestEmailFetch;
+  }
+
   // Exercise the post-payment recovery path over the real HTTP app and isolated MongoDB.
   // The provider client and refund HTTP request are test-only stubs; no external payment
   // or refund is sent, and all writes remain inside this disposable database.

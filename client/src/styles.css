@@ -2628,6 +2628,14 @@ html[data-theme="dark"] .order-card-item-total{color:#f1d9b8}
   display:flex;align-items:center;gap:12px;padding:14px 15px;
   border:1px solid var(--line);border-radius:8px;background:var(--surface);
 }
+.notification-heading-actions{display:flex;align-items:center;gap:12px;flex:0 0 auto}
+.notification-test-note{margin:11px 0 0;font-size:11px;line-height:1.6;color:var(--text-secondary)}
+.notification-test-result{margin:12px 0 0;font-size:11px;line-height:1.6;color:var(--text-secondary)}
+.notification-test-result.success{color:#24764d}
+.notification-test-result.error{color:#bd302d}
+html[data-theme="dark"] .notification-test-note{color:#a7bbc7}
+html[data-theme="dark"] .notification-test-result.success{color:#8dd9a1}
+html[data-theme="dark"] .notification-test-result.error{color:#ff9588}
 .notification-provider-state>div{display:grid;gap:4px;min-width:0}
 .notification-provider-state strong{font-size:13px;line-height:1.4;color:var(--text-primary)}
 .notification-provider-state small{font-size:11px;line-height:1.4;color:var(--text-secondary)}
@@ -2662,7 +2670,7 @@ html[data-theme="dark"] .notification-health-metric.is-warning{border-color:#785
 html[data-theme="dark"] .notification-health-metric.is-warning>strong{color:#ff9b83}
 html[data-theme="dark"] .notification-dead-letters,html[data-theme="dark"] .notification-dead-row{border-color:#2b4353}
 @media(max-width:800px){.notification-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:520px){.notification-health-panel{padding:16px}.notification-health-grid{gap:8px}.notification-health-metric{padding:11px}.notification-health-metric>strong{font-size:24px}.notification-dead-row{grid-template-columns:1fr;gap:8px}}
+@media(max-width:520px){.notification-heading-actions{gap:8px}.notification-heading-actions .button{width:auto;white-space:nowrap}.notification-health-panel{padding:16px}.notification-health-grid{gap:8px}.notification-health-metric{padding:11px}.notification-health-metric>strong{font-size:24px}.notification-dead-row{grid-template-columns:1fr;gap:8px}}
 
 
 /* Editorial home hero: let the food photography carry the page, not decorative UI. */
