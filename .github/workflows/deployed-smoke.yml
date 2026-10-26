@@ -277,7 +277,7 @@ jobs:
             const bundle = await bundleResponse.text();
             const normalizedBundle = bundle.replaceAll("\\/", "/");
             const usesDeployedApi = normalizedBundle.includes(`${apiBase}/api`) || normalizedBundle.includes(`${apiBase}/api/`);
-            const usesSameOriginApi = /["']\/api\/?["']/.test(normalizedBundle) || /["']\/api\//.test(normalizedBundle);
+            const usesSameOriginApi = /[\x60"']\/api\/?[\x60"']/.test(normalizedBundle) || /[\x60"']\/api\//.test(normalizedBundle);
             const apiPathSamples = [...normalizedBundle.matchAll(/.{0,20}\/api\/.{0,20}|.{0,20}\/api.{0,20}/g)].slice(0, 3).map((match) => match[0]);
             assert.ok(usesDeployedApi || usesSameOriginApi, `production bundle must use the deployed API URL or same-origin /api path (hostFound=${normalizedBundle.includes(new URL(apiBase).host)}, paths=${JSON.stringify(apiPathSamples)})`);
             assert.ok(!bundle.includes('http://localhost:4000/api'), 'production bundle must not fall back to localhost API');
