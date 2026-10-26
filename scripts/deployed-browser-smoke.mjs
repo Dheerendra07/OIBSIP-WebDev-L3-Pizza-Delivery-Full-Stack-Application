@@ -1909,6 +1909,28 @@ try {
       const queueHeading = entry.user.role === 'kitchen' ? /Kitchen queue/ : /Your delivery/;
       await page.getByRole('heading', { name: queueHeading }).waitFor({ state: 'visible', timeout: 15_000 });
       await page.getByText('SANDBOX WORKFLOW', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+      const staffEndcap = page.locator('[data-page-endcap="' + entry.user.role + '"]');
+      await staffEndcap.waitFor({ state: 'visible', timeout: 10_000 });
+      const staffEndcapState = await staffEndcap.evaluate((el) => ({
+        title: el.querySelector('.page-endcap-main h2')?.textContent?.trim() || '',
+        actions: [...el.querySelectorAll('.page-endcap-actions button')].map((button) => button.textContent.trim()),
+        itemCount: el.querySelectorAll('.page-endcap-item').length,
+        backgroundImage: getComputedStyle(el).backgroundImage,
+      }));
+      const expectedEndcapTitle = entry.user.role === 'kitchen'
+        ? 'Prep, check, then hand off.'
+        : 'Every hand-off, clearly tracked.';
+      const expectedPrimaryAction = entry.user.role === 'kitchen' ? 'View kitchen queue' : 'View delivery run';
+      const expectedSecondaryAction = entry.user.role === 'kitchen' ? 'Refresh assigned queue' : 'Refresh run sheet';
+      if (staffEndcapState.title !== expectedEndcapTitle ||
+          staffEndcapState.actions.length !== 2 ||
+          !staffEndcapState.actions[0].includes(expectedPrimaryAction) ||
+          !staffEndcapState.actions[1].includes(expectedSecondaryAction) ||
+          staffEndcapState.itemCount !== 3 ||
+          !staffEndcapState.backgroundImage.includes('linear-gradient')) {
+        throw new Error('The ' + entry.user.role + ' lower-page support endcap is incomplete or not themed: ' + JSON.stringify(staffEndcapState));
+      }
+      pass('mocked ' + entry.user.role + ' screen includes a role-specific support endcap and two queue actions');
       const visibleStaffOrder = page.locator('.order-card[data-order-id="browser-smoke-ops-order"]');
       const previewItems = visibleStaffOrder.locator('[data-order-card-item]');
       if (await previewItems.count() !== 1 || (await previewItems.first().getAttribute('data-order-card-item-name')) !== 'Margherita Classic') {
