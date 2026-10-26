@@ -15,15 +15,21 @@ function getSmtpTransport() {
   return transport;
 }
 
-async function sendViaResend({ to, subject, text, html }) {
+async function sendViaResend({ to, subject, text, html, idempotencyKey }) {
+  const headers = {
+    Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+    'Content-Type': 'application/json',
+  };
+  // Resend replays the first successful request for this key for 24 hours.
+  // Keep the key stable across retries of the same persisted outbox entry.
+  if (typeof idempotencyKey === 'string' && idempotencyKey.length > 0 && idempotencyKey.length <= 256) {
+    headers['Idempotency-Key'] = idempotencyKey;
+  }
   let response;
   try {
     response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         from: process.env.MAIL_FROM,
         to: Array.isArray(to) ? to : [to],
@@ -44,8 +50,8 @@ async function sendViaResend({ to, subject, text, html }) {
   return response.json().catch(() => ({ accepted: true }));
 }
 
-export async function sendMail({ to, subject, text, html }) {
-  if (isResendMailConfigured()) return sendViaResend({ to, subject, text, html });
+export async function sendMail({ to, subject, text, html, idempotencyKey }) {
+  if (isResendMailConfigured()) return sendViaResend({ to, subject, text, html, idempotencyKey });
 
   const mailer = getSmtpTransport();
   if (!mailer || !isMailConfigured()) {
