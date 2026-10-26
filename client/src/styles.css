@@ -2991,13 +2991,14 @@ html[data-theme="dark"] .pizza-card .customize-link:hover{
 }
 html[data-theme="dark"] .pizza-card-total strong{color:#ff9b83}
 html[data-theme="dark"] .custom-callout[data-home-builder-promo] .button-light{
-  border-color:var(--brand);
-  background:var(--brand);
-  color:#fff;
+  border-color:#ffd27a;
+  background:#ffd27a;
+  color:#192a34;
 }
 html[data-theme="dark"] .custom-callout[data-home-builder-promo] .button-light:hover:not(:disabled){
-  border-color:var(--brand-hover);
-  background:var(--brand-hover);
+  border-color:#ffe3a4;
+  background:#ffe3a4;
+  color:#192a34;
 }
 @media(max-width:900px){
   .pizza-card-art,.full-grid .pizza-card-art{height:clamp(220px,31vw,270px)}
@@ -3095,7 +3096,7 @@ html[data-theme="dark"] .custom-callout[data-home-builder-promo] .button-light:h
 }
 html[data-theme="dark"] .page-endcap {
   border-color: #294151;
-  background: #102433;
+  background: linear-gradient(118deg, #102433 0%, #0b1a26 100%);
   box-shadow: 0 16px 38px rgba(0, 0, 0, .20);
 }
 html[data-theme="dark"] .pizza-card {
