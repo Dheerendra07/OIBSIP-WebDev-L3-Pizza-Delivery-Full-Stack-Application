@@ -3181,3 +3181,22 @@ html[data-theme="dark"] .pizza-card .add-button:hover:not(:disabled) {
     min-height: 48px;
   }
 }
+
+
+/* Step 4 verified release: explicit theme endcaps and equal mobile purchase controls. */
+.page-endcap[data-page-endcap] {
+  background-color: var(--surface);
+  background-image: linear-gradient(118deg, var(--surface) 0%, var(--canvas) 100%);
+}
+html[data-theme="dark"] .page-endcap[data-page-endcap] {
+  background-color: #102433;
+  background-image: linear-gradient(118deg, #102433 0%, #0b1a26 100%);
+}
+@media (max-width: 520px) {
+  .pizza-card .add-button,
+  .pizza-card .customize-link {
+    box-sizing: border-box;
+    height: 48px;
+    min-height: 48px;
+  }
+}

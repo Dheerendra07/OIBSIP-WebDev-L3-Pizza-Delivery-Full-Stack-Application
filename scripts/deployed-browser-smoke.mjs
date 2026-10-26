@@ -144,7 +144,7 @@ try {
   // Wait for the actual visual release, not only older UI markers. This prevents
   // a green smoke run against a previous Render instance while a deploy is rolling out.
   let mobileSignInReady = false;
-  let premiumVisualState = { variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0, cardActionColorMatchCount: 0, equalActionHeightCount: 0 };
+  let premiumVisualState = { variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0, cardActionColorMatchCount: 0, equalActionHeightCount: 0, endcapGradientApplied: false };
   for (let attempt = 1; attempt <= 20; attempt += 1) {
     await page.goto(webUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 30_000 });
@@ -213,12 +213,19 @@ try {
         const addButton = card.querySelector('.add-button');
         const customizeButton = card.querySelector('.customize-link');
         return Boolean(addButton && customizeButton &&
-          Math.abs(addButton.getBoundingClientRect().height - customizeButton.getBoundingClientRect().height) <= 1.25);
+          Math.abs(addButton.getBoundingClientRect().height - customizeButton.getBoundingClientRect().height) <= 0.25 &&
+          Math.abs(addButton.getBoundingClientRect().height - 48) <= 0.5 &&
+          Math.abs(customizeButton.getBoundingClientRect().height - 48) <= 0.5);
       }).length;
+      const homeEndcap = document.querySelector('[data-page-endcap="home"]');
+      const endcapGradientApplied = Boolean(
+        homeEndcap && getComputedStyle(homeEndcap).backgroundImage.includes('linear-gradient'),
+      );
       return {
         homeHeroPhotoLoaded,
         cardActionColorMatchCount,
         equalActionHeightCount,
+        endcapGradientApplied,
         variantCount: new Set(variants).size,
         primaryColor: primary ? getComputedStyle(primary).backgroundColor : '',
         footerColor: footer ? getComputedStyle(footer).backgroundColor : '',
@@ -229,7 +236,7 @@ try {
         ingredientCardCount,
         compactLayoutCount: cards.filter((card) => card.matches('[data-pizza-card-layout="compact-purchase-v2"]')).length,
       };
-    }).catch(() => ({ homeHeroPhotoLoaded: false, variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0, compactLayoutCount: 0, cardActionColorMatchCount: 0, equalActionHeightCount: 0 }));
+    }).catch(() => ({ homeHeroPhotoLoaded: false, variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0, compactLayoutCount: 0, cardActionColorMatchCount: 0, equalActionHeightCount: 0, endcapGradientApplied: false }));
 
     if (releaseMarkersReady &&
         premiumVisualState.homeHeroPhotoLoaded === true &&
@@ -241,6 +248,7 @@ try {
         premiumVisualState.ingredientCardCount >= premiumVisualState.premiumCardCount &&
         premiumVisualState.cardActionColorMatchCount >= 3 &&
         premiumVisualState.equalActionHeightCount >= 3 &&
+        premiumVisualState.endcapGradientApplied === true &&
         premiumVisualState.variantCount >= 3 &&
         premiumVisualState.primaryColor === 'rgb(228, 71, 50)' &&
         premiumVisualState.footerColor === 'rgb(16, 39, 55)') {
@@ -257,6 +265,7 @@ try {
       '; ingredientCards=' + premiumVisualState.ingredientCardCount + '; compactLayout=' +
       premiumVisualState.compactLayoutCount + '; cardCTAColors=' + premiumVisualState.cardActionColorMatchCount +
       '; equalActionHeights=' + premiumVisualState.equalActionHeightCount +
+      '; endcapGradient=' + premiumVisualState.endcapGradientApplied +
       '; variants=' + premiumVisualState.variantCount + '; CTA=' + premiumVisualState.primaryColor +
       '; footer=' + premiumVisualState.footerColor + ')',
     );
@@ -524,7 +533,11 @@ try {
       theme: document.documentElement.dataset.theme,
       addBackground: getComputedStyle(addButton).backgroundColor,
       heroBackground: getComputedStyle(heroButton).backgroundColor,
+      builderPromoBackground: getComputedStyle(document.querySelector('[data-home-builder-promo] .button-light')).backgroundColor,
+      builderPromoColor: getComputedStyle(document.querySelector('[data-home-builder-promo] .button-light')).color,
       customizeContrast: (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+      addHeight: addButton.getBoundingClientRect().height,
+      customizeHeight: customizeButton.getBoundingClientRect().height,
       actionHeightDelta: Math.abs(addButton.getBoundingClientRect().height - customizeButton.getBoundingClientRect().height),
       cardBackgroundImage: getComputedStyle(card).backgroundImage,
       endcapBackgroundImage: getComputedStyle(endcap).backgroundImage,
@@ -535,7 +548,9 @@ try {
   if (lightCardTheme.theme !== 'light' ||
       lightCardTheme.addBackground !== lightCardTheme.heroBackground ||
       lightCardTheme.customizeContrast < 4.5 ||
-      lightCardTheme.actionHeightDelta > 1.25 ||
+      Math.abs(lightCardTheme.addHeight - 48) > 0.5 ||
+      Math.abs(lightCardTheme.customizeHeight - 48) > 0.5 ||
+      lightCardTheme.actionHeightDelta > 0.25 ||
       !lightCardTheme.endcapBackgroundImage.includes('linear-gradient')) {
     throw new Error('Light-theme menu card actions/surfaces failed computed-style checks: ' + JSON.stringify(lightCardTheme));
   }
@@ -547,7 +562,11 @@ try {
   if (darkCardTheme.theme !== 'dark' ||
       darkCardTheme.addBackground !== darkCardTheme.heroBackground ||
       darkCardTheme.customizeContrast < 4.5 ||
-      darkCardTheme.actionHeightDelta > 1.25 ||
+      Math.abs(darkCardTheme.addHeight - 48) > 0.5 ||
+      Math.abs(darkCardTheme.customizeHeight - 48) > 0.5 ||
+      darkCardTheme.actionHeightDelta > 0.25 ||
+      darkCardTheme.builderPromoBackground !== 'rgb(255, 210, 122)' ||
+      darkCardTheme.builderPromoColor !== 'rgb(25, 42, 52)' ||
       !darkCardTheme.cardBackgroundImage.includes('linear-gradient') ||
       !darkCardTheme.endcapBackgroundImage.includes('linear-gradient')) {
     throw new Error('Night-theme menu card actions/surfaces failed computed-style checks: ' + JSON.stringify(darkCardTheme));
