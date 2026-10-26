@@ -3488,7 +3488,6 @@ html[data-theme="dark"] [data-cart-page="premium-checkout-v1"] .order-summary .f
   }
   [data-cart-page="premium-checkout-v1"] .order-summary {
     position: static;
-    order: -1;
   }
   [data-cart-page="premium-checkout-v1"] .cart-line {
     grid-template-columns: 64px minmax(0, 1fr) auto;
