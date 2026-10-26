@@ -2644,7 +2644,7 @@ html[data-theme="dark"] .notification-test-result.error{color:#ff9588}
 .notification-provider-state.missing{border-color:#dfc699;background:#fff8eb}
 .notification-provider-state.missing strong{color:#76531b}
 .notification-provider-note{margin:12px 0 0;padding:12px 14px;border-left:3px solid #bd8834;background:#fff8eb;color:#6c5227;font-size:12px;line-height:1.6}
-.notification-health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:13px}
+.notification-health-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:13px}
 .notification-health-metric{display:grid;gap:7px;min-width:0;padding:13px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
 .notification-health-metric>span{font-size:11px;line-height:1.4;color:var(--text-secondary);font-weight:650}
 .notification-health-metric>strong{font-family:var(--serif);font-size:27px;line-height:1.1;font-weight:500;color:var(--text-primary);font-variant-numeric:tabular-nums}
@@ -2654,6 +2654,7 @@ html[data-theme="dark"] .notification-test-result.error{color:#ff9588}
 .notification-queue-age,.notification-clear-note{margin:13px 0 0;font-size:11px;line-height:1.55;color:var(--text-secondary)}
 .notification-dead-letters{margin-top:19px;padding-top:15px;border-top:1px solid var(--line)}
 .notification-dead-letters h3{margin:0 0 8px;font-size:13px;color:var(--text-primary)}
+.notification-retry-failures h3{color:#a4432b}
 .notification-dead-row{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:14px;padding:12px 0;border-top:1px solid var(--line)}
 .notification-dead-row>div{display:grid;gap:4px;align-content:start;min-width:0}
 .notification-dead-row strong{font-size:12px;line-height:1.4;color:var(--text-primary);overflow-wrap:anywhere}
@@ -2669,6 +2670,8 @@ html[data-theme="dark"] .notification-health-metric>strong{color:#edf4f7}
 html[data-theme="dark"] .notification-health-metric.is-warning{border-color:#78513d}
 html[data-theme="dark"] .notification-health-metric.is-warning>strong{color:#ff9b83}
 html[data-theme="dark"] .notification-dead-letters,html[data-theme="dark"] .notification-dead-row{border-color:#2b4353}
+html[data-theme="dark"] .notification-retry-failures h3{color:#ffb39e}
+@media(max-width:1100px){.notification-health-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:800px){.notification-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.notification-heading-actions{gap:8px}.notification-heading-actions .button{width:auto;white-space:nowrap}.notification-health-panel{padding:16px}.notification-health-grid{gap:8px}.notification-health-metric{padding:11px}.notification-health-metric>strong{font-size:24px}.notification-dead-row{grid-template-columns:1fr;gap:8px}}
 

@@ -1756,8 +1756,17 @@ try {
     const notificationHealthFixture = {
       checkedAt: new Date().toISOString(),
       deliveryConfigured: false,
-      counts: { queued: 2, sending: 0, sentLast24Hours: 1, dead: 1 },
+      counts: { queued: 2, sending: 0, sentLast24Hours: 1, dead: 1, retrying: 1 },
       oldestQueuedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+      recentFailures: [{
+        orderNumber: 'PH-NOTIFY-RETRY',
+        attempts: 2,
+        deliveryStatus: 'queued',
+        lastError: 'Email provider rejected the request (HTTP 422)',
+        lastAttemptAt: new Date(Date.now() - 2 * 60_000).toISOString(),
+        nextAttemptAt: new Date(Date.now() + 60_000).toISOString(),
+        updatedAt: new Date().toISOString(),
+      }],
       deadLetters: [{
         orderNumber: 'PH-NOTIFY-QA',
         attempts: 8,
@@ -1829,6 +1838,7 @@ try {
     );
     const expectedMetrics = [
       { label: 'Queued', count: '2' },
+      { label: 'Retrying', count: '1' },
       { label: 'Sending', count: '0' },
       { label: 'Sent · 24h', count: '1' },
       { label: 'Needs attention', count: '1' },
@@ -1836,10 +1846,13 @@ try {
     if (JSON.stringify(queueMetrics) !== JSON.stringify(expectedMetrics)) {
       throw new Error('Admin notification metrics do not match the mocked health response: ' + JSON.stringify(queueMetrics));
     }
+    await notificationPanel.getByText('PH-NOTIFY-RETRY', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+    await notificationPanel.getByText('Email provider rejected the request (HTTP 422)', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
+    await notificationPanel.getByText(/2 attempts/).waitFor({ state: 'visible', timeout: 10_000 });
     await notificationPanel.getByText('PH-NOTIFY-QA', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
     await notificationPanel.getByText('Email provider delivery failed', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 });
     await notificationPanel.getByText(/8 attempts/).waitFor({ state: 'visible', timeout: 10_000 });
-    pass('admin notification panel renders provider-not-configured state, queue metrics and dead-letter details from its API response');
+    pass('admin notification panel separates retryable provider failures from dead letters, with safe error details and queue metrics');
 
     await page.setViewportSize({ width: 1440, height: 900 });
     const lightProviderStyle = await notificationPanel.locator('.notification-provider-state.missing').evaluate((el) => {
