@@ -103,7 +103,7 @@ test('email verification can be resent safely over HTTP; stale links stop workin
   const resend = await fetch(`${base}/api/auth/resend-verification`, {
     method: 'POST', headers, body: JSON.stringify({ email: email.toUpperCase() }),
   });
-  assert.equal(resend.status, 200);
+  assert.equal(resend.status, 200, `resend endpoint response: ${await resend.clone().text()}`);
   assert.equal((await resend.json()).message, genericMessage, 'resend responses are generic');
   assert.equal(sentEmails.length, 2);
   const secondToken = extractToken(sentEmails[1].text);
