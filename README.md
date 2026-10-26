@@ -12,6 +12,7 @@
 ### Customer ordering
 - Responsive React/Vite experience with Light and Night themes, a featured pizza menu, category filters, recipe-backed ingredient labels, pizza detail views, custom-pizza builder, cart and checkout.
 - Customer registration, email verification, sign-in, logout, forgot/reset password, and cookie-based sessions.
+- When email verification is required, the sign-in dialog can request a replacement link. The endpoint uses a generic response that does not reveal whether an account exists, rotates the 24-hour token and invalidates the old link. Real inbox delivery still depends on provider configuration and must be verified separately.
 - Server-authoritative order prices and recipe validation. The server does not trust prices or totals supplied by the browser.
 - Required delivery recipient, Indian mobile number, street address, city, state and PIN code are validated and stored with the order; destination details can be corrected while payment is pending.
 - Basket and pending-order recovery, checkout idempotency, explicit confirmation when the server quote differs from the visible cart, and retry handling when payment verification is uncertain.
