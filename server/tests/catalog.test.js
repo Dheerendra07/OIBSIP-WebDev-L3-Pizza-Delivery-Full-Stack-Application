@@ -1,7 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CATALOG, FEATURED_PIZZAS, calculateCustomPizza, inventoryRequirements } from '../src/utils/catalog.js';
-test('featured menu tags match the frontend filter values', () => assert.deepEqual(FEATURED_PIZZAS.map((pizza) => pizza.tag), ['BESTSELLER', 'FRESH PICK', 'SPICY', 'PLANT-BASED']));
+test('featured menu tags match the frontend filter values', () => assert.deepEqual(FEATURED_PIZZAS.map((pizza) => pizza.tag), ['BESTSELLER', 'FRESH PICK', 'SPICY', 'PLANT-BASED', 'FRESH PICK', 'BESTSELLER', 'SPICY', 'PLANT-BASED']));
+test('expanded server-owned menu has eight unique recipes backed by valid catalog options', () => {
+ assert.equal(FEATURED_PIZZAS.length, 8);
+ assert.equal(new Set(FEATURED_PIZZAS.map((pizza) => pizza.id)).size, FEATURED_PIZZAS.length);
+ for (const pizza of FEATURED_PIZZAS) {
+  assert.ok(Number.isFinite(pizza.price) && pizza.price >= 0, `invalid price for ${pizza.id}`);
+  assert.ok(CATALOG.bases.some((item) => item.id === pizza.ingredients.base), `invalid base for ${pizza.id}`);
+  assert.ok(CATALOG.sauces.some((item) => item.id === pizza.ingredients.sauce), `invalid sauce for ${pizza.id}`);
+  assert.ok(CATALOG.cheeses.some((item) => item.id === pizza.ingredients.cheese), `invalid cheese for ${pizza.id}`);
+  assert.ok(pizza.ingredients.vegetables.every((id) => CATALOG.vegetables.some((item) => item.id === id)), `invalid vegetable for ${pizza.id}`);
+ }
+});
 test('catalog offers the requested five bases and five sauces', () => { assert.equal(CATALOG.bases.length, 5); assert.equal(CATALOG.sauces.length, 5); });
 test('custom pizza price is computed on the server and duplicates are deduplicated', () => {
  const item = calculateCustomPizza({ base: 'classic', sauce: 'classic-tomato', cheese: 'mozzarella', vegetables: ['onion', 'onion', 'corn'], quantity: 2 });
