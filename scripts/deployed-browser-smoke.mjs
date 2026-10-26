@@ -262,8 +262,8 @@ try {
   if (homeEndcapState.benefitCount !== 3 ||
       homeEndcapState.actions.length !== 2 ||
       !homeEndcapState.heading ||
-      !homeEndcapState.actions.includes('Browse the menu') ||
-      !homeEndcapState.actions.includes('Build your own')) {
+      !homeEndcapState.actions.includes('Explore house recipes') ||
+      !homeEndcapState.actions.includes('Review your bag')) {
     throw new Error('Homepage lower-page endcap is missing contextual next steps: ' + JSON.stringify(homeEndcapState));
   }
   pass('homepage includes a contextual lower-page endcap with live-catalog guidance and two useful navigation actions');
@@ -815,7 +815,7 @@ try {
   if (lightRestored !== 'light') throw new Error('Switching back to light mode did not persist the preference.');
   pass('light/night toggle persists across reload and can return to light');
 
-  await page.locator('.hero').getByRole('button', { name: 'Browse the menu', exact: true }).click();
+  await page.locator('.hero').getByRole('button', { name: 'Explore the menu', exact: true }).click();
   await page.locator('.pizza-card').first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.getByRole('heading', { name: 'Margherita Classic', exact: true }).waitFor({ state: 'visible' });
   const menuEndcap = page.locator('[data-page-endcap="menu"]');
