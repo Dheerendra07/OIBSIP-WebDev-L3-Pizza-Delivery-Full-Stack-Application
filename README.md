@@ -122,13 +122,13 @@ All routes below are under /api.
 
 ## Verification and launch status
 
-The current application revision fd12cd3 is live on Render deployment dep-dbffouavcj2c738063ug; Render auto-deploy is disabled, so release was triggered manually. The previous stuck deployment 53723683 failed and was not treated as live.
+The current application/runtime revision fd12cd3 is live on Render deployment dep-dbffouavcj2c738063ug. Render auto-deploy is disabled, so this was manually deployed. The later 452a647 commit adds tests only and does not change the running application.
 
-- [Main CI 40283837463](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40283837463): **passed**.
-- [Deployed API/revision smoke 40283837416](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40283837416): **16/16 passed** for the exact deployed revision, database readiness/catalog, CORS, auth guards, webhook guard and production bundle.
-- [Hosted browser smoke 40283837344](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40283837344): **76/76 passed**, including loaded distinct food photos, working product details, Light/Night mode, responsive widths 320–1440px, checkout recovery and customer support for payment-review orders.
+- [Main CI 40284510500](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40284510500): **254/254 tests passed; 0 failures**, including a disposable MongoDB / real Express HTTP integration path for payment-review support-case creation, customer/admin visibility and preserved fulfillment hold.
+- [Deployed API/revision smoke 40284510512](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40284510512): **16/16 passed** for the exact deployed revision, database readiness/catalog, CORS, auth guards, webhook guard and production bundle.
+- [Hosted browser smoke 40283837344](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40283837344): **76/76 passed**, including loaded distinct food photos, working product details, Light/Night mode, responsive widths 320–1440px, checkout recovery and the synthetic payment-review support flow.
 
-The latest support improvements add distinct **Damaged or spilled item** and **Payment or refund question** categories. Customer payment/refund cases are available for payment-review, failed and refunded order states without bypassing fulfillment holds; the form explicitly states that support does not automatically issue a refund.
+The latest support work adds distinct **Damaged or spilled item** and **Payment or refund question** categories. Payment/refund cases are allowed for payment-review, failed and refunded order states without bypassing fulfillment holds; the form explicitly states that support does not automatically issue a refund. The integration test uses a disposable MongoDB database in CI, not the production Atlas instance.
 
 **This is still a product foundation, not a certified live delivery business.** Browser checkout/payment/staff sessions are mocked, and deployed smoke probes safe routes only. Real Razorpay-originated payment/webhook/refund reconciliation, actual SMS/email delivery, production staff accounts, real kitchen acceptance and driver dispatch remain unverified. The OTP disclosure refers to the checkout Test Mode simulation: it sends no SMS and does not charge real money. Keep Live Mode disabled until provider/notification operations and real fulfillment acceptance tests are complete; detailed follow-up is in [PROJECT_STATUS.md](PROJECT_STATUS.md).
 ## Security basics

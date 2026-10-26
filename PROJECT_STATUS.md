@@ -1,6 +1,6 @@
 # Pizza House — Project Status and Launch Roadmap
 
-**Last reviewed:** 2026-10-26 (main CI 40283837463 passed on fd12cd3; Render deploy dep-dbffouavcj2c738063ug is live on fd12cd3; deployed API/revision smoke 40283837416 passed 16/16; hosted browser smoke 40283837344 passed 76/76 including payment-review support flow; provider-originated payments/webhooks, actual SMS/email delivery and real fulfillment remain unverified)  
+**Last reviewed:** 2026-10-26 (main CI 40284510500 passed 254/254 with 0 failures, including the disposable MongoDB issue HTTP lifecycle; Render runtime fd12cd3 remains live; deployed API/revision smoke 40284510512 passed 16/16; hosted browser smoke 40283837344 passed 76/76; provider-originated payments/webhooks, actual SMS/email delivery and real fulfillment remain unverified)  
 **Repository:** [Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application)  
 **Canonical hosted app/API:** https://pizza-house-api.onrender.com  
 **Latest application/runtime commit:** fd12cd3f5d0b88ddbda10a259b3fc54d0bd7cde3 (payment/refund and damaged-item support categories plus a guarded payment-review support path; Render deploy `dep-dbffouavcj2c738063ug` is live)  
@@ -33,6 +33,14 @@
 - The server distinguishes **simulated Test Mode fulfillment** from Live Mode. Test Mode progression is explicitly presented as a simulation; it does not contact a real kitchen or delivery partner.
 
 ## 2. Latest changes and evidence
+
+### Payment/refund support path — current main regression proof
+
+- Commit [33c77bd](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/33c77bdff0af622f6bed3676863c44984b48c21f) adds dedicated damaged/spilled-item and payment/refund support categories. It allows a customer to open a payment-only case for a failed/refunded payment or a manual payment-review hold without allowing that order into kitchen fulfillment.
+- Commit [fd12cd3](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/fd12cd3f5d0b88ddbda10a259b3fc54d0bd7cde3) fixes the browser release gate and tests the payment-review support flow in a synthetic browser order. [Browser smoke 40283837344](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40283837344) passed **76/76**, including the payment-only category, no-refund-promise copy, and preserved hold.
+- Commit [452a647](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/452a647f846baadc1c7e427e963cb158790a8be5) adds an actual Express/MongoDB integration case in CI: a payment-review order refuses a food complaint, accepts the payment/refund case, appears in customer and admin lists, and remains on payment_review with its inventory reservation held. [CI 40284510500](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40284510500) passed **254/254** tests with zero failures; the MongoDB integration test uses a disposable local database, not the production Atlas instance.
+- Current deployed API/revision smoke [40284510512](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40284510512) passed **16/16**. Runtime still runs fd12cd3; the later 452a647 change is test-only and does not require a new runtime deploy.
+- **Real-world boundaries:** no new test proves a real Razorpay charge/webhook, actual email/SMS arrival, production staff login, kitchen acceptance, or driver dispatch. Keep Live Mode disabled until those external-service/operations checks pass.
 
 ### PR #121 — secure kitchen and delivery staff workflows
 Merged to main as d5ab86f8d4c64bba8b28f7b53669ef1eaf5baedc.
