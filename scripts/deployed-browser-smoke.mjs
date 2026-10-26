@@ -927,14 +927,18 @@ try {
     afterContent: getComputedStyle(el, '::after').content,
     eyebrowIcons: el.querySelectorAll('.page-endcap-main .eyebrow svg').length,
   }));
-  if (menuEndcapNight.surface !== 'rgb(16, 36, 51)' ||
-      menuEndcapNight.surfaceImage !== 'none' ||
+  const menuUsesPremiumNavyGradient = menuEndcapNight.surfaceImage.includes('linear-gradient') &&
+      menuEndcapNight.surfaceImage.includes('rgb(16, 36, 51)') &&
+      menuEndcapNight.surfaceImage.includes('rgb(11, 26, 38)');
+  if (!menuUsesPremiumNavyGradient ||
+      menuEndcapNight.surface !== 'rgba(0, 0, 0, 0)' ||
       menuEndcapNight.rowBackground !== 'rgba(0, 0, 0, 0)' ||
       menuEndcapNight.rowBorder !== 'rgb(43, 67, 83)' ||
       menuEndcapNight.cardText !== 'rgb(237, 243, 246)' ||
+      menuEndcapNight.detailText !== 'rgb(168, 186, 197)' ||
       menuEndcapNight.afterContent !== 'none' ||
       menuEndcapNight.eyebrowIcons !== 0) {
-    throw new Error('Menu lower-page editorial rows are not readable in night mode: ' + JSON.stringify(menuEndcapNight));
+    throw new Error('Menu lower-page rows are not readable over the premium navy gradient: ' + JSON.stringify(menuEndcapNight));
   }
   await captureScreenshot(page, '09-menu-night-mobile.png');
   await auditResponsiveState(page, 'menu-night');
@@ -967,15 +971,20 @@ try {
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
   const cartEndcapNight = await cartEndcap.evaluate((el) => ({
     surface: getComputedStyle(el).backgroundColor,
+    surfaceImage: getComputedStyle(el).backgroundImage,
     rowText: getComputedStyle(el.querySelector('.page-endcap-item h3')).color,
     afterContent: getComputedStyle(el, '::after').content,
     eyebrowIcons: el.querySelectorAll('.page-endcap-main .eyebrow svg').length,
   }));
-  if (cartEndcapNight.surface !== 'rgb(16, 36, 51)' ||
+  const cartUsesPremiumNavyGradient = cartEndcapNight.surfaceImage.includes('linear-gradient') &&
+      cartEndcapNight.surfaceImage.includes('rgb(16, 36, 51)') &&
+      cartEndcapNight.surfaceImage.includes('rgb(11, 26, 38)');
+  if (!cartUsesPremiumNavyGradient ||
+      cartEndcapNight.surface !== 'rgba(0, 0, 0, 0)' ||
       cartEndcapNight.rowText !== 'rgb(237, 243, 246)' ||
       cartEndcapNight.afterContent !== 'none' ||
       cartEndcapNight.eyebrowIcons !== 0) {
-    throw new Error('Bag lower-page editorial surface is not using the restrained night theme: ' + JSON.stringify(cartEndcapNight));
+    throw new Error('Bag lower-page rows are not readable over the premium navy gradient: ' + JSON.stringify(cartEndcapNight));
   }
   await captureScreenshot(page, '10-bag-night-mobile.png');
   await auditResponsiveState(page, 'bag-night');
