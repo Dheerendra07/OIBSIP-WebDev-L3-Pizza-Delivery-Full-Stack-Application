@@ -63,6 +63,7 @@ async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreen
       metricBackground: metricCards[0] ? getComputedStyle(metricCards[0]).backgroundImage : '',
       metricAccent: metricCards[0] ? getComputedStyle(metricCards[0], '::before').backgroundImage : '',
       metricRadius: metricCards[0] ? getComputedStyle(metricCards[0]).borderRadius : '',
+      viewportWidth: document.documentElement.clientWidth,
     };
   });
   if (dashboardOverview.eyebrow !== 'YOUR ORDERS' ||
@@ -71,7 +72,7 @@ async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreen
       JSON.stringify(dashboardOverview.metricLabels) !== JSON.stringify(['TOTAL ORDERS', 'IN PROGRESS', 'LAST ORDER TOTAL']) ||
       !dashboardOverview.metricBackground.includes('linear-gradient') ||
       !dashboardOverview.metricAccent.includes('linear-gradient') ||
-      dashboardOverview.metricRadius !== '16px') {
+      dashboardOverview.metricRadius !== (dashboardOverview.viewportWidth <= 520 ? '14px' : '16px')) {
     throw new Error('Customer dashboard overview or metric-card hierarchy failed: ' + JSON.stringify(dashboardOverview));
   }
   pass('customer dashboard uses direct order-focused copy and distinct premium metric surfaces');
