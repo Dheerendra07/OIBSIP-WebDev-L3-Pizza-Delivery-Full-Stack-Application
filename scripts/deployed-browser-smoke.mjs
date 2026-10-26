@@ -107,7 +107,7 @@ async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreen
     document.documentElement.dataset.theme === 'dark' &&
     getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundImage.includes('linear-gradient') &&
     getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundImage.includes('rgb(20, 38, 53)') &&
-    getComputedStyle(document.querySelector('.dashboard-metrics > div::before')).backgroundImage !== '' &&
+    getComputedStyle(document.querySelector('.dashboard-metrics > div'), '::before').backgroundImage.includes('linear-gradient') &&
     getComputedStyle(document.querySelector('.dashboard-top .button-light')).backgroundColor === 'rgb(255, 98, 71)' &&
     getComputedStyle(document.querySelector('.dashboard-top .button-light')).color === 'rgb(255, 255, 255)'
   ), null, { timeout: 5000 });
