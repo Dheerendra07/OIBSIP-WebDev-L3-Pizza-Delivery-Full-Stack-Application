@@ -15,14 +15,14 @@
 
 **Repository:** [Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application)  
 **Canonical hosted app/API:** https://pizza-house-api.onrender.com  
-**Live code commit:** [a6611fa](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/a6611fa13d7efad97535f7c06da54691ba844d2a). Render auto-deploy is disabled, so runtime updates require a manual deploy. Documentation commits after this SHA do not change the live runtime.
+**Live code commit:** [b9b1c85](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/b9b1c85e3f4d3098b8f6a96ea1f33fa0a532e1c0). Render auto-deploy is disabled, so runtime updates require a manual deploy. Documentation commits after this SHA do not change the live runtime.
 
 ## Previous runtime release — safe notification retry diagnosis
 
 - `server/src/controllers/adminController.js` adds `counts.retrying` and a `recentFailures` list for queued notification entries with previous attempts. Response fields are deliberately limited to order reference, attempt/error metadata and timestamps; recipient address and payload are omitted.
 - `client/src/App.jsx` displays five operational states — queued, retrying, sending, sent in the last 24 hours and needs manual attention — plus separate retryable-failure and dead-letter lists. `client/src/styles.css` keeps the metrics responsive in both themes.
 - `server/tests/admin-controller.test.js` verifies diagnostic detail is returned without leaking recipient email or raw payload. `scripts/deployed-browser-smoke.mjs` now asserts the retryable provider-failure state and dead-letter state independently using synthetic data.
-- [CI 40342868131](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40342868131), [deployed smoke 40342868168](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40342868168), and [hosted browser smoke 40342868655](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40342868655) passed. Deployment [dep-dbfmfsrrjlhs73emicd0](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) is live for runtime commit `a6611fa`.
+- [CI 40342868131](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40342868131), [deployed smoke 40342868168](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40342868168), and [hosted browser smoke 40342868655](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40342868655) passed on runtime `a6611fa`. That deployment [dep-dbfmfsrrjlhs73emicd0](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) was subsequently superseded by the live runtime recorded at the top of this file.
 - Remaining notification release gate: verify the configured sender/provider using the admin test-email action and confirm inbox arrival. Current logs did not establish why the earlier queue item failed. Never treat provider settings detected or provider acceptance alone as proof of inbox delivery.
 
 ## Staff email onboarding — implemented capability
@@ -48,7 +48,7 @@
 - Commit [fd0b8c3](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/fd0b8c3a6381700572969bc6ec4a8c7f35474ed7) changes admin and kitchen/delivery status updates to atomic compare-and-set writes. They require the expected prior status, a paid order, no active payment-review flag and the same staff assignment.
 - The isolated-MongoDB HTTP regression test forces a payment-review update after an admin or kitchen handler has read the old order state. Both stale status writes return HTTP 409 and leave the order in `payment_review`.
 - [CI 40302246145](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40302246145) and [deployed smoke 40302245892](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40302245892) passed against that runtime revision before the newer UI deployment.
-- The current release loop is green; the following external operations are still release blockers: provider-originated Razorpay events/refunds, real notification delivery, and role-by-role real operational acceptance against synthetic orders.
+- The automated checks cited above passed for that earlier revision. The newly expanded full-menu browser gate on the current revision is not yet independently confirmed (see the top of this file). External release blockers remain provider-originated Razorpay events/refunds, real notification delivery and role-by-role operational acceptance.
 
 ## UI release note — compact premium menu cards
 
@@ -80,7 +80,7 @@
 - Kitchen preparation ticket/details, explicit order-stage timestamps and customer timeline.
 - The server distinguishes **simulated Test Mode fulfillment** from Live Mode. Test Mode progression is explicitly presented as a simulation; it does not contact a real kitchen or delivery partner.
 
-## 2. Latest changes and evidence
+## 2. Implemented features and historical evidence
 
 ### Fulfillment integrity — customer confirms receipt
 
@@ -88,14 +88,14 @@
 - The assigned delivery account can request confirmation only for its own dispatched, paid, non-review order. The request is saved atomically and queues a deduplicated customer email notification.
 - The customer must be signed into the owning account and confirm only after receiving the order. The API atomically transitions `sent_to_delivery → delivered`; admin and staff status endpoints reject direct delivery completion. Admin UI now shows that only the customer can finish the order.
 - The customer dashboard includes a confirmation action and responsive Light/Night styling. Test Mode remains clearly simulated and does not prove physical delivery.
-- **Deployment:** Render deployment [dep-dbfl4d1srm7s73fct4tg](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) is live on [21d3df5](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/21d3df5755e9bac26983b740492a8c8972b9cc60). The initial deploy attempt failed due to a notification parser syntax error; the syntax was corrected and the subsequent deploy built the client and started the API successfully.
+- **Historical deployment:** Render deployment [dep-dbfl4d1srm7s73fct4tg](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) ran [21d3df5](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/21d3df5755e9bac26983b740492a8c8972b9cc60) at the time. An earlier attempt failed due to a notification parser syntax error; the code was corrected and that earlier deployment succeeded. Later releases have superseded it.
 - **Not yet verified:** real inbox delivery, an authenticated customer/staff walkthrough, or a real-world handoff. No feature-specific test suite was run for this change at the user's request.
 
 ### Admin assignment persistence fix — deployed historically
 
 - Commit [7bea8b3](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/7bea8b356668d8f62369e89a0dd3fa016c2d4e89) updates `GET /api/admin/orders` to include the populated `kitchenStaff` and `deliveryStaff` assignment objects (ID, name, email, role and active state). The database already stored assignments, but the response mapper omitted them; after a dashboard refresh the assignment form could incorrectly show “Unassigned” and admin-side next-stage eligibility could appear disabled.
 - Render deployment [dep-dbfknkuc6qcc73bsdcm0](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) was confirmed **live at the time** on this commit; later runtime deployments superseded it.
-- No test suite was run for this small change at the user's request. Deployment status confirms the release is live, not that a real authenticated admin→kitchen→delivery order has been executed. That role-by-role workflow, real email delivery, and provider-backed payment/webhook/refund behavior remain launch gates.
+- No test suite was run for that small change at the time. The earlier deployment was live then, but it did not prove a real authenticated admin→kitchen→delivery order. Role-by-role fulfillment, real email delivery and provider-backed payment/webhook/refund behavior remain launch gates.
 
 ### Payment/refund support path — current main regression proof
 
@@ -111,15 +111,15 @@
 - Commit [9d47477](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/9d47477e273183a0f5c2505cab5f2ccbfc5a3030) uses conditional database updates to rotate the expiring token and atomically consume a valid one-time link. Re-sending invalidates the prior link; failed mail submission conditionally clears only that request's token.
 - Disposable-MongoDB HTTP integration test covers signup with verification required, blocked login before verification, token rotation, stale-link rejection, valid-link verification, login after verification, generic response for unknown accounts, and no resend for verified accounts. [CI 40287122648](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40287122648) passed **255/255**, with the production client build succeeding.
 - [Hosted browser smoke 40287122913](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40287122913) passed **77/77** against the live Render app. It clicks the new sign-in action and checks the real API's generic response using a unique nonexistent `example.invalid` email; it creates no account and sends no email.
-- Render deployment [dep-dbfg6bavcj2c7381k010](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) is live on `9d47477`. Deployed API/revision smoke [40286765638](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40286765638) and [40287122638](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40287122638) both passed **16/16**.
+- Render deployment [dep-dbfg6bavcj2c7381k010](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) ran `9d47477` at the time and was later superseded. Deployed API/revision smoke [40286765638](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40286765638) and [40287122638](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40287122638) each passed **16/16** for that earlier revision.
 - **Boundary:** the HTTP lifecycle test stubs Resend's HTTP response, and the browser probe deliberately uses a nonexistent address. Neither proves a customer received an email in a real inbox. This does not add SMS OTP; Razorpay Test Mode still explicitly simulates its OTP screen and does not charge real money.
 
-### Latest live release — admin email-delivery test
+### Historical capability — admin email-delivery test
 
 - [Commit 4db08c84](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/4db08c84) added an authenticated `POST /api/admin/test-email` action. It requires an admin session and is rate-limited to 3 attempts per 15 minutes; the recipient is only the signed-in administrator's stored email address.
 - [Commit 77b23c8](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/77b23c8b4c5fa310b8ceaefd8a2260bbcedb1282) corrects email-address validation and text newline formatting. The endpoint refuses an unconfigured provider (503) and returns a sanitized provider-rejection response (502); it never claims provider acceptance guarantees inbox delivery.
 - [Pizza House CI 40290344321](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40290344321) passed dependency/security checks, the production client build and the API/client tests. [Deployed smoke 40290344358](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40290344358) passed after Render was manually deployed to `77b23c8`; the first attempt correctly caught that Render was still on the earlier runtime revision.
-- [Render deployment dep-dbfhln2jnfac73ce8h40](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) is live on `77b23c8`. Automated email tests stub the provider response; no real email was sent during this audit. To verify actual delivery, the signed-in admin must explicitly use the test-email action and check inbox/spam. A provider-accepted request is not proof of final delivery.
+- [Render deployment dep-dbfhln2jnfac73ce8h40](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) ran `77b23c8` at the time and has since been superseded by the current runtime at the top. Automated email tests stub the provider response; no real email was sent during that audit. To verify delivery, the signed-in admin must use the test-email action and check inbox/spam; provider acceptance is not proof of final delivery.
 
 ### PR #121 — secure kitchen and delivery staff workflows
 Merged to main as d5ab86f8d4c64bba8b28f7b53669ef1eaf5baedc.
