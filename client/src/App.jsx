@@ -28,7 +28,7 @@ const FEATURED = [
     { id: 'white-garden', name: 'White Garden', description: 'Garlic, earthy mushrooms and plant-based cheese.', price: 379, tag: 'PLANT-BASED', emoji: '🌿', tone: 'cream', ingredients: { base: 'whole-wheat', sauce: 'white-garlic', cheese: 'vegan', vegetables: ['mushroom', 'capsicum', 'tomato'] } },
 ];
 const ORDER_STEPS = [{ id: 'order_received', label: 'Order received', icon: PackageCheck }, { id: 'in_kitchen', label: 'In the kitchen', icon: ChefHat }, { id: 'sent_to_delivery', label: 'On the way', icon: Truck }, { id: 'delivered', label: 'Delivered', icon: CheckCircle2 }];
-const ISSUE_CATEGORY_LABELS = { missing_item: 'Missing item', wrong_item: 'Wrong item received', quality_issue: 'Food quality concern', delivery_delay: 'Delivery delay', other: 'Something else' };
+const ISSUE_CATEGORY_LABELS = { missing_item: 'Missing item', wrong_item: 'Wrong item received', damaged_item: 'Damaged or spilled item', quality_issue: 'Food quality concern', delivery_delay: 'Delivery delay', payment_refund: 'Payment or refund question', other: 'Something else' };
 const NEW_ISSUE_FORM = { category: 'missing_item', description: '' };
 const EMPTY_DELIVERY_DETAILS = { recipientName: '', phone: '', addressLine: '', landmark: '', city: '', state: '', postalCode: '', instructions: '' };
 const currency = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
@@ -147,6 +147,13 @@ export default function App() {
     const notify = useCallback((message, kind = 'success') => setToast({ message, kind }), []);
     const openIssueReport = useCallback((order, trigger) => {
         issueReportTriggerRef.current = trigger;
+        const paymentOnly = Boolean(order?.paymentReviewRequired) ||
+            order?.status === 'payment_review' || order?.status === 'cancelled' ||
+            ['failed', 'refunded'].includes(order?.paymentStatus);
+        setIssueForm({
+            ...NEW_ISSUE_FORM,
+            category: paymentOnly ? 'payment_refund' : 'missing_item',
+        });
         setIssueReportOrder(order);
     }, []);
     const refreshCatalog = useCallback(async () => {
@@ -1144,7 +1151,7 @@ export default function App() {
 {adminData.notificationHealth.deadLetters.length ? <div className="notification-dead-letters"><h3>Failed delivery attempts</h3>{adminData.notificationHealth.deadLetters.map((item,index)=><div className="notification-dead-row" key={(item.orderNumber || 'unknown') + '-' + index}><div><strong>{item.orderNumber || 'Order reference unavailable'}</strong><small>{item.attempts} attempts · {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'Time unavailable'}</small></div><p>{item.lastError || 'No provider error detail recorded.'}</p></div>)}</div> : <p className="notification-clear-note">No notifications have exhausted their retry limit.</p>}
 </>}
 </div>
-<div className="admin-panel"><div className="panel-heading"><div><h2>Inventory room</h2><p>Update stock counts and per-item alert thresholds.</p></div><Boxes size={20}/></div><div className="inventory-table"><div className="inventory-row inventory-header"><span>Item</span><span>In stock</span><span>Alert at</span><span>State</span></div>{adminData.inventory.length ? adminData.inventory.map(item => <InventoryRow key={item.key} item={item} onSave={updateInventory}/>) : <div className="empty-small">No inventory items were returned by the API.</div>}</div></div><div className="admin-panel"><div className="panel-heading"><div><h2>Payment review queue</h2><p>Signed webhook events needing manual reconciliation.</p></div><ShieldCheck size={20}/></div>{adminData.paymentReviews.length ? <div className="payment-review-list">{adminData.paymentReviews.map(event => <article className="payment-review-event" key={event.eventId}><div><strong>{event.eventType}</strong><small>{event.order?.orderNumber || 'Unmatched provider order'} · {new Date(event.receivedAt).toLocaleString()}</small></div><p>{event.reason?.replaceAll('_', ' ') || 'Manual review required'}</p><small>Provider order: {event.providerOrderId || 'not supplied'} · Payment: {event.paymentId || 'not supplied'}</small><small>Event ID: {event.eventId}</small>{event.order?.refundStatus === 'pending' && <p className="refund-status-note">Refund pending with Razorpay. Do not submit another refund.</p>}{event.order?.refundStatus === 'failed' && <p className="refund-status-note">Refund failed or was rejected. Manual provider review is required.</p>}{event.order?.id && event.order.status === 'payment_review' && event.order.paymentReviewRequired && event.order.paymentStatus === 'paid' && event.paymentId === event.order.razorpayPaymentId && event.reason !== 'multiple_captured_payments_for_order' && !adminData.paymentReviews.some(item => item.order?.id === event.order.id && item.paymentId && item.paymentId !== item.order?.razorpayPaymentId) && !['pending', 'processed', 'failed'].includes(event.order.refundStatus || 'none') && <div className="payment-review-actions"><small>{event.order.refundStatus === 'requested' ? 'A retry reuses the same provider idempotency key.' : 'Use only after reviewing the captured-payment exception.'}</small><button type="button" className="button button-light small-button" disabled={pendingRefundOrderId === event.order.id} onClick={() => requestReviewRefund(event)}>{pendingRefundOrderId === event.order.id ? 'Submitting…' : event.order.refundStatus === 'requested' ? 'Retry safely' : 'Issue full refund'}</button></div>}</article>)}</div> : <div className="empty-small">No payment webhook reviews are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Customer issue cases</h2><p>Track missing items, wrong items, quality concerns and delivery delays. Customer messages are visible to the customer.</p></div><MessageCircle size={20}/></div>{adminData.issues.length ? <div className="issue-case-list">{adminData.issues.map(issue => <AdminIssueCard key={issue.id} issue={issue} pending={pendingAdminIssueId === issue.id} onUpdate={updateIssue}/>)}</div> : <div className="empty-small">No customer issue reports are currently queued.</div>}</div><div className="admin-panel staff-management-panel"><div className="panel-heading"><div><h2>Kitchen &amp; delivery team</h2><p>Create named team accounts, disable access instantly and assign staff to orders.</p></div><UsersRoundIcon size={20}/></div><StaffManagement staff={adminData.staff} onRefresh={refreshAdmin} onNotify={notify}/></div><div className="admin-panel fulfillment-admin-panel"><div className="panel-heading"><div><h2>Kitchen &amp; dispatch</h2><p>Assign each order to named staff before the next hand-off.</p></div><ChefHat size={20}/></div><FulfillmentQueue orders={adminData.orders} staff={adminData.staff} role="admin" paymentMode={paymentMode} catalog={catalog} onStatus={updateStatus} onAssign={assignOrderStaff} pendingStatusOrderId={pendingStatusOrderId} pendingAssignmentOrderId={pendingAssignmentOrderId}/></div></>}</section>}
+<div className="admin-panel"><div className="panel-heading"><div><h2>Inventory room</h2><p>Update stock counts and per-item alert thresholds.</p></div><Boxes size={20}/></div><div className="inventory-table"><div className="inventory-row inventory-header"><span>Item</span><span>In stock</span><span>Alert at</span><span>State</span></div>{adminData.inventory.length ? adminData.inventory.map(item => <InventoryRow key={item.key} item={item} onSave={updateInventory}/>) : <div className="empty-small">No inventory items were returned by the API.</div>}</div></div><div className="admin-panel"><div className="panel-heading"><div><h2>Payment review queue</h2><p>Signed webhook events needing manual reconciliation.</p></div><ShieldCheck size={20}/></div>{adminData.paymentReviews.length ? <div className="payment-review-list">{adminData.paymentReviews.map(event => <article className="payment-review-event" key={event.eventId}><div><strong>{event.eventType}</strong><small>{event.order?.orderNumber || 'Unmatched provider order'} · {new Date(event.receivedAt).toLocaleString()}</small></div><p>{event.reason?.replaceAll('_', ' ') || 'Manual review required'}</p><small>Provider order: {event.providerOrderId || 'not supplied'} · Payment: {event.paymentId || 'not supplied'}</small><small>Event ID: {event.eventId}</small>{event.order?.refundStatus === 'pending' && <p className="refund-status-note">Refund pending with Razorpay. Do not submit another refund.</p>}{event.order?.refundStatus === 'failed' && <p className="refund-status-note">Refund failed or was rejected. Manual provider review is required.</p>}{event.order?.id && event.order.status === 'payment_review' && event.order.paymentReviewRequired && event.order.paymentStatus === 'paid' && event.paymentId === event.order.razorpayPaymentId && event.reason !== 'multiple_captured_payments_for_order' && !adminData.paymentReviews.some(item => item.order?.id === event.order.id && item.paymentId && item.paymentId !== item.order?.razorpayPaymentId) && !['pending', 'processed', 'failed'].includes(event.order.refundStatus || 'none') && <div className="payment-review-actions"><small>{event.order.refundStatus === 'requested' ? 'A retry reuses the same provider idempotency key.' : 'Use only after reviewing the captured-payment exception.'}</small><button type="button" className="button button-light small-button" disabled={pendingRefundOrderId === event.order.id} onClick={() => requestReviewRefund(event)}>{pendingRefundOrderId === event.order.id ? 'Submitting…' : event.order.refundStatus === 'requested' ? 'Retry safely' : 'Issue full refund'}</button></div>}</article>)}</div> : <div className="empty-small">No payment webhook reviews are currently queued.</div>}</div><div className="admin-panel"><div className="panel-heading"><div><h2>Customer issue cases</h2><p>Track missing, wrong or damaged items, delivery delays, and payment/refund questions. Customer messages are visible to the customer.</p></div><MessageCircle size={20}/></div>{adminData.issues.length ? <div className="issue-case-list">{adminData.issues.map(issue => <AdminIssueCard key={issue.id} issue={issue} pending={pendingAdminIssueId === issue.id} onUpdate={updateIssue}/>)}</div> : <div className="empty-small">No customer issue reports are currently queued.</div>}</div><div className="admin-panel staff-management-panel"><div className="panel-heading"><div><h2>Kitchen &amp; delivery team</h2><p>Create named team accounts, disable access instantly and assign staff to orders.</p></div><UsersRoundIcon size={20}/></div><StaffManagement staff={adminData.staff} onRefresh={refreshAdmin} onNotify={notify}/></div><div className="admin-panel fulfillment-admin-panel"><div className="panel-heading"><div><h2>Kitchen &amp; dispatch</h2><p>Assign each order to named staff before the next hand-off.</p></div><ChefHat size={20}/></div><FulfillmentQueue orders={adminData.orders} staff={adminData.staff} role="admin" paymentMode={paymentMode} catalog={catalog} onStatus={updateStatus} onAssign={assignOrderStaff} pendingStatusOrderId={pendingStatusOrderId} pendingAssignmentOrderId={pendingAssignmentOrderId}/></div></>}</section>}
 
     {['kitchen', 'delivery'].includes(page) && <section className="section-wrap page-section admin-page staff-operations-page">
       {user?.mustChangePassword === true
@@ -1807,8 +1814,14 @@ function OrderCard({ order, admin = false, staffRole = null, staff = [], onStatu
         Array.isArray(order.items) && order.items.length > 0;
     const canResumePayment = customerView && !reviewNeeded && order.status === 'pending_payment' && order.paymentStatus === 'pending' &&
         typeof onResumePayment === 'function' && Boolean(order.id);
-    const canReportIssue = customerView && paid && !reviewNeeded && !refunded &&
+    const canReportFoodIssue = customerView && paid && !reviewNeeded && !refunded &&
         ['order_received', 'in_kitchen', 'sent_to_delivery', 'delivered'].includes(order.status);
+    const canReportPaymentIssue = customerView && (
+        reviewNeeded || order.paymentStatus === 'failed' || refunded ||
+        (cancelled && paid)
+    );
+    const canReportIssue = canReportFoodIssue || canReportPaymentIssue;
+    const paymentOnlyIssue = reviewNeeded || cancelled || refunded || order.paymentStatus === 'failed';
     const hasDeliveryStaff = Boolean(order.deliveryStaff?.id || order.deliveryStaff?._id);
     const canKitchenAdvance = staffRole === 'kitchen' &&
         (order.status === 'order_received' || (order.status === 'in_kitchen' && hasDeliveryStaff));
@@ -1880,8 +1893,12 @@ function OrderCard({ order, admin = false, staffRole = null, staff = [], onStatu
             <button type="button" className="text-link issue-refresh" onClick={() => onRefreshIssues?.()}><RefreshCw size={14}/> Refresh case</button>
         </div>}
         {canReportIssue && (!issue || issue.status === 'resolved') && <div className="order-issue-actions">
-            <p>{issue?.status === 'resolved' ? 'A new issue with this order? Open another case.' : 'Something missing, incorrect or not right? Tell us what happened.'}</p>
-            <button type="button" className="button button-light small-button" onClick={event => onReportIssue?.(order, event.currentTarget)}><MessageCircle size={16}/>{issue?.status === 'resolved' ? 'Report another problem' : 'Report a problem'}</button>
+            <p>{issue?.status === 'resolved'
+                ? 'A new issue with this order? Open another case.'
+                : paymentOnlyIssue
+                    ? 'Need help with a failed payment, refund, or payment review? Open a support case.'
+                    : 'Missing, incorrect, damaged, delayed—or a payment concern? Tell us what happened.'}</p>
+            <button type="button" className="button button-light small-button" onClick={event => onReportIssue?.(order, event.currentTarget)}><MessageCircle size={16}/>{issue?.status === 'resolved' ? 'Report another problem' : paymentOnlyIssue ? 'Get payment support' : 'Report a problem'}</button>
         </div>}
         {canAdvance && next && paid && !reviewNeeded && <div className="order-admin-actions">
             <div><span>{admin ? 'Next operational step' : staffRole === 'kitchen' ? 'Kitchen action' : 'Delivery action'}</span><small>{simulated ? 'Sandbox only · no physical dispatch' : 'Verified Live Mode order'}</small></div>
@@ -2116,6 +2133,11 @@ function PriceReviewDialog({ review, catalog, pending, onAccept, onCancel }) {
 
 function IssueReportDialog({ order, form, setForm, pending, returnFocusRef, onSubmit, onCancel }) {
     const dialogRef = useRef(null);
+    const paymentOnly = Boolean(order?.paymentReviewRequired) ||
+        order?.status === 'payment_review' || order?.status === 'cancelled' ||
+        ['failed', 'refunded'].includes(order?.paymentStatus);
+    const availableCategories = Object.entries(ISSUE_CATEGORY_LABELS)
+        .filter(([value]) => !paymentOnly || value === 'payment_refund');
     useEffect(() => {
         dialogRef.current?.querySelector('select')?.focus();
         return () => {
@@ -2177,15 +2199,17 @@ function IssueReportDialog({ order, form, setForm, pending, returnFocusRef, onSu
             <div className="auth-brand-mark"><MessageCircle size={21}/></div>
             <div className="eyebrow">ORDER SUPPORT</div>
             <h2 id="issue-report-title">Let’s make this right.</h2>
-            <p id="issue-report-description">Tell us what happened with order {order.orderNumber}. We’ll create a reference you can follow from your order history. This report does not automatically issue a refund.</p>
+            <p id="issue-report-description">Tell us what happened with order {order.orderNumber}. We’ll create a reference you can follow from your order history. Payment cases are reviewed by the team; submitting this form does not automatically issue a refund.</p>
             <form onSubmit={onSubmit}>
                 <label className="issue-field"><span>What went wrong?</span>
                     <select required value={form.category} onChange={event => setForm(current => ({ ...current, category: event.target.value }))}>
-                        {Object.entries(ISSUE_CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        {availableCategories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
                 </label>
                 <label className="issue-field"><span>Tell us what happened</span>
-                    <textarea required minLength={10} maxLength={600} rows={4} placeholder="For example, one item was missing from the delivery…" value={form.description} onChange={event => setForm(current => ({ ...current, description: event.target.value }))}/>
+                    <textarea required minLength={10} maxLength={600} rows={4}
+                        placeholder={paymentOnly ? 'For example, I need help understanding the payment review or refund status…' : 'For example, one item was missing from the delivery…'}
+                        value={form.description} onChange={event => setForm(current => ({ ...current, description: event.target.value }))}/>
                 </label>
                 <div className="issue-form-footnote"><span>{form.description.trim().length}/600 characters</span><span>Please don’t include passwords or payment-card details.</span></div>
                 <div className="issue-report-actions">

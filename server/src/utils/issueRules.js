@@ -1,8 +1,10 @@
 export const ISSUE_CATEGORIES = Object.freeze([
   'missing_item',
   'wrong_item',
+  'damaged_item',
   'quality_issue',
   'delivery_delay',
+  'payment_refund',
   'other',
 ]);
 
@@ -44,9 +46,18 @@ export function normalizeIssueReport(body) {
   return { orderId, category, description };
 }
 
-export function canReportOrderIssue(order) {
-  return Boolean(order) &&
-    order.paymentStatus === 'paid' &&
+export function canReportOrderIssue(order, category = 'missing_item') {
+  if (!order || !ISSUE_CATEGORIES.includes(category)) return false;
+
+  if (category === 'payment_refund') {
+    // Manual payment holds must preserve fulfillment guards while keeping customer support reachable.
+    return order.paymentReviewRequired === true ||
+      order.status === 'payment_review' ||
+      ['paid', 'failed', 'refunded'].includes(order.paymentStatus) ||
+      ['requested', 'pending', 'processed', 'failed'].includes(order.refundStatus);
+  }
+
+  return order.paymentStatus === 'paid' &&
     order.paymentReviewRequired !== true &&
     !['payment_review', 'cancelled'].includes(order.status) &&
     order.refundStatus !== 'processed' &&

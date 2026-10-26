@@ -68,10 +68,11 @@ export const createIssue = asyncHandler(async (req, res) => {
 
   const order = await Order.findOne({ _id: input.orderId, user: req.user._id });
   if (!order) return res.status(404).json({ error: 'Order not found.' });
-  if (!canReportOrderIssue(order)) {
-    return res.status(409).json({
-      error: 'A case can only be opened for a paid order that is in preparation, on the way, or delivered.',
-    });
+  if (!canReportOrderIssue(order, input.category)) {
+    const error = input.category === 'payment_refund'
+      ? 'A payment/refund case needs a recorded payment, refund, or manual payment review.'
+      : 'A food or delivery case can only be opened for a paid order that is in preparation, on the way, or delivered.';
+    return res.status(409).json({ error });
   }
 
   const existing = await OrderIssue.findOne({ order: order._id, user: req.user._id, active: true }).lean();

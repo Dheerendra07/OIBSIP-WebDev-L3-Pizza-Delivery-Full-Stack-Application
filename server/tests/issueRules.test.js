@@ -22,7 +22,7 @@ const paidOrder = (overrides = {}) => ({
 });
 
 test('exposes only the supported report categories', () => {
-  assert.deepEqual(ISSUE_CATEGORIES, ['missing_item', 'wrong_item', 'quality_issue', 'delivery_delay', 'other']);
+  assert.deepEqual(ISSUE_CATEGORIES, ['missing_item', 'wrong_item', 'damaged_item', 'quality_issue', 'delivery_delay', 'payment_refund', 'other']);
 });
 
 test('normalizes a valid report description without changing the selected category', () => {
@@ -31,6 +31,8 @@ test('normalizes a valid report description without changing the selected catego
     category: 'missing_item',
     description: 'The drink was missing.',
   });
+  assert.equal(normalizeIssueReport(validReport({ category: 'damaged_item' })).category, 'damaged_item');
+  assert.equal(normalizeIssueReport(validReport({ category: 'payment_refund' })).category, 'payment_refund');
 });
 
 test('rejects a missing or array request body', () => {
@@ -59,7 +61,7 @@ test('allows issues on paid fulfilment states only', () => {
   }
 });
 
-test('blocks unpaid, refunded, cancelled, manual-review and unknown states', () => {
+test('blocks food/delivery reports for unpaid, refunded, cancelled, manual-review and unknown states', () => {
   assert.equal(canReportOrderIssue(paidOrder({ paymentStatus: 'pending' })), false);
   assert.equal(canReportOrderIssue(paidOrder({ paymentStatus: 'refunded' })), false);
   assert.equal(canReportOrderIssue(paidOrder({ status: 'cancelled' })), false);
@@ -67,6 +69,22 @@ test('blocks unpaid, refunded, cancelled, manual-review and unknown states', () 
   assert.equal(canReportOrderIssue(paidOrder({ paymentReviewRequired: true })), false);
   assert.equal(canReportOrderIssue(paidOrder({ status: 'pending_payment' })), false);
   assert.equal(canReportOrderIssue(null), false);
+});
+
+test('allows payment support for failed/refunded orders and orders held for manual payment review', () => {
+  assert.equal(canReportOrderIssue(paidOrder({
+    status: 'payment_review', paymentStatus: 'pending', paymentReviewRequired: true,
+  }), 'payment_refund'), true);
+  assert.equal(canReportOrderIssue(paidOrder({
+    status: 'cancelled', paymentStatus: 'refunded',
+  }), 'payment_refund'), true);
+  assert.equal(canReportOrderIssue(paidOrder({
+    status: 'cancelled', paymentStatus: 'failed',
+  }), 'payment_refund'), true);
+  assert.equal(canReportOrderIssue(paidOrder({
+    status: 'pending_payment', paymentStatus: 'pending',
+  }), 'payment_refund'), false);
+  assert.equal(canReportOrderIssue(paidOrder({ status: 'cancelled' }), 'damaged_item'), false);
 });
 
 test('allows an open case to move into review or resolve', () => {

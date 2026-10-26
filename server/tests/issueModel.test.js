@@ -5,7 +5,7 @@ import OrderIssue from '../src/models/OrderIssue.js';
 test('issue schema limits issue categories, case states and customer-visible message', () => {
   const schema = OrderIssue.schema;
   assert.deepEqual(schema.path('category').enumValues, [
-    'missing_item', 'wrong_item', 'quality_issue', 'delivery_delay', 'other',
+    'missing_item', 'wrong_item', 'damaged_item', 'quality_issue', 'delivery_delay', 'payment_refund', 'other',
   ]);
   assert.deepEqual(schema.path('status').enumValues, ['open', 'under_review', 'resolved']);
   assert.equal(schema.path('description').options.minlength, 10);

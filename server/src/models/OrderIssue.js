@@ -4,7 +4,7 @@ const issueSchema = new mongoose.Schema({
   reference: { type: String, required: true, unique: true, index: true },
   order: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  category: { type: String, enum: ['missing_item', 'wrong_item', 'quality_issue', 'delivery_delay', 'other'], required: true },
+  category: { type: String, enum: ['missing_item', 'wrong_item', 'damaged_item', 'quality_issue', 'delivery_delay', 'payment_refund', 'other'], required: true },
   description: { type: String, required: true, trim: true, minlength: 10, maxlength: 600 },
   status: { type: String, enum: ['open', 'under_review', 'resolved'], default: 'open', index: true },
   active: { type: Boolean, default: true, index: true },
