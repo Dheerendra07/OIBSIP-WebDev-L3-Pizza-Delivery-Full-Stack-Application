@@ -147,7 +147,7 @@ export const changeStaffPassword = asyncHandler(async (req, res) => {
 
   const update = await User.updateOne(
     { _id: user._id, role: user.role, active: { $ne: false }, sessionVersion: user.sessionVersion },
-    { $set: { passwordHash: await hashPassword(newPassword), mustChangePassword: false }, $inc: { sessionVersion: 1 } },
+    { $set: { passwordHash: await hashPassword(newPassword), mustChangePassword: false, passwordResetTokenHash: null, passwordResetExpiresAt: null }, $inc: { sessionVersion: 1 } },
   );
   if (update.modifiedCount !== 1) {
     return res.status(409).json({ error: 'Your account changed in another request. Sign in again and retry.' });
@@ -219,7 +219,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
   if (!isStrongEnough(password)) return res.status(400).json({ error: 'Password must be 10–72 characters with uppercase, lowercase and a number' });
   const user = await User.findOne({ passwordResetTokenHash: hashToken(req.params.token), passwordResetExpiresAt: { $gt: new Date() } }).select('+passwordResetTokenHash +passwordResetExpiresAt');
   if (!user) return res.status(400).json({ error: 'Reset link is invalid or expired' });
-  user.passwordHash = await hashPassword(password); user.passwordResetTokenHash = null; user.passwordResetExpiresAt = null; user.sessionVersion = (user.sessionVersion || 0) + 1; await user.save();
+  user.passwordHash = await hashPassword(password); user.passwordResetTokenHash = null; user.passwordResetExpiresAt = null; user.mustChangePassword = false; user.sessionVersion = (user.sessionVersion || 0) + 1; await user.save();
   await disconnectUserSockets(user._id);
   clearSession(res);
   res.json({ message: 'Password updated. Sign in with your new password.' });
