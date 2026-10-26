@@ -2790,3 +2790,18 @@ html[data-theme="dark"] .pizza-card-quantity{background:var(--surface-raised);bo
   .pizza-card-actions{grid-template-columns:minmax(0,1fr)}
   .pizza-card .customize-link{min-height:40px}
 }
+
+
+/* Staff setup invitations: status and action layout for the one-time link flow. */
+.staff-roster-row{grid-template-columns:42px minmax(0,1fr) auto auto auto}
+.staff-access-state.pending{color:#94620f}
+.staff-access-state.pending:before{background:#d49a32}
+html[data-theme="dark"] .staff-access-state.pending{color:#f2c36d}
+html[data-theme="dark"] .staff-access-state.pending:before{background:#f2c36d}
+.staff-roster-identity .staff-invitation-note{color:#94620f}
+html[data-theme="dark"] .staff-roster-identity .staff-invitation-note{color:#f2c36d}
+@media(max-width:600px){
+ .staff-roster-row{grid-template-columns:38px minmax(0,1fr);align-items:start}
+ .staff-roster-row .staff-access-state{grid-column:2;grid-row:auto}
+ .staff-roster-row .button{grid-column:2;grid-row:auto;justify-self:start;align-self:auto}
+}
