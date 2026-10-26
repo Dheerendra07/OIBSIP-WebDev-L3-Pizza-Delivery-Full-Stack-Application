@@ -502,6 +502,11 @@ try {
   await page.getByRole('heading', { name: 'Your masterpiece.' }).waitFor({ state: 'visible' });
   const builderPreview = page.locator('[data-builder-preview]');
   await builderPreview.waitFor({ state: 'visible', timeout: 10_000 });
+  await page.waitForFunction(() => {
+    const preview = document.querySelector('[data-builder-preview]');
+    const image = preview?.querySelector('.summary-pizza-photo');
+    return Boolean(image?.naturalWidth > 0 && preview?.classList.contains('has-photo'));
+  }, null, { timeout: 15_000 });
   const initialBuilderVisual = await builderPreview.evaluate((root) => ({
     source: root.getAttribute('data-builder-preview-source') || '',
     displaySource: root.getAttribute('data-builder-preview-photo-source') || '',
