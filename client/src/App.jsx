@@ -1715,7 +1715,7 @@ function OrderStaffAssignment({ order, staff = [], pending = false, onSave }) {
 }
 
 function StaffManagement({ staff = [], onRefresh, onNotify }) {
-    const [form, setForm] = useState({ name: '', email: '', password: '', role: 'kitchen' });
+    const [form, setForm] = useState({ name: '', email: '', role: 'kitchen' });
     const [saving, setSaving] = useState(false);
     const [pendingId, setPendingId] = useState(null);
     const [showCreate, setShowCreate] = useState(false);
@@ -1725,14 +1725,29 @@ function StaffManagement({ staff = [], onRefresh, onNotify }) {
         setSaving(true);
         try {
             const result = await api('/admin/staff', { method: 'POST', body: form });
-            setForm({ name: '', email: '', password: '', role: 'kitchen' });
+            setForm({ name: '', email: '', role: 'kitchen' });
             setShowCreate(false);
-            onNotify('Staff account created for ' + result.staff.name + '. Share the initial password privately and have them change it before unsupervised use.');
+            onNotify(result.invitationSent
+                ? 'The email provider accepted a one-time setup link for ' + result.staff.email + '. Ask them to check inbox and spam; the link expires in 24 hours.'
+                : 'Staff account created. Ask the team member to change their initial password before using the queue.');
             await onRefresh();
         } catch (error) {
             onNotify(error.message || 'Staff account could not be created.', 'error');
         } finally {
             setSaving(false);
+        }
+    };
+    const sendInvitation = async person => {
+        if (pendingId) return;
+        setPendingId(person.id);
+        try {
+            const result = await api('/admin/staff/' + person.id + '/invitation', { method: 'POST', body: {} });
+            onNotify(result.message || 'The email provider accepted a fresh setup link for ' + person.email + '. Ask them to check inbox and spam.');
+            await onRefresh();
+        } catch (error) {
+            onNotify(error.message || 'The staff setup link could not be sent.', 'error');
+        } finally {
+            setPendingId(null);
         }
     };
     const setActive = async person => {
@@ -1755,17 +1770,17 @@ function StaffManagement({ staff = [], onRefresh, onNotify }) {
         <div className="staff-management-top"><div><strong>{staff.filter(person => person.active).length} active team members</strong><p>Kitchen and delivery access are separate from customer accounts and admin access.</p></div><button type="button" className="button button-dark small-button" onClick={() => setShowCreate(value => !value)}>{showCreate ? 'Close form' : 'Add team member'} <ArrowUpRight size={14}/></button></div>
         {showCreate && <form className="staff-create-form" onSubmit={create}>
             <label>Full name<input required minLength={2} maxLength={80} value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="Team member name"/></label>
-            <label>Work email<input required type="email" autoComplete="off" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} placeholder="name@yourbusiness.com"/></label>
-            <label>Initial password<input required type="password" minLength={10} autoComplete="new-password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} placeholder="10+ chars, upper/lowercase and number"/></label>
+            <label>Work email<input required type="email" autoComplete="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} placeholder="name@yourbusiness.com"/></label>
             <label>Access role<select value={form.role} onChange={event => setForm(current => ({ ...current, role: event.target.value }))}><option value="kitchen">Kitchen staff</option><option value="delivery">Delivery staff</option></select></label>
-            <p className="staff-create-note">This account is created by an administrator, without an email invitation. Share its initial password privately; do not reuse your own password.</p>
-            <button type="submit" className="button button-dark" disabled={saving}>{saving ? 'Creating account…' : 'Create staff account'}</button>
+            <p className="staff-create-note">We’ll email a one-time setup link to this address. The team member chooses their own password; the link expires after 24 hours. Email delivery must be configured in Render.</p>
+            <button type="submit" className="button button-dark" disabled={saving}>{saving ? 'Sending setup link…' : 'Create account & invite'} <Mail size={15}/></button>
         </form>}
         <div className="staff-roster">
             {staff.length ? staff.map(person => <article className={'staff-roster-row ' + (!person.active ? 'is-disabled' : '')} key={person.id}>
                 <span className={'staff-role-icon ' + person.role}>{person.role === 'kitchen' ? <ChefHat size={17}/> : <Truck size={17}/>}</span>
-                <div className="staff-roster-identity"><strong>{person.name}</strong><small>{person.email}</small></div>
-                <span className={'staff-access-state ' + (person.active ? 'active' : 'inactive')}>{person.active ? 'Active' : 'Disabled'}</span>
+                <div className="staff-roster-identity"><strong>{person.name}</strong><small>{person.email}</small>{person.mustChangePassword && <small className="staff-invitation-note">{person.invitationStatus === 'pending' ? 'Setup link sent · expires ' + (person.invitationExpiresAt ? new Date(person.invitationExpiresAt).toLocaleDateString() : 'in 24 hours') : 'Password setup not finished'}</small>}</div>
+                <span className={'staff-access-state ' + (!person.active ? 'inactive' : person.invitationStatus === 'pending' ? 'pending' : person.invitationStatus === 'setup_required' ? 'inactive' : 'active')}>{!person.active ? 'Disabled' : person.invitationStatus === 'pending' ? 'Invite sent' : person.invitationStatus === 'setup_required' ? 'Setup needed' : 'Ready'}</span>
+                {person.active && person.mustChangePassword && <button type="button" className="button button-light small-button" disabled={pendingId === person.id} onClick={() => sendInvitation(person)}>{pendingId === person.id ? 'Sending…' : person.invitationStatus === 'pending' ? 'Resend link' : 'Send setup link'}</button>}
                 <button type="button" className="button button-light small-button" disabled={pendingId === person.id} onClick={() => setActive(person)}>{pendingId === person.id ? 'Saving…' : person.active ? 'Disable' : 'Enable'}</button>
             </article>) : <div className="staff-roster-empty"><strong>No kitchen or delivery accounts yet.</strong><p>Add a named staff account to start assigning paid orders.</p></div>}
         </div>
