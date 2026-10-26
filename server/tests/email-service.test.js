@@ -40,11 +40,13 @@ test('sendMail uses Resend HTTPS API and returns its receipt', async () => {
       subject: 'Verify your Pizza House email',
       text: 'Use the link to verify your account.',
       html: '<p>Use the link to verify your account.</p>',
+      idempotencyKey: 'pizza-house:test:email-service:once',
     });
 
     assert.equal(request.url, 'https://api.resend.com/emails');
     assert.equal(request.options.method, 'POST');
     assert.equal(request.options.headers.Authorization, 'Bearer re_test_example');
+    assert.equal(request.options.headers['Idempotency-Key'], 'pizza-house:test:email-service:once');
     const payload = JSON.parse(request.options.body);
     assert.equal(payload.from, 'Pizza House <orders@example.test>');
     assert.deepEqual(payload.to, ['customer@example.test']);
