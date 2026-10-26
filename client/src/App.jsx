@@ -26,6 +26,10 @@ const FEATURED = [
     { id: 'garden', name: 'Garden Party', description: 'A bright, crunchy mix of garden vegetables.', price: 329, tag: 'FRESH PICK', emoji: '🥦', tone: 'green', ingredients: { base: 'thin', sauce: 'pesto', cheese: 'mozzarella', vegetables: ['capsicum', 'onion', 'mushroom', 'olive'] } },
     { id: 'firecracker', name: 'Firecracker', description: 'Smoky heat, jalapeños, and a little attitude.', price: 359, tag: 'SPICY', emoji: '🌶️', tone: 'orange', ingredients: { base: 'pan', sauce: 'spicy-arrabbiata', cheese: 'cheddar', vegetables: ['jalapeno', 'onion', 'corn'] } },
     { id: 'white-garden', name: 'White Garden', description: 'Garlic, earthy mushrooms and plant-based cheese.', price: 379, tag: 'PLANT-BASED', emoji: '🌿', tone: 'cream', ingredients: { base: 'whole-wheat', sauce: 'white-garlic', cheese: 'vegan', vegetables: ['mushroom', 'capsicum', 'tomato'] } },
+    { id: 'pesto-forest', name: 'Pesto Forest', description: 'Basil pesto, mushrooms, black olives and mozzarella.', price: 349, tag: 'FRESH PICK', emoji: '🍄', tone: 'green', ingredients: { base: 'thin', sauce: 'pesto', cheese: 'mozzarella', vegetables: ['mushroom', 'olive', 'onion'] } },
+    { id: 'roasted-garden', name: 'Roasted Garden', description: 'Tomato, roasted-style peppers and garden vegetables.', price: 319, tag: 'BESTSELLER', emoji: '🫑', tone: 'tomato', ingredients: { base: 'classic', sauce: 'classic-tomato', cheese: 'mozzarella', vegetables: ['capsicum', 'tomato', 'onion'] } },
+    { id: 'cornfire', name: 'Cornfire', description: 'Sweet corn, jalapeños and a lively arrabbiata finish.', price: 339, tag: 'SPICY', emoji: '🌽', tone: 'orange', ingredients: { base: 'pan', sauce: 'spicy-arrabbiata', cheese: 'cheddar', vegetables: ['corn', 'jalapeno', 'onion'] } },
+    { id: 'olive-atelier', name: 'Olive Atelier', description: 'Whole-wheat crust, pesto, olives and plant-based cheese.', price: 379, tag: 'PLANT-BASED', emoji: '🫒', tone: 'cream', ingredients: { base: 'whole-wheat', sauce: 'pesto', cheese: 'vegan', vegetables: ['olive', 'mushroom', 'capsicum'] } },
 ];
 const ORDER_STEPS = [{ id: 'order_received', label: 'Order received', icon: PackageCheck }, { id: 'in_kitchen', label: 'In the kitchen', icon: ChefHat }, { id: 'sent_to_delivery', label: 'On the way', icon: Truck }, { id: 'delivered', label: 'Delivered', icon: CheckCircle2 }];
 const ISSUE_CATEGORY_LABELS = { missing_item: 'Missing item', wrong_item: 'Wrong item received', damaged_item: 'Damaged or spilled item', quality_issue: 'Food quality concern', delivery_delay: 'Delivery delay', payment_refund: 'Payment or refund question', other: 'Something else' };
@@ -1390,9 +1394,25 @@ const PIZZA_CARD_PHOTOS = {
     src: 'https://images.pexels.com/photos/4394619/pexels-photo-4394619.jpeg?auto=compress&cs=tinysrgb&w=1280',
     alt: 'Freshly baked mushroom pizza with herbs',
   },
-  pepperoni: {
-    src: 'https://images.pexels.com/photos/6488931/pexels-photo-6488931.jpeg?auto=compress&cs=tinysrgb&w=1280',
-    alt: 'Golden pepperoni pizza with melted cheese',
+  spicy: {
+    src: 'https://images.pexels.com/photos/36295120/pexels-photo-36295120.jpeg?auto=compress&cs=tinysrgb&w=1280',
+    alt: 'Vegetarian pizza with olives and bell peppers',
+  },
+  pestoForest: {
+    src: 'https://images.pexels.com/photos/5639971/pexels-photo-5639971.jpeg?auto=compress&cs=tinysrgb&w=1280',
+    alt: 'Vegetarian pizza with mushrooms, olives and artichokes',
+  },
+  roastedGarden: {
+    src: 'https://images.pexels.com/photos/35290483/pexels-photo-35290483.jpeg?auto=compress&cs=tinysrgb&w=1280',
+    alt: 'Vegetarian pizza topped with bell peppers, onion and mushrooms',
+  },
+  cornfire: {
+    src: 'https://images.pexels.com/photos/34382326/pexels-photo-34382326.jpeg?auto=compress&cs=tinysrgb&w=1280',
+    alt: 'Freshly baked vegetable pizza with olives and peppers',
+  },
+  oliveAtelier: {
+    src: 'https://images.pexels.com/photos/26341212/pexels-photo-26341212.jpeg?auto=compress&cs=tinysrgb&w=1280',
+    alt: 'Vegetable and mushroom pizza on a green background',
   },
   classic: {
     src: 'https://images.unsplash.com/photo-1594007654729-407eedc4be65?auto=format&fit=crop&w=1280&q=85',
@@ -1427,8 +1447,12 @@ function getPizzaCardPhoto(pizza, index) {
   // different named pizzas reuse the same generic tomato-pizza photograph.
   if (name.includes('margherita')) return PIZZA_CARD_PHOTOS.classic;
   if (name.includes('garden party')) return PIZZA_CARD_PHOTOS.rustic;
-  if (name.includes('firecracker')) return PIZZA_CARD_PHOTOS.pepperoni;
+  if (name.includes('firecracker')) return PIZZA_CARD_PHOTOS.spicy;
   if (name.includes('white garden')) return PIZZA_CARD_PHOTOS.mushroom;
+  if (name.includes('pesto forest')) return PIZZA_CARD_PHOTOS.pestoForest;
+  if (name.includes('roasted garden')) return PIZZA_CARD_PHOTOS.roastedGarden;
+  if (name.includes('cornfire')) return PIZZA_CARD_PHOTOS.cornfire;
+  if (name.includes('olive atelier')) return PIZZA_CARD_PHOTOS.oliveAtelier;
 
   const recipe = pizza?.ingredients;
   const ingredientNames = recipe && typeof recipe === 'object'
@@ -1438,7 +1462,7 @@ function getPizzaCardPhoto(pizza, index) {
   const searchable = `${name} ${ingredientNames}`;
 
   if (/(mushroom|fung|pollo|chicken)/.test(searchable)) return PIZZA_CARD_PHOTOS.mushroom;
-  if (/(pepperoni|salami|sausage|jalape|chili|chilli|spicy|hot)/.test(searchable)) return PIZZA_CARD_PHOTOS.pepperoni;
+  if (/(pepperoni|salami|sausage|jalape|chili|chilli|spicy|hot)/.test(searchable)) return PIZZA_CARD_PHOTOS.spicy;
   if (/(tomato|basil)/.test(searchable)) return PIZZA_CARD_PHOTOS.classic;
   if (/(garden|veggie|vegetable|olive|corn|spinach|plant-based)/.test(searchable)) return PIZZA_CARD_PHOTOS.rustic;
   return [PIZZA_CARD_PHOTOS.classic, PIZZA_CARD_PHOTOS.rustic, PIZZA_CARD_PHOTOS.mushroom, PIZZA_CARD_PHOTOS.pepperoni][index % 4];
