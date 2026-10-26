@@ -104,7 +104,7 @@ function formatContent(p) {
     message = test
       ? 'The Test Mode delivery workflow is waiting for your receipt confirmation. This is simulated and does not confirm a physical delivery.'
       : 'Your delivery partner has requested confirmation. Please sign in to Pizza House and confirm only if you have received your order.';
-  } else if (p.eventType === 'refund_processed')
+  } else if (p.eventType === 'refund_processed') {
     title = 'Refund confirmed'; subject = 'refund confirmed';
     message = 'The application recorded a provider-confirmed refund of ' + rupeesFromPaise(p.refundAmount) + '.';
     if (test) message += ' This is sandbox refund evidence only.';
