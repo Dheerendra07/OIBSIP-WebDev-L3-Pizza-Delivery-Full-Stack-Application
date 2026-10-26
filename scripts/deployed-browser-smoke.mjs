@@ -491,6 +491,11 @@ try {
   // quantity controls. Audit it in both themes instead of assuming home styles
   // prove every product surface is readable.
   await page.setViewportSize({ width: 1440, height: 900 });
+  const classicPhotoPattern = '**/photo-1594007654729-407eedc4be65**';
+  const abortClassicPhoto = (route) => route.abort();
+  // Force the default remote photo to fail so the in-page fallback is tested,
+  // rather than relying on an intermittent CDN incident to exercise this path.
+  await page.route(classicPhotoPattern, abortClassicPhoto);
   await page.locator('.main-nav').getByRole('button', { name: 'Build your own', exact: true }).click();
   await page.getByRole('heading', { name: /The art of your slice/i }).waitFor({ state: 'visible', timeout: 15_000 });
   await page.locator('.builder-summary').waitFor({ state: 'visible', timeout: 15_000 });
@@ -499,6 +504,7 @@ try {
   await builderPreview.waitFor({ state: 'visible', timeout: 10_000 });
   const initialBuilderVisual = await builderPreview.evaluate((root) => ({
     source: root.getAttribute('data-builder-preview-source') || '',
+    displaySource: root.getAttribute('data-builder-preview-photo-source') || '',
     loaded: Boolean(root.querySelector('.summary-pizza-photo')?.naturalWidth > 0 && root.classList.contains('has-photo')),
     badge: root.querySelector('.summary-badge')?.textContent?.trim() || '',
     note: root.querySelector('.summary-photo-note')?.textContent?.trim() || '',
@@ -509,6 +515,13 @@ try {
       !initialBuilderVisual.note.includes('selected recipe is listed below') || !initialBuilderVisual.price) {
     throw new Error('Builder preview must load a real reference photo, disclose that it is illustrative, and retain the exact selected-recipe price: ' + JSON.stringify(initialBuilderVisual));
   }
+  if (!initialBuilderVisual.source.includes('images.unsplash.com') ||
+      !initialBuilderVisual.displaySource ||
+      initialBuilderVisual.displaySource === initialBuilderVisual.source) {
+    throw new Error('A deliberately failed primary Unsplash photo must select a different loaded fallback image: ' + JSON.stringify(initialBuilderVisual));
+  }
+  await page.unroute(classicPhotoPattern, abortClassicPhoto);
+  pass('builder preview falls back to a distinct food photo when its primary image host fails');
   const mushroomsOption = page.locator('.veg-grid .veg-option').filter({ hasText: 'Mushrooms' }).first();
   await mushroomsOption.click();
   await page.waitForFunction((previousSource) => {
