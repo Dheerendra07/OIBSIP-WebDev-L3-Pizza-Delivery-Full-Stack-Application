@@ -3095,7 +3095,7 @@ html[data-theme="dark"] .custom-callout[data-home-builder-promo] .button-light:h
 }
 html[data-theme="dark"] .page-endcap {
   border-color: #294151;
-  background: linear-gradient(118deg, #102433 0%, #0b1a26 100%);
+  background: #102433;
   box-shadow: 0 16px 38px rgba(0, 0, 0, .20);
 }
 html[data-theme="dark"] .pizza-card {

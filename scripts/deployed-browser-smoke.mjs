@@ -160,6 +160,7 @@ try {
       (await page.locator('[data-auth-toast-fix="clear-stale-toast-v1"]').count() === 1) &&
       (await page.locator('[data-theme-toggle]').count() === 1) &&
       (await page.locator('[data-home-hero="premium-food-v1"]').count() === 1) &&
+      (await page.locator('[data-home-ui-release="step4-home-refine-20261027"]').count() === 1) &&
       (await page.locator('[data-page-endcap="home"]').count() === 1) &&
       (await page.locator('[data-pizza-card-version="premium-photo-v1"]').count() >= 3) &&
       (await page.locator('[data-pizza-card-open="photo-hit-area-v1"]').count() >= 3) &&
@@ -491,7 +492,7 @@ try {
   // The API remains the source of truth for recipe IDs and current menu count.
   // Responsive audit leaves the viewport at 390px; use the visible homepage CTA
   // instead of the collapsed desktop navigation to exercise the real mobile route.
-  const menuNav = page.locator('.hero-actions').getByRole('button', { name: 'Browse the menu', exact: true });
+  const menuNav = page.locator('.hero-actions').getByRole('button', { name: 'Explore the menu', exact: true });
   await menuNav.click();
   const fullMenuCards = page.locator('.pizza-grid.full-grid [data-pizza-card-version="premium-photo-v1"]');
   await fullMenuCards.first().waitFor({ state: 'visible', timeout: 15_000 });
