@@ -156,7 +156,13 @@ export async function processOrderNotificationQueue({ now = new Date(), batchSiz
     if (!entry) break;
     try {
       const content = formatContent(entry.payload || {});
-      const receipt = await sendMail({ to: entry.recipientEmail, subject: content.subject, text: content.text, html: content.html });
+      const receipt = await sendMail({
+        to: entry.recipientEmail,
+        subject: content.subject,
+        text: content.text,
+        html: content.html,
+        idempotencyKey: entry.dedupeKey,
+      });
       if (receipt?.skipped) throw new Error('Email provider unavailable; notification remains retryable');
       await OrderNotification.updateOne({ _id: entry._id, deliveryStatus: 'sending' }, { $set: {
         deliveryStatus: 'sent', sentAt: new Date(),
