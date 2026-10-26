@@ -160,7 +160,7 @@ try {
       (await page.locator('[data-auth-toast-fix="clear-stale-toast-v1"]').count() === 1) &&
       (await page.locator('[data-theme-toggle]').count() === 1) &&
       (await page.locator('[data-home-hero="premium-food-v1"]').count() === 1) &&
-      (await page.locator('[data-home-ui-release="step4-home-refine-20261027-v2"]').count() === 1) &&
+      (await page.locator('[data-home-ui-release="step4-home-refine-20261027-v3"]').count() === 1) &&
       (await page.locator('[data-page-endcap="home"]').count() === 1) &&
       (await page.locator('[data-pizza-card-version="premium-photo-v1"]').count() >= 3) &&
       (await page.locator('[data-pizza-card-open="photo-hit-area-v1"]').count() >= 3) &&

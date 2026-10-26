@@ -3200,3 +3200,16 @@ html[data-theme="dark"] .page-endcap[data-page-endcap] {
     min-height: 48px;
   }
 }
+
+
+/* Step 4: night builder CTA cascade hardening. Keep gold and dark text after legacy theme rules. */
+html[data-theme="dark"] .app-shell .custom-callout[data-home-builder-promo] > button.button-light {
+  border-color: #ffd27a;
+  background-color: #ffd27a;
+  color: #192a34;
+}
+html[data-theme="dark"] .app-shell .custom-callout[data-home-builder-promo] > button.button-light:hover:not(:disabled) {
+  border-color: #ffe3a4;
+  background-color: #ffe3a4;
+  color: #192a34;
+}
