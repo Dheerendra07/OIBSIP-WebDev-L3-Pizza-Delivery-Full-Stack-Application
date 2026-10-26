@@ -228,6 +228,89 @@ test('signed Razorpay Test Mode webhook persists a capture once, ignores nonterm
   assert.equal(stillPending.inventoryReserved, true);
   assert.equal(await PaymentWebhookReceipt.countDocuments({ eventId: failedEventId, status: 'ignored' }), 1);
 
+  // Exercise the signed refund webhook through the real HTTP route and isolated
+  // Mongo replica set. This uses a synthetic Test Mode refund; no provider call
+  // or real payment is made by this integration test.
+  const refundOrder = await makeOrder({
+    orderNumber: 'PH-WEBHOOK-REFUND-QA',
+    razorpayOrderId: 'order_test_webhook_refund',
+  });
+  const refundIdempotencyKey = 'pizza-house-' + String(refundOrder._id) + '-full-refund';
+  await Order.updateOne({ _id: refundOrder._id }, { $set: {
+    status: 'payment_review',
+    paymentStatus: 'paid',
+    paymentReviewRequired: true,
+    paymentReviewReason: 'captured_amount_mismatch',
+    razorpayPaymentId: 'pay_test_webhook_refund',
+    refundStatus: 'pending',
+    refundIdempotencyKey,
+    refundAmount: 27800,
+    refundRequestedAt: new Date(),
+  } });
+  const refundEvent = {
+    event: 'refund.processed',
+    payload: { refund: { entity: {
+      id: 'rfnd_test_webhook_refund',
+      payment_id: 'pay_test_webhook_refund',
+      amount: 27800,
+      currency: 'INR',
+      status: 'processed',
+    } } },
+  };
+  const refundBody = JSON.stringify(refundEvent);
+  const refundEventId = 'evt_test_refund_processed_once';
+  const refundResponse = await fetch(`${baseUrl}/api/payments/webhook`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Razorpay-Signature': sign(refundBody),
+      'X-Razorpay-Event-Id': refundEventId,
+    },
+    body: refundBody,
+  });
+  assert.equal(refundResponse.status, 200);
+  assert.deepEqual(await refundResponse.json(), { received: true, status: 'processed' });
+  const refundedOrder = await Order.findById(refundOrder._id).lean();
+  assert.equal(refundedOrder.paymentStatus, 'refunded');
+  assert.equal(refundedOrder.refundStatus, 'processed');
+  assert.equal(refundedOrder.razorpayRefundId, 'rfnd_test_webhook_refund');
+  assert.equal(refundedOrder.status, 'cancelled', 'a payment-review order should leave fulfillment after its full refund is confirmed');
+  assert.equal(refundedOrder.inventoryReserved, false);
+  assert.equal(await PaymentWebhookReceipt.countDocuments({ eventId: refundEventId, status: 'processed' }), 1);
+
+  const duplicateRefundResponse = await fetch(`${baseUrl}/api/payments/webhook`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Razorpay-Signature': sign(refundBody),
+      'X-Razorpay-Event-Id': refundEventId,
+    },
+    body: refundBody,
+  });
+  assert.equal(duplicateRefundResponse.status, 200);
+  assert.deepEqual(await duplicateRefundResponse.json(), { received: true, duplicate: true, status: 'processed' });
+  assert.equal(await PaymentWebhookReceipt.countDocuments({ eventId: refundEventId }), 1);
+
+  // Razorpay can retry the same refund with a different event ID. The order
+  // remains refunded and the provider refund identifier must not be replaced.
+  const refundReplayEventId = 'evt_test_refund_processed_replay';
+  const refundReplayResponse = await fetch(`${baseUrl}/api/payments/webhook`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Razorpay-Signature': sign(refundBody),
+      'X-Razorpay-Event-Id': refundReplayEventId,
+    },
+    body: refundBody,
+  });
+  assert.equal(refundReplayResponse.status, 200);
+  assert.deepEqual(await refundReplayResponse.json(), { received: true, status: 'processed' });
+  const replayedRefundOrder = await Order.findById(refundOrder._id).lean();
+  assert.equal(replayedRefundOrder.paymentStatus, 'refunded');
+  assert.equal(replayedRefundOrder.refundStatus, 'processed');
+  assert.equal(replayedRefundOrder.razorpayRefundId, 'rfnd_test_webhook_refund');
+  assert.equal(await PaymentWebhookReceipt.countDocuments({ eventId: refundReplayEventId, status: 'processed' }), 1);
+
   const unsignedEventId = 'evt_test_invalid_signature_no_receipt';
   const unsignedResponse = await fetch(`${baseUrl}/api/payments/webhook`, {
     method: 'POST',
