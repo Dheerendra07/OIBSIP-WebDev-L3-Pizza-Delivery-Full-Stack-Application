@@ -3171,3 +3171,12 @@ html[data-theme="dark"] .pizza-card .add-button:hover:not(:disabled) {
   .site-footer .footer-nav{grid-column:1/-1;grid-row:3}
   .site-footer .back-top{grid-column:2;grid-row:1}
 }
+
+
+/* Step 4: make the primary and secondary card actions equally easy to tap on mobile. */
+@media (max-width: 520px) {
+  .pizza-card .add-button,
+  .pizza-card .customize-link {
+    min-height: 48px;
+  }
+}

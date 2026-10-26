@@ -144,7 +144,7 @@ try {
   // Wait for the actual visual release, not only older UI markers. This prevents
   // a green smoke run against a previous Render instance while a deploy is rolling out.
   let mobileSignInReady = false;
-  let premiumVisualState = { variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0 };
+  let premiumVisualState = { variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0, cardActionColorMatchCount: 0, equalActionHeightCount: 0 };
   for (let attempt = 1; attempt <= 20; attempt += 1) {
     await page.goto(webUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 30_000 });
@@ -204,8 +204,21 @@ try {
         heroImage && heroImage.complete && heroImage.naturalWidth > 0 &&
         heroImage.closest('.hero-pizza')?.classList.contains('has-photo'),
       );
+      const cardActionColorMatchCount = cards.filter((card) => {
+        const addButton = card.querySelector('.add-button');
+        return Boolean(addButton && primary &&
+          getComputedStyle(addButton).backgroundColor === getComputedStyle(primary).backgroundColor);
+      }).length;
+      const equalActionHeightCount = cards.filter((card) => {
+        const addButton = card.querySelector('.add-button');
+        const customizeButton = card.querySelector('.customize-link');
+        return Boolean(addButton && customizeButton &&
+          Math.abs(addButton.getBoundingClientRect().height - customizeButton.getBoundingClientRect().height) <= 1.25);
+      }).length;
       return {
         homeHeroPhotoLoaded,
+        cardActionColorMatchCount,
+        equalActionHeightCount,
         variantCount: new Set(variants).size,
         primaryColor: primary ? getComputedStyle(primary).backgroundColor : '',
         footerColor: footer ? getComputedStyle(footer).backgroundColor : '',
@@ -216,7 +229,7 @@ try {
         ingredientCardCount,
         compactLayoutCount: cards.filter((card) => card.matches('[data-pizza-card-layout="compact-purchase-v2"]')).length,
       };
-    }).catch(() => ({ homeHeroPhotoLoaded: false, variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0, compactLayoutCount: 0 }));
+    }).catch(() => ({ homeHeroPhotoLoaded: false, variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0, compactLayoutCount: 0, cardActionColorMatchCount: 0, equalActionHeightCount: 0 }));
 
     if (releaseMarkersReady &&
         premiumVisualState.homeHeroPhotoLoaded === true &&
@@ -226,6 +239,8 @@ try {
         premiumVisualState.interactiveCardCount >= 3 &&
         premiumVisualState.compactLayoutCount >= 3 &&
         premiumVisualState.ingredientCardCount >= premiumVisualState.premiumCardCount &&
+        premiumVisualState.cardActionColorMatchCount >= 3 &&
+        premiumVisualState.equalActionHeightCount >= 3 &&
         premiumVisualState.variantCount >= 3 &&
         premiumVisualState.primaryColor === 'rgb(228, 71, 50)' &&
         premiumVisualState.footerColor === 'rgb(16, 39, 55)') {
@@ -240,7 +255,9 @@ try {
       '; uniquePhotos=' + premiumVisualState.uniquePhotoCount +
       '; heroPhoto=' + premiumVisualState.homeHeroPhotoLoaded +
       '; ingredientCards=' + premiumVisualState.ingredientCardCount + '; compactLayout=' +
-      premiumVisualState.compactLayoutCount + '; variants=' + premiumVisualState.variantCount + '; CTA=' + premiumVisualState.primaryColor +
+      premiumVisualState.compactLayoutCount + '; cardCTAColors=' + premiumVisualState.cardActionColorMatchCount +
+      '; equalActionHeights=' + premiumVisualState.equalActionHeightCount +
+      '; variants=' + premiumVisualState.variantCount + '; CTA=' + premiumVisualState.primaryColor +
       '; footer=' + premiumVisualState.footerColor + ')',
     );
     await page.waitForTimeout(5_000);
@@ -487,6 +504,58 @@ try {
   pass('shared footer provides working navigation shortcuts');
   await captureScreenshot(page, '15-home-builder-promo-light-desktop.png');
   await auditResponsiveState(page, 'home');
+
+  // Check the actual computed styles on the live menu card, not just CSS source tokens.
+  // The 48px mobile minimum keeps Add and Customize equally easy to tap in either theme.
+  const inspectHomeCardTheme = async () => page.locator('[data-pizza-card-version="premium-photo-v1"]').first().evaluate((card) => {
+    const addButton = card.querySelector('.add-button');
+    const customizeButton = card.querySelector('.customize-link');
+    const heroButton = document.querySelector('.hero .button-dark');
+    const endcap = document.querySelector('[data-page-endcap="home"]');
+    const luminance = (color) => {
+      const values = color.match(/[0-9]+(?:\\.[0-9]+)?/g)?.slice(0, 3).map((value) => Number(value) / 255);
+      if (!values || values.length !== 3) return 0;
+      const linear = values.map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+      return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+    };
+    const foreground = luminance(getComputedStyle(customizeButton).color);
+    const background = luminance(getComputedStyle(customizeButton).backgroundColor);
+    return {
+      theme: document.documentElement.dataset.theme,
+      addBackground: getComputedStyle(addButton).backgroundColor,
+      heroBackground: getComputedStyle(heroButton).backgroundColor,
+      customizeContrast: (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+      actionHeightDelta: Math.abs(addButton.getBoundingClientRect().height - customizeButton.getBoundingClientRect().height),
+      cardBackgroundImage: getComputedStyle(card).backgroundImage,
+      endcapBackgroundImage: getComputedStyle(endcap).backgroundImage,
+    };
+  });
+
+  const lightCardTheme = await inspectHomeCardTheme();
+  if (lightCardTheme.theme !== 'light' ||
+      lightCardTheme.addBackground !== lightCardTheme.heroBackground ||
+      lightCardTheme.customizeContrast < 4.5 ||
+      lightCardTheme.actionHeightDelta > 1.25 ||
+      !lightCardTheme.endcapBackgroundImage.includes('linear-gradient')) {
+    throw new Error('Light-theme menu card actions/surfaces failed computed-style checks: ' + JSON.stringify(lightCardTheme));
+  }
+  pass('Light theme: menu-card CTA matches the primary brand CTA, secondary action contrast is readable, and action heights align');
+
+  await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  const darkCardTheme = await inspectHomeCardTheme();
+  if (darkCardTheme.theme !== 'dark' ||
+      darkCardTheme.addBackground !== darkCardTheme.heroBackground ||
+      darkCardTheme.customizeContrast < 4.5 ||
+      darkCardTheme.actionHeightDelta > 1.25 ||
+      !darkCardTheme.cardBackgroundImage.includes('linear-gradient') ||
+      !darkCardTheme.endcapBackgroundImage.includes('linear-gradient')) {
+    throw new Error('Night-theme menu card actions/surfaces failed computed-style checks: ' + JSON.stringify(darkCardTheme));
+  }
+  pass('Night theme: menu-card CTA and lower-page surface follow the night palette, with readable secondary text and aligned actions');
+
+  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
 
   // Audit the entire customer-facing menu, not just the three homepage favourites.
   // The API remains the source of truth for recipe IDs and current menu count.
