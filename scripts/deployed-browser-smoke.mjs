@@ -758,6 +758,24 @@ try {
     throw new Error('A sign-in probe for a deliberately nonexistent account returned HTTP ' + loginResponse.status() + '; expected 401 or the configured auth rate limit 429.');
   }
 
+  // The resend probe uses a unique nonexistent address, so production data and inboxes are untouched.
+  const resendVerificationButton = dialog.getByRole('button', { name: 'Resend verification email', exact: true });
+  await resendVerificationButton.waitFor({ state: 'visible', timeout: 5_000 });
+  const resendVerificationResponsePromise = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/auth/resend-verification' &&
+    response.request().method() === 'POST',
+  );
+  await resendVerificationButton.click();
+  const resendVerificationResponse = await resendVerificationResponsePromise;
+  if (resendVerificationResponse.status() !== 200) {
+    throw new Error('Resend verification probe returned HTTP ' + resendVerificationResponse.status() + '.');
+  }
+  const resendVerificationPayload = await resendVerificationResponse.json();
+  if (!/If an account exists and requires email verification/i.test(resendVerificationPayload.message || '')) {
+    throw new Error('Resend verification did not return the generic privacy-preserving response.');
+  }
+  pass('sign-in exposes the verification-resend action and API avoids account enumeration for a nonexistent address');
+
   // Inspect signup UI only. Do not create a production account or send an email.
   await dialog.getByRole('button', { name: 'Create an account', exact: true }).click();
   await page.getByRole('heading', { name: 'Make yourself at home.' }).waitFor({ state: 'visible' });
