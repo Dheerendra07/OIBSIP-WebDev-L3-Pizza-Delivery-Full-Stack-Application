@@ -3810,3 +3810,228 @@ html[data-theme="dark"] [data-customer-dashboard="premium-dashboard-v1"] .dashbo
     transition: none !important;
   }
 }
+
+
+/* Step 5 UI: give live operations a clearer page hierarchy without changing workflow logic. */
+.admin-page[data-admin-operations="premium-ops-v1"] > .admin-heading,
+.staff-operations-page[data-staff-operations] > .admin-heading {
+  align-items: flex-end;
+  padding-bottom: 24px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .admin-heading > div,
+.staff-operations-page[data-staff-operations] .admin-heading > div {
+  min-width: 0;
+  max-width: 780px;
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .admin-heading h1,
+.staff-operations-page[data-staff-operations] .admin-heading h1 {
+  margin: 14px 0 10px;
+  font-size: clamp(38px, 4vw, 54px);
+  line-height: 1.08;
+  letter-spacing: -.045em;
+  text-wrap: balance;
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .admin-heading p,
+.staff-operations-page[data-staff-operations] .admin-heading p {
+  max-width: 700px;
+  font-size: 12px;
+  line-height: 1.75;
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .admin-heading > .button,
+.staff-operations-page[data-staff-operations] .admin-heading > .button {
+  min-height: 48px;
+  padding-inline: 17px;
+  border-radius: 11px;
+  white-space: nowrap;
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .admin-metrics {
+  gap: 14px;
+  margin-top: 0;
+  margin-bottom: 27px;
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .admin-metric {
+  position: relative;
+  min-width: 0;
+  min-height: 137px;
+  overflow: hidden;
+  padding: 21px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(145deg, var(--surface-raised) 0%, var(--surface) 100%);
+  box-shadow: 0 11px 27px rgba(18, 42, 57, .055);
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .admin-metric::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand) 0%, transparent 88%);
+  content: "";
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .admin-metric span {
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  line-height: 1.45;
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .admin-metric span svg {
+  flex: 0 0 auto;
+  color: var(--brand);
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .admin-metric strong {
+  margin-top: 18px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: clamp(25px, 2.4vw, 33px);
+  font-weight: 800;
+  letter-spacing: -.04em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.admin-page[data-admin-operations="premium-ops-v1"] > .admin-panel {
+  margin-top: 17px;
+  padding: clamp(18px, 2.2vw, 27px);
+  border-radius: 17px;
+  background: linear-gradient(145deg, var(--surface-raised) 0%, var(--surface) 100%);
+  box-shadow: 0 12px 29px rgba(18, 42, 57, .05);
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .panel-heading {
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .panel-heading > div {
+  min-width: 0;
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .panel-heading h2 {
+  font-size: clamp(21px, 2vw, 25px);
+  line-height: 1.25;
+  letter-spacing: -.025em;
+}
+.admin-page[data-admin-operations="premium-ops-v1"] .panel-heading p {
+  max-width: 720px;
+  font-size: 11px;
+  line-height: 1.65;
+}
+.staff-operations-page[data-staff-operations] .fulfillment-admin-panel {
+  margin-top: 24px;
+  padding: clamp(17px, 2.4vw, 28px);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(145deg, var(--surface-raised) 0%, var(--surface) 100%);
+  box-shadow: 0 14px 34px rgba(18, 42, 57, .065);
+}
+.staff-operations-page[data-staff-operations] .fulfillment-admin-panel > .panel-heading,
+.staff-operations-page[data-staff-operations] .fulfillment-admin-panel > .panel-heading + .fulfillment-mode-banner {
+  margin-bottom: 20px;
+}
+.staff-operations-page[data-staff-operations] .fulfillment-admin-panel .panel-heading h2 {
+  font-size: clamp(22px, 2.4vw, 28px);
+  line-height: 1.25;
+  letter-spacing: -.035em;
+}
+.staff-operations-page[data-staff-operations] .fulfillment-admin-panel .panel-heading p {
+  max-width: 640px;
+  font-size: 11px;
+  line-height: 1.65;
+}
+.page-endcap-kitchen .page-endcap-main h2,
+.page-endcap-delivery .page-endcap-main h2 {
+  max-width: 570px;
+  text-wrap: balance;
+}
+.page-endcap-kitchen .page-endcap-item,
+.page-endcap-delivery .page-endcap-item {
+  min-width: 0;
+}
+html[data-theme="dark"] .admin-page[data-admin-operations="premium-ops-v1"] > .admin-heading,
+html[data-theme="dark"] .staff-operations-page[data-staff-operations] > .admin-heading {
+  border-bottom-color: #2b4353;
+}
+html[data-theme="dark"] .admin-page[data-admin-operations="premium-ops-v1"] .admin-metric,
+html[data-theme="dark"] .admin-page[data-admin-operations="premium-ops-v1"] > .admin-panel,
+html[data-theme="dark"] .staff-operations-page[data-staff-operations] .fulfillment-admin-panel {
+  border-color: #2b4353;
+  background: linear-gradient(145deg, #142635 0%, #101e2b 100%);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .21);
+}
+html[data-theme="dark"] .admin-page[data-admin-operations="premium-ops-v1"] .admin-metric::before {
+  background: linear-gradient(90deg, #ff765b 0%, transparent 88%);
+}
+html[data-theme="dark"] .admin-page[data-admin-operations="premium-ops-v1"] .admin-metric span {
+  color: #a8bac5;
+}
+html[data-theme="dark"] .admin-page[data-admin-operations="premium-ops-v1"] .admin-metric span svg {
+  color: #ff9b83;
+}
+html[data-theme="dark"] .admin-page[data-admin-operations="premium-ops-v1"] .admin-metric strong {
+  color: #f1f6f8;
+}
+@media (max-width: 800px) {
+  .admin-page[data-admin-operations="premium-ops-v1"] > .admin-heading,
+  .staff-operations-page[data-staff-operations] > .admin-heading {
+    align-items: stretch;
+    padding-bottom: 21px;
+    margin-bottom: 23px;
+  }
+  .admin-page[data-admin-operations="premium-ops-v1"] .admin-heading > .button,
+  .staff-operations-page[data-staff-operations] .admin-heading > .button {
+    width: 100%;
+    justify-content: center;
+  }
+  .admin-page[data-admin-operations="premium-ops-v1"] .admin-metric {
+    min-height: 125px;
+    padding: 17px;
+  }
+  .admin-page[data-admin-operations="premium-ops-v1"] > .admin-panel {
+    padding: 19px;
+  }
+  .staff-operations-page[data-staff-operations] .fulfillment-admin-panel {
+    margin-top: 19px;
+  }
+}
+@media (max-width: 520px) {
+  .admin-page[data-admin-operations="premium-ops-v1"] .admin-metrics {
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .admin-page[data-admin-operations="premium-ops-v1"] .admin-metric {
+    min-height: 112px;
+    padding: 15px 13px;
+    border-radius: 14px;
+  }
+  .admin-page[data-admin-operations="premium-ops-v1"] .admin-metric span {
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 9px;
+    letter-spacing: .055em;
+  }
+  .admin-page[data-admin-operations="premium-ops-v1"] .admin-metric span svg {
+    width: 15px;
+    height: 15px;
+  }
+  .admin-page[data-admin-operations="premium-ops-v1"] .admin-metric strong {
+    margin-top: 14px;
+    font-size: clamp(22px, 6.3vw, 29px);
+  }
+  .admin-page[data-admin-operations="premium-ops-v1"] > .admin-panel {
+    padding: 17px 13px;
+    border-radius: 15px;
+  }
+  .admin-page[data-admin-operations="premium-ops-v1"] .panel-heading {
+    gap: 11px;
+  }
+  .staff-operations-page[data-staff-operations] .fulfillment-admin-panel {
+    padding: 15px 12px;
+    border-radius: 15px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-page[data-admin-operations="premium-ops-v1"] .admin-metric {
+    transition: none !important;
+  }
+}
