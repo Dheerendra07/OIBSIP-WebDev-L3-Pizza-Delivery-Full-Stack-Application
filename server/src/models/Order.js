@@ -52,6 +52,9 @@ const orderSchema = new mongoose.Schema({
   kitchenStartedAt: { type: Date, default: null },
   dispatchedAt: { type: Date, default: null },
   deliveredAt: { type: Date, default: null },
+  deliveryConfirmationRequestedAt: { type: Date, default: null },
+  deliveryConfirmedAt: { type: Date, default: null },
+  deliveryConfirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   kitchenStaff: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
   deliveryStaff: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
 }, { timestamps: true, strict: 'throw' });
