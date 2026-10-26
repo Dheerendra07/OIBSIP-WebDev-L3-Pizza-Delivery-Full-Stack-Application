@@ -50,6 +50,31 @@ async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreen
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
   }
   await page.locator('.dashboard-metrics > div').first().waitFor({ state: 'visible', timeout: 15_000 });
+
+  const dashboardRoot = page.locator('[data-customer-dashboard="premium-dashboard-v1"]');
+  await dashboardRoot.waitFor({ state: 'visible', timeout: 15_000 });
+  const dashboardOverview = await dashboardRoot.evaluate((root) => {
+    const metricCards = [...root.querySelectorAll('.dashboard-metrics > div')];
+    return {
+      eyebrow: root.querySelector('.dashboard-top .eyebrow')?.textContent?.trim() || '',
+      description: root.querySelector('.dashboard-top p')?.textContent?.trim() || '',
+      primaryAction: root.querySelector('.dashboard-top > .button')?.textContent?.trim() || '',
+      metricLabels: metricCards.map((card) => card.querySelector('span')?.textContent?.trim() || ''),
+      metricBackground: metricCards[0] ? getComputedStyle(metricCards[0]).backgroundImage : '',
+      metricAccent: metricCards[0] ? getComputedStyle(metricCards[0], '::before').backgroundImage : '',
+      metricRadius: metricCards[0] ? getComputedStyle(metricCards[0]).borderRadius : '',
+    };
+  });
+  if (dashboardOverview.eyebrow !== 'YOUR ORDERS' ||
+      !dashboardOverview.description.includes('Track order progress') ||
+      dashboardOverview.primaryAction !== 'Browse the menu' ||
+      JSON.stringify(dashboardOverview.metricLabels) !== JSON.stringify(['TOTAL ORDERS', 'IN PROGRESS', 'LAST ORDER TOTAL']) ||
+      !dashboardOverview.metricBackground.includes('linear-gradient') ||
+      !dashboardOverview.metricAccent.includes('linear-gradient') ||
+      dashboardOverview.metricRadius !== '16px') {
+    throw new Error('Customer dashboard overview or metric-card hierarchy failed: ' + JSON.stringify(dashboardOverview));
+  }
+  pass('customer dashboard uses direct order-focused copy and distinct premium metric surfaces');
   const dashboardEndcap = page.locator('[data-page-endcap="dashboard"]');
   await dashboardEndcap.waitFor({ state: 'visible', timeout: 15_000 });
   const dashboardEditorialState = await dashboardEndcap.evaluate((el) => ({
@@ -68,9 +93,11 @@ async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreen
     throw new Error('Customer dashboard must show all three contextual lower-page support cards.');
   }
   pass('customer dashboard includes contextual support and next-step cards below order history');
-  await page.waitForFunction(() =>
-    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundColor === 'rgb(255, 255, 255)',
-  );
+  await page.waitForFunction(() => {
+    const card = document.querySelector('.dashboard-metrics > div');
+    const backgroundImage = card ? getComputedStyle(card).backgroundImage : '';
+    return backgroundImage.includes('linear-gradient') && backgroundImage.includes('rgb(255, 255, 255)');
+  });
   await captureScreenshot(page, lightScreenshot);
   await auditResponsiveState(page, `${prefix}-light`);
 
@@ -78,7 +105,9 @@ async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreen
   await page.getByRole('button', { name: 'Switch to night mode', exact: true }).click();
   await page.waitForFunction(() => (
     document.documentElement.dataset.theme === 'dark' &&
-    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundColor === 'rgb(16, 31, 44)' &&
+    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundImage.includes('linear-gradient') &&
+    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundImage.includes('rgb(20, 38, 53)') &&
+    getComputedStyle(document.querySelector('.dashboard-metrics > div::before')).backgroundImage !== '' &&
     getComputedStyle(document.querySelector('.dashboard-top .button-light')).backgroundColor === 'rgb(255, 98, 71)' &&
     getComputedStyle(document.querySelector('.dashboard-top .button-light')).color === 'rgb(255, 255, 255)'
   ), null, { timeout: 5000 });
@@ -90,7 +119,8 @@ async function auditDashboardThemes(page, { prefix, lightScreenshot, nightScreen
   await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
   await page.waitForFunction(() => (
     document.documentElement.dataset.theme === 'light' &&
-    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundColor === 'rgb(255, 255, 255)'
+    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundImage.includes('linear-gradient') &&
+    getComputedStyle(document.querySelector('.dashboard-metrics > div')).backgroundImage.includes('rgb(255, 255, 255)')
   ), null, { timeout: 5000 });
   // The following logout/session checks deliberately exercise mobile navigation;
   // leave the browser at the same 390px viewport used by the rest of this smoke.
