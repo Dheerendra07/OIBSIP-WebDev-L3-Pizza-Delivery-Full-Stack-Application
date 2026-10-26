@@ -123,11 +123,12 @@ All routes below are under /api.
 
 ## Verification and launch status
 
-The current application/runtime revision fd12cd3 is live on Render deployment dep-dbffouavcj2c738063ug. Render auto-deploy is disabled, so this was manually deployed. The later 452a647 commit adds tests only and does not change the running application.
+The current application/runtime revision [77b23c8](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/77b23c8b4c5fa310b8ceaefd8a2260bbcedb1282) is live on Render deployment [dep-dbfhln2jnfac73ce8h40](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0). Render auto-deploy is disabled, so the revision was manually deployed after CI passed.
 
-- [Main CI 40284510500](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40284510500): **254/254 tests passed; 0 failures**, including a disposable MongoDB / real Express HTTP integration path for payment-review support-case creation, customer/admin visibility and preserved fulfillment hold.
-- [Deployed API/revision smoke 40284510512](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40284510512): **16/16 passed** for the exact deployed revision, database readiness/catalog, CORS, auth guards, webhook guard and production bundle.
-- [Hosted browser smoke 40283837344](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40283837344): **76/76 passed**, including loaded distinct food photos, working product details, Light/Night mode, responsive widths 320–1440px, checkout recovery and the synthetic payment-review support flow.
+- [Pizza House CI 40290344321](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40290344321) passed dependency/security checks, production client build, and API/client tests.
+- [Deployed API/revision smoke 40290344358](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40290344358) passed after the live service was updated. It checks database readiness/catalog, same-origin site, CORS, unauthenticated session guards, payment-provider admin guard, webhook signature guard, and the production bundle.
+- [Hosted browser smoke 40290221715](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40290221715) passed for the admin email-test UI change.
+- The admin-only `POST /api/admin/test-email` route sends a test only to the signed-in administrator's email address and is limited to 3 requests per 15 minutes. Automated tests stub the email provider; **no live email was sent during this audit**, and a provider-accepted request does not prove inbox delivery.
 
 The latest support work adds distinct **Damaged or spilled item** and **Payment or refund question** categories. Payment/refund cases are allowed for payment-review, failed and refunded order states without bypassing fulfillment holds; the form explicitly states that support does not automatically issue a refund. The integration test uses a disposable MongoDB database in CI, not the production Atlas instance.
 

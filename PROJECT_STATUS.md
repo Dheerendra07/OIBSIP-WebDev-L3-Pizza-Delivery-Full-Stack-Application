@@ -1,9 +1,7 @@
-# Pizza House — Project Status and Launch Roadmap
-
-**Last reviewed:** 2026-10-26 (main CI [40287122648](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40287122648) passed 255/255 with zero failures, including the disposable-MongoDB email-verification lifecycle; Render deployment [dep-dbfg6bavcj2c7381k010](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) running commit `9d47477` is live; deployed API/revision smoke [40287122638](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40287122638) passed 16/16; hosted browser smoke [40287122913](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40287122913) passed 77/77 and verifies the live resend endpoint; provider-originated payments/webhooks, actual email inbox/SMS delivery and real fulfillment remain unverified)  
+**Last reviewed:** 2026-10-26 (Pizza House CI [40290344321](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40290344321) passed the test/build/security-audit job; Render deployment [dep-dbfhln2jnfac73ce8h40](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) is live on `77b23c8`; deployed API/revision smoke [40290344358](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40290344358) passed after the release was deployed; hosted browser smoke [40290221715](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40290221715) passed for the admin email-test UI; actual inbox delivery, SMS, provider-originated Razorpay payment/webhook/refund events and real fulfillment remain unverified)  
 **Repository:** [Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application)  
 **Canonical hosted app/API:** https://pizza-house-api.onrender.com  
-**Latest application/runtime commit:** [9d47477](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/9d47477e273183a0f5c2505cab5f2ccbfc5a3030) (atomic email-verification resend and one-time token consumption; Render deployment [dep-dbfg6bavcj2c7381k010](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) is live)  
+**Latest application/runtime commit:** [77b23c8](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/77b23c8b4c5fa310b8ceaefd8a2260bbcedb1282) (admin email-delivery test route, corrected email validation and properly formatted message body; Render deployment [dep-dbfhln2jnfac73ce8h40](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) is live)  
 **Product state:** deployed development/launch-preparation platform; **not certified for live-money transactions or a real delivery business**.
 
 > Keep implemented features, automated evidence, hosted evidence and real-world readiness separate. A green build or simulated order progression is not proof that a customer was charged, a kitchen accepted an order, or a driver delivered it.
@@ -50,6 +48,13 @@
 - [Hosted browser smoke 40287122913](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40287122913) passed **77/77** against the live Render app. It clicks the new sign-in action and checks the real API's generic response using a unique nonexistent `example.invalid` email; it creates no account and sends no email.
 - Render deployment [dep-dbfg6bavcj2c7381k010](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) is live on `9d47477`. Deployed API/revision smoke [40286765638](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40286765638) and [40287122638](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40287122638) both passed **16/16**.
 - **Boundary:** the HTTP lifecycle test stubs Resend's HTTP response, and the browser probe deliberately uses a nonexistent address. Neither proves a customer received an email in a real inbox. This does not add SMS OTP; Razorpay Test Mode still explicitly simulates its OTP screen and does not charge real money.
+
+### Latest live release — admin email-delivery test
+
+- [Commit 4db08c84](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/4db08c84) added an authenticated `POST /api/admin/test-email` action. It requires an admin session and is rate-limited to 3 attempts per 15 minutes; the recipient is only the signed-in administrator's stored email address.
+- [Commit 77b23c8](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/77b23c8b4c5fa310b8ceaefd8a2260bbcedb1282) corrects email-address validation and text newline formatting. The endpoint refuses an unconfigured provider (503) and returns a sanitized provider-rejection response (502); it never claims provider acceptance guarantees inbox delivery.
+- [Pizza House CI 40290344321](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40290344321) passed dependency/security checks, the production client build and the API/client tests. [Deployed smoke 40290344358](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40290344358) passed after Render was manually deployed to `77b23c8`; the first attempt correctly caught that Render was still on the earlier runtime revision.
+- [Render deployment dep-dbfhln2jnfac73ce8h40](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0) is live on `77b23c8`. Automated email tests stub the provider response; no real email was sent during this audit. To verify actual delivery, the signed-in admin must explicitly use the test-email action and check inbox/spam. A provider-accepted request is not proof of final delivery.
 
 ### PR #121 — secure kitchen and delivery staff workflows
 Merged to main as d5ab86f8d4c64bba8b28f7b53669ef1eaf5baedc.
@@ -153,10 +158,11 @@ The eight currently open dependency PRs are #48, #49, #50, #51, #53, #55, #153 a
 
 ## 7. Branch hygiene
 
-- The repository accumulated 100+ branch refs while the product was being developed. New feature work should stay on `main`; do not create a branch for routine follow-up work.
-- Workflow `.github/workflows/prune-merged-branches.yml` runs only after a successful `Pizza House CI` run on `main`. It removes a branch only when its current tip SHA exactly matches a head SHA from a merged PR in this repository.
-- It preserves the default/protected branches, all refs used by open PRs, branches changed since their merged PR, and branches originating from another repository. Deletion failures are visible in the workflow logs; no branch is force-updated or merged by this job.
-- This cleanup does not merge or close the open Dependabot PRs; those updates need their own CI/compatibility review.
+- Routine follow-up work stays on `main`; do not create new feature branches for ordinary fixes.
+- After a successful `Pizza House CI` run on `main`, workflow `.github/workflows/prune-merged-branches.yml` removes merged-PR branch refs only when their exact tip SHA is known.
+- The workflow also has a small, reviewed allowlist of five stale/orphan refs, each pinned to the exact tip SHA inspected on 2026-10-26. This covers two closed, unmerged UI branches superseded by later mainline UI work, one old illustration branch that diverged from the current photo-led UI, one outdated status-only branch, and one dependency-install branch whose changes are already contained in main.
+- The cleanup rechecks each pinned SHA at run time and preserves the default/protected branch, every branch used by an open PR, and any branch whose tip has changed. It cannot merge, force-update or delete a changed/unreviewed ref. The eight open Dependabot PR branches are intentionally preserved for separate compatibility review.
+- The cleanup run must be checked after CI; report the actual branch count and deletions rather than assuming the job removed anything.
  
 ## 6. Release discipline
 

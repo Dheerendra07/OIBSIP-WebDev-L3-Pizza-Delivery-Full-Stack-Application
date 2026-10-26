@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Remove only unchanged branch tips from merged PRs
+      - name: Remove unchanged merged-PR tips and explicitly reviewed stale refs
         uses: actions/github-script@v9
         with:
           script: |
@@ -47,13 +47,30 @@ jobs:
               mergedHeadShas.set(pr.head.ref, knownShas);
             }
 
-            const candidates = branches.filter((branch) => {
+            const mergedCandidates = branches.filter((branch) => {
               if (branch.name === defaultBranch || branch.protected) return false;
               if (openHeadRefs.has(branch.name)) return false;
               return mergedHeadShas.get(branch.name)?.has(branch.commit.sha) === true;
             });
 
-            core.info(`Branches found: ${branches.length}; merged-PR branches eligible for cleanup: ${candidates.length}.`);
+            // Explicit, one-time cleanup for orphaned refs reviewed on 2026-10-26.
+            // The fixed SHA must still match; open-PR refs and protected/default refs are
+            // always preserved. These are not patterns: no other branches can match.
+            const staleBranchTips = new Map([
+              ['docs/status-after-signed-webhook', '3f11048e4ee93dcb271be5d4a238f694c3ec938c'],
+              ['feat/premium-pizza-artwork', 'd29e7366e3158016aaf325d06c12361786a5347c'],
+              ['fix/catalog-card-ingredients-and-unique-photos', '4a3f0d25bc94063827402db6129cc87cf98a6757'],
+              ['fix/pizza-card-live-ingredients', '6f227f1fe5c94e592dc4b471fc1ce9a92ee05313'],
+              ['fix/reproducible-dependency-installs', 'd6f90bcb4b06ba0e4524ba6fad68c5d80b070582'],
+            ]);
+            const staleCandidates = branches.filter((branch) => {
+              if (branch.name === defaultBranch || branch.protected || openHeadRefs.has(branch.name)) return false;
+              return staleBranchTips.get(branch.name) === branch.commit.sha;
+            });
+            const candidateMap = new Map([...mergedCandidates, ...staleCandidates].map((branch) => [branch.name, branch]));
+            const candidates = [...candidateMap.values()];
+
+            core.info(`Branches found: ${branches.length}; merged-PR branches eligible: ${mergedCandidates.length}; exact-SHA stale refs eligible: ${staleCandidates.length}.`);
             core.info(`Preserved open-PR refs: ${openHeadRefs.size}; default branch: ${defaultBranch}.`);
 
             let deleted = 0;
