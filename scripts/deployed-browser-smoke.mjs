@@ -164,7 +164,8 @@ try {
       (await page.locator('[data-pizza-card-open="photo-hit-area-v1"]').count() >= 3) &&
       (await page.locator('[data-cart-photo-release="catalog-photo-v1"]').count() === 1) &&
       (await page.locator('[data-notification-health-release="admin-notifications-v1"]').count() === 1) &&
-      (await page.locator('[data-payment-mode-disclosure="sandbox-otp-v1"]').count() === 1);
+      (await page.locator('[data-payment-mode-disclosure-release="sandbox-otp-v1"]').count() === 1) &&
+      (await page.locator('[data-payment-review-support-release="payment-support-v1"]').count() === 1);
 
     premiumVisualState = await page.locator('[data-pizza-card-version="premium-photo-v1"]').evaluateAll((cards) => {
       const names = ['tomato', 'green', 'orange', 'cream'];
@@ -1343,6 +1344,38 @@ try {
       throw new Error('Verification retry did not resend the exact same payment confirmation or created a duplicate order/payment.');
     }
     pass('payment confirmation retry resends the same payment proof and completes without another charge attempt');
+
+    // A payment-review hold must remain blocked from fulfillment but still expose a customer support route.
+    qaCheckoutOrder = {
+      ...qaCheckoutOrder,
+      status: 'payment_review',
+      paymentStatus: 'paid',
+      paymentReviewRequired: true,
+    };
+    const customerOrderRefresh = page.getByRole('button', { name: 'Refresh', exact: true });
+    await customerOrderRefresh.click();
+    const paymentSupportButton = page.getByRole('button', { name: 'Get payment support', exact: true });
+    await paymentSupportButton.waitFor({ state: 'visible', timeout: 10_000 });
+    await paymentSupportButton.click();
+    const paymentSupportDialog = page.locator('.issue-report-modal');
+    await paymentSupportDialog.waitFor({ state: 'visible', timeout: 10_000 });
+    const paymentCategory = paymentSupportDialog.locator('[data-payment-review-support="payment-support-v1"]');
+    await paymentCategory.waitFor({ state: 'visible', timeout: 5_000 });
+    const paymentCategoryState = await paymentCategory.evaluate((select) => ({
+      value: select.value,
+      options: Array.from(select.options).map((option) => ({ value: option.value, label: option.textContent.trim() })),
+    }));
+    if (paymentCategoryState.value !== 'payment_refund' ||
+        paymentCategoryState.options.length !== 1 ||
+        paymentCategoryState.options[0].value !== 'payment_refund' ||
+        !(await paymentSupportDialog.getByText(/does not automatically issue a refund/i).count())) {
+      throw new Error('Payment-review support must default to the only valid category and must not promise an automatic refund: ' + JSON.stringify(paymentCategoryState));
+    }
+    pass('payment-review customer can open a payment-only support case without unlocking fulfillment or promising a refund');
+    await page.keyboard.press('Escape');
+    await paymentSupportDialog.waitFor({ state: 'hidden', timeout: 5_000 });
+    qaCheckoutOrder = { ...qaCheckoutOrder, status: 'order_received', paymentReviewRequired: false };
+    await customerOrderRefresh.click();
 
     const logoutResponsePromise = page.waitForResponse((response) =>
 

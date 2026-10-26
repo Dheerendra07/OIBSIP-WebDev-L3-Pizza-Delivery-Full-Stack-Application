@@ -1087,7 +1087,7 @@ export default function App() {
     const filteredPizzas = featured.filter(p => filter === 'All' || p.tag === filter);
     const isOperationsStaff = ['kitchen', 'delivery'].includes(user?.role);
     const operationsHome = user?.role === 'kitchen' ? 'kitchen' : user?.role === 'delivery' ? 'delivery' : user?.role === 'admin' ? 'admin' : 'dashboard';
-    return <div className="app-shell" data-cart-photo-release="catalog-photo-v1" data-notification-health-release="admin-notifications-v1">
+    return <div className="app-shell" data-cart-photo-release="catalog-photo-v1" data-notification-health-release="admin-notifications-v1" data-payment-mode-disclosure-release="sandbox-otp-v1" data-payment-review-support-release="payment-support-v1">
     <div className="announcement"><span><Sparkles size={13}/> A better way to choose your pizza.</span><span className="announcement-right">Live menu · Clear prices · Recipe details</span></div>
     <header className="site-header" data-mobile-auth-focus="dialog-first" data-payment-provider-check="readonly-admin-v1" data-auth-toast-fix="clear-stale-toast-v1"><a className="brand" href="#home" onClick={e => { e.preventDefault(); navigate('home'); }}><span className="brand-mark">P<span>.</span></span><span className="brand-name">pizza<span>house</span><small>LIVE MENU · CLEAR PRICES</small></span></a>
       <nav className={`main-nav ${mobileMenu ? 'open' : ''}`}>{!isOperationsStaff && <><button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button><button className={page === 'menu' ? 'active' : ''} onClick={() => navigate('menu')}>Our menu</button><button className={page === 'builder' ? 'active' : ''} onClick={() => navigate('builder')}>Build your own</button></>}{user && <button className={page === operationsHome ? 'active' : ''} onClick={() => navigate(operationsHome)}>{user.role === 'admin' ? 'Admin panel' : user.role === 'kitchen' ? 'Kitchen queue' : user.role === 'delivery' ? 'Delivery run' : 'My orders'}</button>}{!user && <button className="mobile-auth-link" onClick={() => { openAuth('login'); authTriggerRef.current = mobileMenuTriggerRef.current; setMobileMenu(false); }}>Sign in</button>}</nav>
@@ -2202,7 +2202,7 @@ function IssueReportDialog({ order, form, setForm, pending, returnFocusRef, onSu
             <p id="issue-report-description">Tell us what happened with order {order.orderNumber}. We’ll create a reference you can follow from your order history. Payment cases are reviewed by the team; submitting this form does not automatically issue a refund.</p>
             <form onSubmit={onSubmit}>
                 <label className="issue-field"><span>What went wrong?</span>
-                    <select required value={form.category} onChange={event => setForm(current => ({ ...current, category: event.target.value }))}>
+                    <select data-payment-review-support="payment-support-v1" required value={form.category} onChange={event => setForm(current => ({ ...current, category: event.target.value }))}>
                         {availableCategories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
                 </label>
