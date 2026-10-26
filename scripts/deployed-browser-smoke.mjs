@@ -482,6 +482,20 @@ try {
       changedBuilderVisual.price === initialBuilderVisual.price) {
     throw new Error('Changing selected toppings must update the reference photo, exact recipe summary and price: ' + JSON.stringify({ initialBuilderVisual, changedBuilderVisual }));
   }
+  // Wait for the fade-in to finish before taking evidence screenshots; a loaded image
+  // can have naturalWidth > 0 while its CSS opacity transition is still near zero.
+  await page.waitForFunction(() => {
+    const preview = document.querySelector('[data-builder-preview]');
+    const photo = preview?.querySelector('.summary-pizza-photo');
+    const rect = photo?.getBoundingClientRect();
+    return Boolean(
+      preview?.classList.contains('has-photo') &&
+      photo?.naturalWidth > 0 &&
+      Number.parseFloat(getComputedStyle(photo).opacity) >= 0.99 &&
+      rect && rect.width > 100 && rect.height > 100
+    );
+  }, null, { timeout: 5000 });
+  pass('builder reference photo is visibly rendered, not only downloaded');
   pass('builder photo reference changes with selected toppings while the exact recipe and price stay visible');
   const builderLight = await page.locator('.builder-summary').evaluate((el) => ({
     background: getComputedStyle(el).backgroundColor,
