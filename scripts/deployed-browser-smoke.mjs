@@ -1217,6 +1217,10 @@ try {
     await page.getByLabel('6-digit PIN code').fill('250001');
     const checkoutButton = page.getByRole('button', { name: 'Checkout securely', exact: true });
     await checkoutButton.waitFor({ state: 'visible', timeout: 15_000 });
+    const sandboxNotice = page.getByText('The OTP screen is simulated. No SMS is sent and no real money is charged.', { exact: true });
+    await sandboxNotice.waitFor({ state: 'visible', timeout: 10_000 });
+    if (!(await sandboxNotice.isVisible())) throw new Error('Checkout must clearly disclose that Test Mode does not send an SMS or charge real money.');
+    pass('checkout makes the Test Mode OTP/no-real-charge boundary visible');
     if (await checkoutButton.isDisabled()) throw new Error('Mock checkout was disabled despite a signed-in customer, live catalog and valid delivery details.');
     const bagLineCountBeforeCheckout = await page.locator('.cart-line').count();
     const totalBeforeCheckout = await page.locator('.price-row.final').innerText();
