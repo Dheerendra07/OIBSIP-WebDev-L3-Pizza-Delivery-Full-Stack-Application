@@ -930,14 +930,30 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.equal(deliveryQueueAfterDispatch.status, 200);
   assert.ok((await deliveryQueueAfterDispatch.json()).orders.some(order => String(order.id) === String(createdOrder.id)), 'driver queue should contain dispatched assigned orders');
 
-  const deliveredResponse = await fetch(base + '/api/ops/orders/' + createdOrder.id + '/status', {
+  const directDeliveryAttempt = await fetch(base + '/api/ops/orders/' + createdOrder.id + '/status', {
     method: 'PATCH',
     headers: { ...headers, Cookie: deliverySession.cookie },
     body: JSON.stringify({ status: 'delivered' }),
   });
-  assert.equal(deliveredResponse.status, 200);
-  const deliveredResult = await deliveredResponse.json();
-  assert.equal(deliveredResult.order.fulfillmentMode, 'simulated');
+  assert.equal(directDeliveryAttempt.status, 409, 'delivery staff must not confirm receipt themselves');
+
+  const requestConfirmationResponse = await fetch(base + '/api/ops/orders/' + createdOrder.id + '/request-delivery-confirmation', {
+    method: 'POST',
+    headers: { ...headers, Cookie: deliverySession.cookie },
+  });
+  assert.equal(requestConfirmationResponse.status, 200);
+  const requestConfirmationResult = await requestConfirmationResponse.json();
+  assert.equal(requestConfirmationResult.order.status, 'sent_to_delivery');
+  assert.ok(requestConfirmationResult.order.deliveryConfirmationRequestedAt);
+
+  const customerConfirmationResponse = await fetch(base + '/api/orders/' + createdOrder.id + '/confirm-delivery', {
+    method: 'POST',
+    headers: { ...headers, Cookie: cookie },
+  });
+  assert.equal(customerConfirmationResponse.status, 200, 'the signed-in customer must confirm receipt');
+  const deliveredResult = await customerConfirmationResponse.json();
+  assert.equal(deliveredResult.order.status, 'delivered');
+  assert.ok(deliveredResult.order.deliveryConfirmedAt);
   assert.ok(deliveredResult.order.deliveredAt);
 
   const finalCustomerHistory = await fetch(base + '/api/orders/my', {
@@ -951,6 +967,8 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.ok(progressedOrder.kitchenStartedAt);
   assert.ok(progressedOrder.dispatchedAt);
   assert.ok(progressedOrder.deliveredAt);
+  assert.ok(progressedOrder.deliveryConfirmationRequestedAt);
+  assert.ok(progressedOrder.deliveryConfirmedAt);
   assert.equal(progressedOrder.paymentStatus, 'paid');
 
   // Race regression: a payment-review webhook can update the order after a
