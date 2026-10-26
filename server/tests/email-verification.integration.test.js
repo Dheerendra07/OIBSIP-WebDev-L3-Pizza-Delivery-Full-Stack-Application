@@ -113,7 +113,7 @@ test('email verification can be resent safely over HTTP; stale links stop workin
   assert.equal(staleLink.status, 400, 'the previous link must be invalid after a resend');
 
   const validLink = await fetch(`${base}/api/auth/verify-email/${secondToken}`, { headers, redirect: 'manual' });
-  assert.equal(validLink.status, 302);
+  assert.equal(validLink.status, 302, `verification endpoint response: ${await validLink.clone().text()}`);
   assert.equal(validLink.headers.get('location'), `${process.env.CLIENT_BASE_URL}/?verified=1`);
 
   const login = await fetch(`${base}/api/auth/login`, {

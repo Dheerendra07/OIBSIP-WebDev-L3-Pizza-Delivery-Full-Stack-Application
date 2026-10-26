@@ -48,9 +48,23 @@ export const register = asyncHandler(async (req, res) => {
 });
 
 export const verifyEmail = asyncHandler(async (req, res) => {
-  const user = await User.findOne({ emailVerificationTokenHash: hashToken(req.params.token), emailVerificationExpiresAt: { $gt: new Date() } }).select('+emailVerificationTokenHash +emailVerificationExpiresAt');
+  const tokenHash = hashToken(req.params.token);
+  const now = new Date();
+  const user = await User.findOne({
+    emailVerificationTokenHash: tokenHash,
+    emailVerificationExpiresAt: { $gt: now },
+  }).select('_id');
   if (!user) return res.status(400).json({ error: 'Verification link is invalid or expired' });
-  user.emailVerifiedAt = new Date(); user.emailVerificationTokenHash = null; user.emailVerificationExpiresAt = null; await user.save();
+
+  // Atomically consume the one-time token. Updating only these mutable fields
+  // avoids saving the immutable role field and safely handles concurrent clicks.
+  const result = await User.updateOne(
+    { _id: user._id, emailVerificationTokenHash: tokenHash, emailVerificationExpiresAt: { $gt: now } },
+    { $set: { emailVerifiedAt: now, emailVerificationTokenHash: null, emailVerificationExpiresAt: null } },
+  );
+  if (result.modifiedCount !== 1) {
+    return res.status(400).json({ error: 'Verification link is invalid or expired' });
+  }
   res.redirect(`${config.clientBaseUrl}/?verified=1`);
 });
 
