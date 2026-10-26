@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { register, verifyEmail, login, adminLogin, staffLogin, changeStaffPassword, logout, me, forgotPassword, resetPassword } from '../controllers/authController.js';
+import { register, verifyEmail, resendVerificationEmail, login, adminLogin, staffLogin, changeStaffPassword, logout, me, forgotPassword, resetPassword } from '../controllers/authController.js';
 import { requireAuth } from '../middleware/auth.js';
 const router = Router();
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Too many attempts. Please try again later.' } });
 router.post('/register', authLimiter, register);
 router.get('/verify-email/:token', verifyEmail);
+router.post('/resend-verification', authLimiter, resendVerificationEmail);
 router.post('/login', authLimiter, login);
 router.post('/admin/login', authLimiter, adminLogin);
 router.post('/staff/login', authLimiter, staffLogin);

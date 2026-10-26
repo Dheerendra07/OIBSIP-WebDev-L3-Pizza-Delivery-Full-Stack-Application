@@ -54,6 +54,42 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   res.redirect(`${config.clientBaseUrl}/?verified=1`);
 });
 
+export const resendVerificationEmail = asyncHandler(async (req, res) => {
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const email = String(body.email || '').trim().toLowerCase();
+  const response = { message: 'If an account exists and requires email verification, a new link will be sent.' };
+
+  // Keep this response identical for unknown, verified and invalid addresses to
+  // avoid exposing which email addresses have accounts.
+  if (!config.requireEmailVerification || !validEmail(email)) return res.json(response);
+  const user = await User.findOne({ email, role: 'user', emailVerifiedAt: null });
+  if (!user) return res.json(response);
+
+  const tokenData = createOpaqueToken();
+  user.emailVerificationTokenHash = tokenData.hash;
+  user.emailVerificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await user.save();
+
+  try {
+    const url = verificationEmailUrl(tokenData.token);
+    await sendMail({
+      to: user.email,
+      subject: 'Verify your Pizza House account',
+      text: `Hi ${user.name}, verify your email within 24 hours: ${url}`,
+    });
+  } catch (error) {
+    // Do not leave a token active when its delivery failed. The conditional
+    // update cannot clear a newer token created by a concurrent resend.
+    await User.updateOne(
+      { _id: user._id, emailVerificationTokenHash: tokenData.hash },
+      { $set: { emailVerificationTokenHash: null, emailVerificationExpiresAt: null } },
+    ).catch(() => {});
+    throw error;
+  }
+
+  return res.json(response);
+});
+
 async function loginCommon(req, res, mode = 'customer') {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const email = String(body.email || '').trim().toLowerCase(); const password = body.password;
