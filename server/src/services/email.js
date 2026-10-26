@@ -56,7 +56,7 @@ export async function sendMail({ to, subject, text, html }) {
     throw new Error('Email delivery is not configured');
   }
   return mailer.sendMail({
-    from: process.env.MAIL_FROM || 'Pizza House <no-reply@example.com>',
+    from: process.env.MAIL_FROM,
     to,
     subject,
     text,
