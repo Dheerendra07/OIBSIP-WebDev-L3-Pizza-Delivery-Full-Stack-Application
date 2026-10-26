@@ -213,6 +213,63 @@ test('MongoDB issue lifecycle, ownership, active-case uniqueness and concurrent 
     });
     assert.equal(response.status, 201, await response.clone().text());
 
+    // A payment-review order must remain blocked from fulfillment but must still
+    // have a persisted customer support path for payment/refund questions.
+    const paymentReviewOrder = await makeOrder(customer, 'PH-DB-0004', {
+      status: 'payment_review',
+      paymentStatus: 'paid',
+      paymentReviewRequired: true,
+      paymentReviewReason: 'signed_webhook_mismatch',
+      inventoryReserved: true,
+      stockReservedAt: new Date(),
+      stockReservationExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    });
+    response = await request('/api/issues', {
+      method: 'POST',
+      body: {
+        orderId: String(paymentReviewOrder._id),
+        category: 'missing_item',
+        description: 'This food complaint must not bypass payment review.',
+      },
+    });
+    assert.equal(response.status, 409, await response.clone().text());
+
+    response = await request('/api/issues', {
+      method: 'POST',
+      body: {
+        orderId: String(paymentReviewOrder._id),
+        category: 'payment_refund',
+        description: 'Please explain the payment review and refund next steps.',
+      },
+    });
+    assert.equal(response.status, 201, await response.clone().text());
+    const paymentReviewCase = (await response.json()).issue;
+    assert.equal(paymentReviewCase.category, 'payment_refund');
+    assert.equal(paymentReviewCase.order.status, 'payment_review');
+    assert.equal(paymentReviewCase.order.paymentStatus, 'paid');
+
+    const stillHeldPaymentReviewOrder = await Order.findById(paymentReviewOrder._id).lean();
+    assert.equal(stillHeldPaymentReviewOrder.status, 'payment_review');
+    assert.equal(stillHeldPaymentReviewOrder.paymentReviewRequired, true);
+    assert.equal(stillHeldPaymentReviewOrder.inventoryReserved, true);
+    assert.ok(stillHeldPaymentReviewOrder.stockReservationExpiresAt);
+
+    response = await request('/api/admin/issues', { user: admin });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.ok(payload.issues.some((issue) =>
+      issue.reference === paymentReviewCase.reference &&
+      issue.category === 'payment_refund' &&
+      issue.order?.status === 'payment_review'
+    ));
+
+    response = await request('/api/issues/my');
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.ok(payload.issues.some((issue) =>
+      issue.reference === paymentReviewCase.reference && issue.category === 'payment_refund'
+    ));
+
     const raceOrder = await makeOrder(customer, 'PH-DB-0002');
     const concurrentResponses = await Promise.all([
       request('/api/issues', { method: 'POST', body: { orderId: String(raceOrder._id), category: 'delivery_delay', description: 'Parallel request one with a delivery delay.' } }),
