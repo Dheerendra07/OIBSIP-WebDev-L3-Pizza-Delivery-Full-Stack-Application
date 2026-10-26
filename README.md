@@ -26,7 +26,8 @@
 - Customer issue queue with reference IDs, review/resolution states and customer-visible updates.
 - Guarded refund workflow for eligible payment-review cases. The code uses provider idempotency and does not release inventory until a full refund is confirmed; ambiguous or multiple-capture cases need manual review.
 - Staff management: admin can create kitchen/delivery staff, assign paid orders to them, and disable accounts.
-- Staff sign-in and role-filtered kitchen and delivery queues. Staff accounts must change their temporary password at first sign-in; disabling an account revokes its active session.
+- Staff onboarding: new staff receive a one-time email link to choose their own password (24-hour expiry); admins can resend setup links for accounts that have not completed setup. The admin roster shows invite/setup state. This requires a working Resend or SMTP sender; provider acceptance is not proof of inbox delivery.
+- Staff sign-in and role-filtered kitchen and delivery queues. Accounts that still use the legacy temporary-password flow must rotate it before accessing operations; disabling an account revokes its active session.
 - Kitchen preparation details/tickets and staged handoff. Order status transitions are checked server-side rather than trusting the UI.
 
 ### Payment, inventory and security controls
@@ -115,7 +116,8 @@ All routes below are under /api.
 | POST | /payments/verify | Verify payment and reconcile captured exceptions |
 | POST | /payments/webhook | Verify signed payment/refund webhook |
 | GET / PATCH | /admin/orders, /admin/orders/:id/status | Admin queue and guarded status transitions |
-| GET / POST | /admin/staff | List/provision kitchen and delivery staff |
+| GET / POST | /admin/staff | List/provision kitchen and delivery staff; POST creates an email setup invitation when no initial password is supplied |
+| POST | /admin/staff/:id/invitation | Re-send a one-time setup link for active staff who have not completed password setup |
 | PATCH | /admin/orders/:id/assignments | Assign a paid order to staff |
 | GET / PATCH | /ops/orders, /ops/orders/:id/status | Role-filtered kitchen/delivery queue and transitions |
 | GET / PATCH | /admin/inventory | Admin inventory view / stock thresholds |
