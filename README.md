@@ -4,6 +4,7 @@
 
 - **Hosted app:** https://pizza-house-api.onrender.com
 - **Current implementation, verification evidence and launch blockers:** [PROJECT_STATUS.md](PROJECT_STATUS.md)
+- **Latest hosted verification (26 Oct 2026):** [CI passed](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40316311038) · [deployed API smoke passed](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40316310972) · [real-browser smoke passed — 80 checks](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40316311053). The browser flow uses mocked customer auth and synthetic payment/operations data where noted; it does not prove real email/SMS delivery or a real-money transaction.
 - **Product research and roadmap:** [docs/PRODUCT_DISCOVERY.md](docs/PRODUCT_DISCOVERY.md)
 - **Same-origin Render setup:** [docs/RENDER_SAME_ORIGIN_DEPLOYMENT.md](docs/RENDER_SAME_ORIGIN_DEPLOYMENT.md)
 
