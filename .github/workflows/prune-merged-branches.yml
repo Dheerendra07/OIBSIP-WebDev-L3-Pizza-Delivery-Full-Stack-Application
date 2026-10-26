@@ -1,0 +1,75 @@
+name: Prune merged PR branches
+
+on:
+  workflow_run:
+    workflows: ["Pizza House CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: prune-merged-branches-main
+  cancel-in-progress: false
+
+jobs:
+  prune-merged-branches:
+    if: ${{ github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Remove only unchanged branch tips from merged PRs
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const repository = await github.rest.repos.get({ owner, repo });
+            const defaultBranch = repository.data.default_branch;
+            const [branches, pullRequests] = await Promise.all([
+              github.paginate(github.rest.repos.listBranches, { owner, repo, per_page: 100 }),
+              github.paginate(github.rest.pulls.list, {
+                owner, repo, state: 'all', per_page: 100, sort: 'updated', direction: 'desc'
+              }),
+            ]);
+
+            const openHeadRefs = new Set(
+              pullRequests.filter((pr) => pr.state === 'open').map((pr) => pr.head.ref)
+            );
+            const mergedHeadShas = new Map();
+            const repositoryName = `${owner}/${repo}`.toLowerCase();
+
+            for (const pr of pullRequests) {
+              if (!pr.merged_at) continue;
+              if ((pr.head.repo?.full_name || '').toLowerCase() !== repositoryName) continue;
+              const knownShas = mergedHeadShas.get(pr.head.ref) || new Set();
+              knownShas.add(pr.head.sha);
+              mergedHeadShas.set(pr.head.ref, knownShas);
+            }
+
+            const candidates = branches.filter((branch) => {
+              if (branch.name === defaultBranch || branch.protected) return false;
+              if (openHeadRefs.has(branch.name)) return false;
+              return mergedHeadShas.get(branch.name)?.has(branch.commit.sha) === true;
+            });
+
+            core.info(`Branches found: ${branches.length}; merged-PR branches eligible for cleanup: ${candidates.length}.`);
+            core.info(`Preserved open-PR refs: ${openHeadRefs.size}; default branch: ${defaultBranch}.`);
+
+            let deleted = 0;
+            const failures = [];
+            for (const branch of candidates) {
+              try {
+                await github.rest.git.deleteRef({ owner, repo, ref: `heads/${branch.name}` });
+                deleted += 1;
+                core.info(`Deleted merged PR branch: ${branch.name}`);
+              } catch (error) {
+                failures.push({ branch: branch.name, status: error.status || 'unknown' });
+                core.warning(`Could not delete ${branch.name} (HTTP ${error.status || 'unknown'}); no force action attempted.`);
+              }
+            }
+
+            core.info(`Branch cleanup complete: deleted ${deleted}/${candidates.length} eligible branches.`);
+            if (failures.length) {
+              core.setFailed(`Branch cleanup had ${failures.length} deletion failure(s); see branch names and HTTP status above.`);
+            }

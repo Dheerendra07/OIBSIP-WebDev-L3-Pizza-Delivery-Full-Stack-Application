@@ -151,6 +151,13 @@ The eight currently open dependency PRs are #48, #49, #50, #51, #53, #55, #153 a
 - Add operational observability and a recoverable process for failed email, webhook, refund, inventory and status-update actions.
 - Only after P0/P1 are green and business configuration is approved, conduct a separate Live Mode readiness review; do not automatically switch payment mode.
 
+## 7. Branch hygiene
+
+- The repository accumulated 100+ branch refs while the product was being developed. New feature work should stay on `main`; do not create a branch for routine follow-up work.
+- Workflow `.github/workflows/prune-merged-branches.yml` runs only after a successful `Pizza House CI` run on `main`. It removes a branch only when its current tip SHA exactly matches a head SHA from a merged PR in this repository.
+- It preserves the default/protected branches, all refs used by open PRs, branches changed since their merged PR, and branches originating from another repository. Deletion failures are visible in the workflow logs; no branch is force-updated or merged by this job.
+- This cleanup does not merge or close the open Dependabot PRs; those updates need their own CI/compatibility review.
+ 
 ## 6. Release discipline
 
 - Make small, targeted feature/fix branches; inspect actual source and Git state before editing.
