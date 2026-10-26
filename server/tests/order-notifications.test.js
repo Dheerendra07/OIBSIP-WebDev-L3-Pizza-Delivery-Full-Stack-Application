@@ -56,14 +56,18 @@ test('order notification outbox deduplicates receipts, retries failures and labe
     if (requests.length === 1) return new Response(JSON.stringify({ id:'email_test_receipt_1' }), {
       status:200, headers:{ 'content-type':'application/json' },
     });
-    return new Response(JSON.stringify({ message:'SENSITIVE_PROVIDER_RESPONSE_SHOULD_NOT_BE_STORED' }), {
+    if (requests.length === 2) return new Response(JSON.stringify({ message:'SENSITIVE_PROVIDER_RESPONSE_SHOULD_NOT_BE_STORED' }), {
       status:422, headers:{ 'content-type':'application/json' },
+    });
+    return new Response(JSON.stringify({ id:'email_test_receipt_retry_1' }), {
+      status:200, headers:{ 'content-type':'application/json' },
     });
   };
   assert.deepEqual(await service.processOrderNotificationQueue({ batchSize:1 }), { processed:1, failed:0, dead:0, skipped:false });
   const sent = await OrderNotification.findOne({ order:order._id, eventType:'payment_confirmed' }).lean();
   assert.equal(sent.deliveryStatus, 'sent');
   assert.equal(sent.providerMessageId, 'email_test_receipt_1');
+  assert.equal(requests[0].options.headers['Idempotency-Key'], 'order:' + order._id + ':payment-confirmed');
   assert.ok(requests[0].body.subject.startsWith('[TEST MODE]'));
   assert.match(requests[0].body.text, /sandbox-only status/i);
   assert.match(requests[0].body.html, /TEST MODE NOTICE/);
@@ -81,12 +85,31 @@ test('order notification outbox deduplicates receipts, retries failures and labe
   assert.doesNotMatch(retryable.lastError, /SENSITIVE_PROVIDER_RESPONSE/);
   assert.ok(requests[1].body.subject.startsWith('[TEST MODE]'));
   assert.match(requests[1].body.text, /no real kitchen or delivery partner is contacted/i);
+  const retryKey = retryable.dedupeKey;
+  assert.equal(requests[1].options.headers['Idempotency-Key'], retryKey);
+
+  // Fast-forward the retry clock in the isolated database, then prove that the
+  // same persisted notification reuses the exact provider key and request body.
+  await OrderNotification.updateOne({ _id: retryable._id }, { $set: { nextAttemptAt: new Date(0) } });
+  assert.deepEqual(await service.processOrderNotificationQueue({ now: new Date(), batchSize:1 }), { processed:1, failed:0, dead:0, skipped:false });
+  assert.equal(requests.length, 3);
+  assert.equal(requests[2].options.headers['Idempotency-Key'], retryKey);
+  assert.deepEqual(requests[2].body, requests[1].body);
+  const sentAfterRetry = await OrderNotification.findById(retryable._id).lean();
+  assert.equal(sentAfterRetry.deliveryStatus, 'sent');
+  assert.equal(sentAfterRetry.attempts, 2);
+  assert.equal(sentAfterRetry.providerMessageId, 'email_test_receipt_retry_1');
+
+  order.status = 'sent_to_delivery'; await order.save();
+  assert.equal(await service.enqueueOrderNotification(order, 'status_changed'), true);
+  const waitingWithoutConfigKey = 'order:' + order._id + ':status:sent_to_delivery';
+  assert.ok(await OrderNotification.findOne({ dedupeKey: waitingWithoutConfigKey }).lean());
 
   delete process.env.RESEND_API_KEY; delete process.env.MAIL_FROM;
   assert.deepEqual(await service.processOrderNotificationQueue({ batchSize:10 }), { processed:0, failed:0, dead:0, skipped:true });
-  const queued = await OrderNotification.findById(retryable._id).lean();
+  const queued = await OrderNotification.findOne({ dedupeKey: waitingWithoutConfigKey }).lean();
   assert.equal(queued.deliveryStatus, 'queued');
-  assert.equal(queued.attempts, 1);
+  assert.equal(queued.attempts, 0);
   const review = service.formatOrderNotification({ orderNumber:'PH-REVIEW-QA', eventType:'payment_review',
     status:'payment_review', paymentStatus:'paid', paymentMode:'test', total:278, refundAmount:null, items:[] });
   assert.match(review.subject, /payment needs review/);
