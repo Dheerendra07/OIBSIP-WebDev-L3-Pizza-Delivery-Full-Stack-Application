@@ -1435,7 +1435,7 @@ function PizzaCard({ pizza, index, onAdd, onCustomize, onViewDetails, catalog })
   const unavailable = pizza.available === false || !hasPrice;
   const selectedTotal = hasPrice ? currency(unitPrice * cardQuantity) : '—';
 
-  return <article className={`pizza-card ${variant} card-${index} ${photoLoaded ? 'has-photo' : ''}`} data-pizza-card data-pizza-card-version="premium-photo-v1" data-pizza-id={pizza.id}>
+  return <article className={`pizza-card ${variant} card-${index} ${photoLoaded ? 'has-photo' : ''}`} data-pizza-card data-pizza-card-version="premium-photo-v1" data-pizza-card-layout="compact-purchase-v2" data-pizza-unit-price={hasPrice ? unitPrice : ''} data-pizza-id={pizza.id}>
     <div className="pizza-card-art">
       <PizzaArtwork variant={variant} className={`pizza-card-artwork pizza-card-artwork--${variant}`} />
       {!photoFailed && <img
@@ -1458,7 +1458,6 @@ function PizzaCard({ pizza, index, onAdd, onCustomize, onViewDetails, catalog })
     </div>
     <div className="pizza-card-body">
       <div className="pizza-card-copy">
-        <div className="pizza-card-kicker"><span>THE HOUSE MENU</span><span className="pizza-card-kicker-dot" aria-hidden="true">✦</span><span>RECIPE DETAILS</span></div>
         <h3><button className="pizza-card-title-button" type="button" onClick={() => onViewDetails?.()}>{pizza.name}</button></h3>
         <p>{pizza.description}</p>
       </div>
@@ -1479,13 +1478,8 @@ function PizzaCard({ pizza, index, onAdd, onCustomize, onViewDetails, catalog })
             <button type="button" aria-label={`Increase ${pizza.name} quantity`} disabled={unavailable || cardQuantity >= 10} onClick={() => setCardQuantity(value => Math.min(10, value + 1))}><Plus size={15}/></button>
           </div>
         </div>
-        <div className="pizza-card-price">
-          <span className="pizza-card-control-label">PRICE PER PIZZA</span>
-          <strong>{hasPrice ? currency(unitPrice) : 'Unavailable'}</strong>
-          <small>Menu price</small>
-        </div>
         <div className="pizza-card-total">
-          <span className="pizza-card-control-label">YOUR SUBTOTAL</span>
+          <span className="pizza-card-control-label">TOTAL</span>
           <strong>{selectedTotal}</strong>
           <small>{cardQuantity} {cardQuantity === 1 ? 'pizza' : 'pizzas'}</small>
         </div>
@@ -1498,10 +1492,6 @@ function PizzaCard({ pizza, index, onAdd, onCustomize, onViewDetails, catalog })
         <button className="customize-link" type="button" onClick={onCustomize}>Customize recipe <ArrowUpRight size={14}/></button>
       </div>
 
-      <div className="pizza-card-assurance">
-        <span><CheckCircle2 size={13} aria-hidden="true"/> Current menu price</span>
-        <span><ChefHat size={13} aria-hidden="true"/> Recipe details</span>
-      </div>
     </div>
   </article>;
 }

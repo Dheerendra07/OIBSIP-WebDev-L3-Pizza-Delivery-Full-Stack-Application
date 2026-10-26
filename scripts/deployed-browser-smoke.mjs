@@ -184,7 +184,8 @@ try {
       const uniquePhotoCount = new Set(loadedPhotoSources).size;
       const interactiveCardCount = cards.filter((card) =>
         card.querySelector('.pizza-card-quantity') &&
-        card.querySelector('.pizza-card-price strong') &&
+        card.matches('[data-pizza-card-layout="compact-purchase-v2"]') &&
+        Number.isFinite(Number(card.getAttribute('data-pizza-unit-price'))) &&
         card.querySelector('.pizza-card-total strong') &&
         card.querySelector('.add-button:not(:disabled)') &&
         card.querySelector('.customize-link'),
@@ -211,8 +212,9 @@ try {
         uniquePhotoCount,
         interactiveCardCount,
         ingredientCardCount,
+        compactLayoutCount: cards.filter((card) => card.matches('[data-pizza-card-layout="compact-purchase-v2"]')).length,
       };
-    }).catch(() => ({ homeHeroPhotoLoaded: false, variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0 }));
+    }).catch(() => ({ homeHeroPhotoLoaded: false, variantCount: 0, primaryColor: '', footerColor: '', premiumCardCount: 0, loadedPhotoCount: 0, uniquePhotoCount: 0, interactiveCardCount: 0, ingredientCardCount: 0, compactLayoutCount: 0 }));
 
     if (releaseMarkersReady &&
         premiumVisualState.homeHeroPhotoLoaded === true &&
@@ -220,6 +222,7 @@ try {
         premiumVisualState.loadedPhotoCount >= 3 &&
         premiumVisualState.uniquePhotoCount >= 3 &&
         premiumVisualState.interactiveCardCount >= 3 &&
+        premiumVisualState.compactLayoutCount >= 3 &&
         premiumVisualState.ingredientCardCount >= premiumVisualState.premiumCardCount &&
         premiumVisualState.variantCount >= 3 &&
         premiumVisualState.primaryColor === 'rgb(228, 71, 50)' &&
@@ -234,8 +237,8 @@ try {
       '; interactive=' + premiumVisualState.interactiveCardCount +
       '; uniquePhotos=' + premiumVisualState.uniquePhotoCount +
       '; heroPhoto=' + premiumVisualState.homeHeroPhotoLoaded +
-      '; ingredientCards=' + premiumVisualState.ingredientCardCount + '; variants=' +
-      premiumVisualState.variantCount + '; CTA=' + premiumVisualState.primaryColor +
+      '; ingredientCards=' + premiumVisualState.ingredientCardCount + '; compactLayout=' +
+      premiumVisualState.compactLayoutCount + '; variants=' + premiumVisualState.variantCount + '; CTA=' + premiumVisualState.primaryColor +
       '; footer=' + premiumVisualState.footerColor + ')',
     );
     await page.waitForTimeout(5_000);
@@ -245,7 +248,7 @@ try {
   }
   pass('home hero displays a loaded real-food photograph with the local vector fallback retained');
   pass('production publishes three distinct premium photo cards with all three food photos loaded');
-  pass('premium cards expose working quantity, catalog-price, subtotal and cart controls');
+  pass('premium cards expose quantity, one live total, and working cart controls with the compact layout marker');
   pass('every premium card shows real ingredient names instead of the fallback label');
   pass('primary CTA uses tomato red and the footer uses the navy brand surface');
 
@@ -285,14 +288,21 @@ try {
 
   const initialCardPricing = await firstPremiumCard.evaluate((card) => ({
     quantity: card.querySelector('.pizza-card-quantity > span')?.textContent?.trim() || '',
-    price: card.querySelector('.pizza-card-price strong')?.textContent?.trim() || '',
+    unitPrice: Number(card.getAttribute('data-pizza-unit-price')),
     subtotal: card.querySelector('.pizza-card-total strong')?.textContent?.trim() || '',
     photoLoaded: Boolean(card.querySelector('.pizza-card-photo')?.naturalWidth > 0),
+    layout: card.getAttribute('data-pizza-card-layout') || '',
   }));
-  if (initialCardPricing.quantity !== '1' || !initialCardPricing.price ||
-      initialCardPricing.price === 'Unavailable' || initialCardPricing.subtotal !== initialCardPricing.price ||
+  const expectedUnitPrice = Number.isFinite(initialCardPricing.unitPrice)
+    ? `₹${initialCardPricing.unitPrice.toLocaleString('en-IN')}`
+    : '';
+  if (initialCardPricing.quantity !== '1' || !expectedUnitPrice ||
+      initialCardPricing.subtotal !== expectedUnitPrice ||
+      initialCardPricing.layout !== 'compact-purchase-v2' ||
+      await firstPremiumCard.locator('.pizza-card-price').count() !== 0 ||
+      await firstPremiumCard.locator('.pizza-card-assurance').count() !== 0 ||
       !initialCardPricing.photoLoaded) {
-    throw new Error('The first premium card did not render an image and a consistent live menu price: ' + JSON.stringify(initialCardPricing));
+    throw new Error('The first premium card did not render a distinct photo, single matching live total and compact layout: ' + JSON.stringify({ initialCardPricing, expectedUnitPrice }));
   }
   await firstPremiumCard.locator('button[aria-label^="Increase "]').click();
   await page.waitForFunction(() => {
@@ -372,7 +382,7 @@ try {
     ingredientLabels: [...root.querySelectorAll('.pizza-detail-ingredient')].map((el) => el.textContent.trim()),
   }));
   if (detailData.name !== firstLivePizza.name || detailData.quantity !== '1' ||
-      detailData.price !== initialCardPricing.price || detailData.subtotal !== initialCardPricing.price ||
+      detailData.price !== initialCardPricing.subtotal || detailData.subtotal !== initialCardPricing.subtotal ||
       !detailData.imageLoaded ||
       !expectedIngredientLabels.every((label) => detailData.ingredientLabels.includes(label))) {
     throw new Error('Pizza detail page does not match the live catalog card: ' + JSON.stringify({ detailData, expectedIngredientLabels, initialCardPricing }));
