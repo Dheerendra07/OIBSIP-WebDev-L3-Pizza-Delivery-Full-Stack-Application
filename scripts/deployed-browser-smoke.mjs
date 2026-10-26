@@ -641,6 +641,11 @@ try {
     throw new Error('Night mode did not apply/persist the expected premium palette: ' + JSON.stringify(nightState));
   }
   pass('night mode applies the dark navy palette, warm CTA and matching footer');
+  await page.waitForFunction(() => {
+    const button = document.querySelector('[data-home-builder-promo] .button-light');
+    return document.documentElement.dataset.theme === 'dark' &&
+      button && getComputedStyle(button).backgroundColor === 'rgb(255, 210, 122)';
+  }, null, { timeout: 5_000 });
   const homePromoNight = await page.locator('[data-home-builder-promo]').evaluate((el) => ({
     titleColor: getComputedStyle(el.querySelector('h3')).color,
     iconBackground: getComputedStyle(el.querySelector('.callout-icon')).backgroundColor,
