@@ -62,8 +62,8 @@ export const resendVerificationEmail = asyncHandler(async (req, res) => {
   // Keep this response identical for unknown, verified and invalid addresses to
   // avoid exposing which email addresses have accounts.
   if (!config.requireEmailVerification || !validEmail(email)) return res.json(response);
-  const user = await User.findOne({ email, role: 'user', emailVerifiedAt: null });
-  if (!user) return res.json(response);
+  const user = await User.findOne({ email, emailVerifiedAt: null }).select('+emailVerificationTokenHash +emailVerificationExpiresAt');
+  if (!user || user.role !== 'user') return res.json(response);
 
   const tokenData = createOpaqueToken();
   user.emailVerificationTokenHash = tokenData.hash;
