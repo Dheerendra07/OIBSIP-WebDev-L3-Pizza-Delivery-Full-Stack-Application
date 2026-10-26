@@ -34,6 +34,10 @@ export const FEATURED_PIZZAS = [
   { id: 'garden', name: 'Garden Party', description: 'A bright, crunchy mix of garden vegetables.', price: 329, tag: 'FRESH PICK', emoji: '🥦', ingredients: { base: 'thin', sauce: 'pesto', cheese: 'mozzarella', vegetables: ['capsicum', 'onion', 'mushroom', 'olive'] } },
   { id: 'firecracker', name: 'Firecracker', description: 'Smoky heat, jalapeños, and cheddar.', price: 359, tag: 'SPICY', emoji: '🌶️', ingredients: { base: 'pan', sauce: 'spicy-arrabbiata', cheese: 'cheddar', vegetables: ['jalapeno', 'onion', 'corn'] } },
   { id: 'white-garden', name: 'White Garden', description: 'Garlic cream-style sauce and rich plant-based cheese.', price: 379, tag: 'PLANT-BASED', emoji: '🌿', ingredients: { base: 'whole-wheat', sauce: 'white-garlic', cheese: 'vegan', vegetables: ['mushroom', 'capsicum', 'tomato'] } },
+  { id: 'pesto-forest', name: 'Pesto Forest', description: 'Basil pesto, mushrooms, black olives and mozzarella.', price: 349, tag: 'FRESH PICK', emoji: '🍄', ingredients: { base: 'thin', sauce: 'pesto', cheese: 'mozzarella', vegetables: ['mushroom', 'olive', 'onion'] } },
+  { id: 'roasted-garden', name: 'Roasted Garden', description: 'Tomato, roasted-style peppers and garden vegetables.', price: 319, tag: 'BESTSELLER', emoji: '🫑', ingredients: { base: 'classic', sauce: 'classic-tomato', cheese: 'mozzarella', vegetables: ['capsicum', 'tomato', 'onion'] } },
+  { id: 'cornfire', name: 'Cornfire', description: 'Sweet corn, jalapeños and a lively arrabbiata finish.', price: 339, tag: 'SPICY', emoji: '🌽', ingredients: { base: 'pan', sauce: 'spicy-arrabbiata', cheese: 'cheddar', vegetables: ['corn', 'jalapeno', 'onion'] } },
+  { id: 'olive-atelier', name: 'Olive Atelier', description: 'Whole-wheat crust, pesto, olives and plant-based cheese.', price: 379, tag: 'PLANT-BASED', emoji: '🫒', ingredients: { base: 'whole-wheat', sauce: 'pesto', cheese: 'vegan', vegetables: ['olive', 'mushroom', 'capsicum'] } },
 ];
 
 export function calculateCustomPizza(input) {
