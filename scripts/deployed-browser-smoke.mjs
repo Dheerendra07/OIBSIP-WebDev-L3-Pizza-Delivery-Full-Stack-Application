@@ -1027,9 +1027,6 @@ try {
   }
   await captureScreenshot(page, '10-bag-night-mobile.png');
   await auditResponsiveState(page, 'bag-night');
-  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
-  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
-  pass('menu → bag → delivery form interaction in light and night themes');
 
   const cartCheckoutNight = await inspectCartCheckoutTheme();
   if (cartCheckoutNight.theme !== 'dark' ||
@@ -1043,6 +1040,9 @@ try {
     throw new Error('Night-theme cart/checkout contrast or mobile fit failed: ' + JSON.stringify(cartCheckoutNight));
   }
   pass('cart, delivery form and order summary retain premium navy surfaces and readable hierarchy in night mode');
+  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  pass('menu → bag → delivery form interaction in light and night themes');
 
   // Recreate the stale-toast condition deliberately: a cart success message is live,
   // then a customer opens Sign in immediately. The dialog must dismiss the old toast.
