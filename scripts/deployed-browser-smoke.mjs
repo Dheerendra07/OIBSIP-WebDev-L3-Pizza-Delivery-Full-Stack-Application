@@ -160,6 +160,7 @@ try {
       (await page.locator('[data-auth-toast-fix="clear-stale-toast-v1"]').count() === 1) &&
       (await page.locator('[data-theme-toggle]').count() === 1) &&
       (await page.locator('[data-home-hero="premium-food-v1"]').count() === 1) &&
+      (await page.locator('[data-page-endcap="home"]').count() === 1) &&
       (await page.locator('[data-pizza-card-version="premium-photo-v1"]').count() >= 3) &&
       (await page.locator('[data-pizza-card-open="photo-hit-area-v1"]').count() >= 3) &&
       (await page.locator('[data-cart-photo-release="catalog-photo-v1"]').count() === 1) &&
@@ -251,6 +252,20 @@ try {
   pass('premium cards expose quantity, one live total, and working cart controls with the compact layout marker');
   pass('every premium card shows real ingredient names instead of the fallback label');
   pass('primary CTA uses tomato red and the footer uses the navy brand surface');
+  const homeEndcap = page.locator('[data-page-endcap="home"]');
+  const homeEndcapState = await homeEndcap.evaluate((el) => ({
+    actions: [...el.querySelectorAll('.page-endcap-actions button')].map((button) => button.innerText.trim()),
+    benefitCount: el.querySelectorAll('.page-endcap-item').length,
+    heading: el.querySelector('.page-endcap-main h2')?.innerText.trim() || '',
+  }));
+  if (homeEndcapState.benefitCount !== 3 ||
+      homeEndcapState.actions.length !== 2 ||
+      !homeEndcapState.heading ||
+      !homeEndcapState.actions.includes('Browse the menu') ||
+      !homeEndcapState.actions.includes('Build your own')) {
+    throw new Error('Homepage lower-page endcap is missing contextual next steps: ' + JSON.stringify(homeEndcapState));
+  }
+  pass('homepage includes a contextual lower-page endcap with live-catalog guidance and two useful navigation actions');
 
   await page.locator('[data-pizza-card-version="premium-photo-v1"]').first().waitFor({ state: 'visible', timeout: 30_000 });
   await page.getByRole('heading', { name: 'Margherita Classic', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
@@ -388,6 +403,20 @@ try {
     throw new Error('Pizza detail page does not match the live catalog card: ' + JSON.stringify({ detailData, expectedIngredientLabels, initialCardPricing }));
   }
   pass('tapping a featured photo opens the correct product detail with live recipe, photo and price');
+  const detailEndcap = page.locator('[data-page-endcap="pizza-detail"]');
+  await detailEndcap.waitFor({ state: 'visible', timeout: 10_000 });
+  const detailEndcapState = await detailEndcap.evaluate((el) => ({
+    heading: el.querySelector('.page-endcap-main h2')?.innerText.trim() || '',
+    actions: [...el.querySelectorAll('.page-endcap-actions button')].map((button) => button.innerText.trim()),
+    benefitCount: el.querySelectorAll('.page-endcap-item').length,
+  }));
+  if (!detailEndcapState.heading.includes(firstLivePizza.name) ||
+      detailEndcapState.benefitCount !== 3 ||
+      !detailEndcapState.actions.includes('Back to the menu') ||
+      !detailEndcapState.actions.includes('Build your own')) {
+    throw new Error('Pizza detail lower-page endcap is not contextual or missing its navigation actions: ' + JSON.stringify(detailEndcapState));
+  }
+  pass('pizza detail page closes with the selected recipe name, three contextual benefits and menu/builder navigation');
 
   await detailPage.locator('.pizza-detail-quantity-wrap button[aria-label^="Increase "]').click();
   await page.waitForFunction(() => {
@@ -416,10 +445,13 @@ try {
   await captureScreenshot(page, '19-pizza-detail-night-desktop.png');
   await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'light', null, { timeout: 5_000 });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await detailPage.locator('.pizza-detail-breadcrumb').getByRole('button', { name: 'Back to home', exact: true }).click();
+  await detailEndcap.getByRole('button', { name: 'Build your own', exact: true }).click();
+  await page.getByRole('heading', { name: /The art of/ }).waitFor({ state: 'visible', timeout: 10_000 });
+  pass('pizza detail lower-page builder action opens the custom pizza builder');
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
   await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 10_000 });
-  pass('detail-page Light/Night Mode toggles and back navigation work');
+  await page.setViewportSize({ width: 390, height: 844 });
+  pass('detail-page Light/Night Mode toggles and lower-page navigation work');
   pass('home featured cards wait for live catalog before visual capture');
   await captureScreenshot(page, '01-home-mobile.png');
   await page.setViewportSize({ width: 1440, height: 900 });
