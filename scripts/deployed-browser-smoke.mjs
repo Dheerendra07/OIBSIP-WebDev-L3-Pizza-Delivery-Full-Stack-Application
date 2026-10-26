@@ -160,7 +160,7 @@ try {
       (await page.locator('[data-auth-toast-fix="clear-stale-toast-v1"]').count() === 1) &&
       (await page.locator('[data-theme-toggle]').count() === 1) &&
       (await page.locator('[data-home-hero="premium-food-v1"]').count() === 1) &&
-      (await page.locator('[data-home-ui-release="step4-home-refine-20261027"]').count() === 1) &&
+      (await page.locator('[data-home-ui-release="step4-home-refine-20261027-v2"]').count() === 1) &&
       (await page.locator('[data-page-endcap="home"]').count() === 1) &&
       (await page.locator('[data-pizza-card-version="premium-photo-v1"]').count() >= 3) &&
       (await page.locator('[data-pizza-card-open="photo-hit-area-v1"]').count() >= 3) &&
@@ -789,14 +789,16 @@ try {
     afterContent: getComputedStyle(el, '::after').content,
     eyebrowIcons: el.querySelectorAll('.page-endcap-main .eyebrow svg').length,
   }));
-  if (builderEndcapNight.backgroundImage !== 'none' ||
-      builderEndcapNight.background !== 'rgb(16, 36, 51)' ||
+  const usesPremiumNavyGradient = builderEndcapNight.backgroundImage.includes('linear-gradient') &&
+      builderEndcapNight.backgroundImage.includes('rgb(16, 36, 51)') &&
+      builderEndcapNight.backgroundImage.includes('rgb(11, 26, 38)');
+  if (!usesPremiumNavyGradient ||
       builderEndcapNight.rowBackground !== 'rgba(0, 0, 0, 0)' ||
       builderEndcapNight.afterContent !== 'none' ||
       builderEndcapNight.eyebrowIcons !== 0) {
-    throw new Error('Builder lower-page endcap is not using the restrained editorial night system: ' + JSON.stringify(builderEndcapNight));
+    throw new Error('Builder lower-page endcap is not using the premium navy gradient with restrained editorial rows: ' + JSON.stringify(builderEndcapNight));
   }
-  pass('custom builder uses flat night palette, editorial helper rows and no sparkle/ring decoration');
+  pass('custom builder uses a premium navy gradient, editorial helper rows and no sparkle/ring decoration');
   await captureScreenshot(page, '12-builder-night-desktop.png');
   await auditResponsiveState(page, 'builder-night');
 
