@@ -14,7 +14,8 @@ import { publishAdminRefresh, publishOrderUpdate } from '../services/realtime.js
 import OrderNotification from '../models/OrderNotification.js';
 import { queueOrderNotificationSafely } from '../services/orderNotifications.js';
 import { isMailConfigured } from '../utils/emailConfig.js';
-import { sendMail } from '../services/email.js';
+import { sendMail, passwordResetUrl } from '../services/email.js';
+import { createOpaqueToken } from '../utils/tokens.js';
 
 export const summary = asyncHandler(async (_req, res) => {
   const [ordersTotal, paidOrders, revenue, pendingOrders, usersTotal, lowStock] = await Promise.all([
@@ -272,13 +273,21 @@ const validStaffEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 export const listStaff = asyncHandler(async (_req, res) => {
   const staff = await User.find({ role: { $in: ['kitchen', 'delivery'] } })
-    .select('name email role active createdAt updatedAt')
+    .select('name email role active createdAt updatedAt mustChangePassword +passwordResetTokenHash +passwordResetExpiresAt')
     .sort({ role: 1, name: 1 })
     .lean();
+  const now = new Date();
   res.set('Cache-Control', 'no-store');
   res.json({ staff: staff.map(person => ({
     id: String(person._id), name: person.name, email: person.email,
     role: person.role, active: person.active !== false, createdAt: person.createdAt,
+    mustChangePassword: person.mustChangePassword === true,
+    invitationStatus: person.mustChangePassword !== true
+      ? 'complete'
+      : person.passwordResetTokenHash && person.passwordResetExpiresAt > now
+        ? 'pending'
+        : 'setup_required',
+    invitationExpiresAt: person.passwordResetExpiresAt || null,
   })) });
 });
 
@@ -286,28 +295,96 @@ export const createStaff = asyncHandler(async (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const name = typeof body.name === 'string' ? body.name.trim().replace(/\s+/g, ' ') : '';
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-  const password = body.password;
+  const suppliedPassword = body.password;
   const role = body.role;
   if (name.length < 2 || name.length > 80) return res.status(400).json({ error: 'Staff name must be between 2 and 80 characters' });
   if (!validStaffEmail(email)) return res.status(400).json({ error: 'Enter a valid staff email address' });
   if (!['kitchen', 'delivery'].includes(role)) return res.status(400).json({ error: 'Choose either Kitchen staff or Delivery staff' });
-  if (!isStrongEnough(password)) return res.status(400).json({ error: 'Password must be 10–72 characters with uppercase, lowercase and a number' });
+  if (suppliedPassword != null && typeof suppliedPassword !== 'string') return res.status(400).json({ error: 'Initial password must be text' });
+  const hasSuppliedPassword = typeof suppliedPassword === 'string' && suppliedPassword.length > 0;
+  if (hasSuppliedPassword && !isStrongEnough(suppliedPassword)) return res.status(400).json({ error: 'Password must be 10–72 characters with uppercase, lowercase and a number' });
+  if (!hasSuppliedPassword && !isMailConfigured()) {
+    return res.status(503).json({ error: 'Staff invitations require a configured email provider. Configure Resend or SMTP in Render, then retry.' });
+  }
   if (await User.exists({ email })) return res.status(409).json({ error: 'An account with that email already exists' });
 
+  const invitation = hasSuppliedPassword ? null : createOpaqueToken();
+  const expiresAt = invitation ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
   let staff;
   try {
     staff = await User.create({
-      name, email, passwordHash: await hashPassword(password), role, active: true, mustChangePassword: true,
-      // Admin-provisioned accounts can sign in immediately. A staff invitation/
-      // password-rotation flow remains a separate deployment step.
+      name, email,
+      // Invitation-only accounts get a high-entropy, undisclosed password hash.
+      // The recipient chooses their password through the one-time setup link.
+      passwordHash: await hashPassword(hasSuppliedPassword ? suppliedPassword : `InviteA9${invitation.token}`),
+      role, active: true, mustChangePassword: true,
       emailVerifiedAt: new Date(),
+      passwordResetTokenHash: invitation?.hash ?? null,
+      passwordResetExpiresAt: expiresAt,
     });
   } catch (error) {
     if (error?.code === 11000) return res.status(409).json({ error: 'An account with that email already exists' });
     throw error;
   }
+
+  if (invitation) {
+    const setupUrl = passwordResetUrl(invitation.token);
+    try {
+      await sendMail({
+        to: email,
+        subject: 'Set up your Pizza House team account',
+        text: `Hi ${name},\n\nYour Pizza House ${role === 'kitchen' ? 'kitchen' : 'delivery'} account has been created. Set a private password using this one-time link within 24 hours:\n\n${setupUrl}\n\nAfter setting your password, sign in from the Pizza House team sign-in page. If you were not expecting this invitation, contact your administrator.`,
+      });
+    } catch {
+      await User.deleteOne({ _id: staff._id }).catch(() => {});
+      return res.status(502).json({ error: 'The staff account was not kept because the invitation email could not be accepted. Check the email provider and sender, then retry.' });
+    }
+  }
+
   publishAdminRefresh();
-  res.status(201).json({ staff: { id: String(staff._id), name: staff.name, email: staff.email, role: staff.role, active: true, createdAt: staff.createdAt } });
+  res.status(201).json({
+    staff: { id: String(staff._id), name: staff.name, email: staff.email, role: staff.role, active: true, createdAt: staff.createdAt },
+    invitationSent: Boolean(invitation),
+    invitationExpiresAt: expiresAt,
+  });
+});
+
+export const resendStaffInvitation = asyncHandler(async (req, res) => {
+  if (!mongoose.isObjectIdOrHexString(req.params.id)) return res.status(400).json({ error: 'Invalid staff identifier' });
+  if (!isMailConfigured()) return res.status(503).json({ error: 'Staff invitations require a configured email provider. Configure Resend or SMTP in Render, then retry.' });
+
+  const staff = await User.findOne({
+    _id: req.params.id,
+    role: { $in: ['kitchen', 'delivery'] },
+    active: { $ne: false },
+    mustChangePassword: true,
+  }).select('name email role active mustChangePassword');
+  if (!staff) return res.status(409).json({ error: 'Only active staff who have not finished password setup can receive a new invitation.' });
+
+  const invitation = createOpaqueToken();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const saved = await User.updateOne(
+    { _id: staff._id, role: staff.role, active: { $ne: false }, mustChangePassword: true },
+    { $set: { passwordResetTokenHash: invitation.hash, passwordResetExpiresAt: expiresAt } },
+  );
+  if (saved.modifiedCount !== 1) return res.status(409).json({ error: 'This staff account changed while the invitation was being prepared. Refresh and retry.' });
+
+  try {
+    await sendMail({
+      to: staff.email,
+      subject: 'Your Pizza House team setup link',
+      text: `Hi ${staff.name},\n\nHere is a fresh one-time link to set up your Pizza House team account. It expires in 24 hours:\n\n${passwordResetUrl(invitation.token)}\n\nIf you have already set your password, you can ignore this email.`,
+    });
+  } catch {
+    await User.updateOne(
+      { _id: staff._id, passwordResetTokenHash: invitation.hash },
+      { $set: { passwordResetTokenHash: null, passwordResetExpiresAt: null } },
+    ).catch(() => {});
+    return res.status(502).json({ error: 'The invitation email could not be accepted. Check the provider and sender configuration, then retry.' });
+  }
+
+  publishAdminRefresh();
+  res.json({ invitationSent: true, invitationExpiresAt: expiresAt, message: 'A fresh team setup link was accepted by the email provider.' });
 });
 
 export const setStaffActive = asyncHandler(async (req, res) => {
