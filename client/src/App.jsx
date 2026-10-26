@@ -1404,9 +1404,11 @@ const PIZZA_CARD_PHOTOS = {
     src: 'https://images.pexels.com/photos/5639971/pexels-photo-5639971.jpeg?auto=compress&cs=tinysrgb&w=1280',
     alt: 'Vegetarian pizza with mushrooms, olives and artichokes',
   },
+  // Pexels: Roman Odintsov, "Pizza With Green and White Vegetables" (photo 5903095).
+  // This source was selected after the previous URL failed the hosted browser image-load gate.
   roastedGarden: {
-    src: 'https://images.pexels.com/photos/35290483/pexels-photo-35290483.jpeg?auto=compress&cs=tinysrgb&w=1280',
-    alt: 'Vegetarian pizza topped with bell peppers, onion and mushrooms',
+    src: 'https://images.pexels.com/photos/5903095/pexels-photo-5903095.jpeg?cs=srgb&dl=pexels-roman-odintsov-5903095.jpg&fm=jpg',
+    alt: 'Roasted vegetable pizza with zucchini, eggplant and red peppers',
   },
   cornfire: {
     src: 'https://images.pexels.com/photos/34382326/pexels-photo-34382326.jpeg?auto=compress&cs=tinysrgb&w=1280',
