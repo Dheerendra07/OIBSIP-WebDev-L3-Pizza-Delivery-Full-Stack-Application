@@ -3213,3 +3213,16 @@ html[data-theme="dark"] .app-shell .custom-callout[data-home-builder-promo] > bu
   background-color: #ffe3a4;
   color: #192a34;
 }
+
+
+/* Step 4 regression guard: the home builder CTA stays gold in night mode even when legacy button shorthands are present. */
+html[data-theme="dark"] .app-shell .custom-callout[data-home-builder-promo] > button.button-light {
+  background: #ffd27a !important;
+  border-color: #ffd27a !important;
+  color: #192a34 !important;
+}
+html[data-theme="dark"] .app-shell .custom-callout[data-home-builder-promo] > button.button-light:hover:not(:disabled) {
+  background: #ffe3a4 !important;
+  border-color: #ffe3a4 !important;
+  color: #192a34 !important;
+}
