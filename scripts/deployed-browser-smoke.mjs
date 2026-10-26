@@ -489,7 +489,9 @@ try {
 
   // Audit the entire customer-facing menu, not just the three homepage favourites.
   // The API remains the source of truth for recipe IDs and current menu count.
-  const menuNav = page.locator('.main-nav').getByRole('button', { name: 'Our menu', exact: true });
+  // Responsive audit leaves the viewport at 390px; use the visible homepage CTA
+  // instead of the collapsed desktop navigation to exercise the real mobile route.
+  const menuNav = page.locator('.hero-actions').getByRole('button', { name: 'Browse the menu', exact: true });
   await menuNav.click();
   const fullMenuCards = page.locator('.pizza-grid.full-grid [data-pizza-card-version="premium-photo-v1"]');
   await fullMenuCards.first().waitFor({ state: 'visible', timeout: 15_000 });
