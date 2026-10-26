@@ -167,6 +167,35 @@ test('signed Razorpay Test Mode webhook persists a capture once, ignores nonterm
   assert.equal(await OrderNotification.countDocuments({ order: capturedOrder._id, eventType: 'payment_confirmed' }), 1, 'replay must not queue duplicate confirmation email');
   assert.equal((await Order.findById(capturedOrder._id).lean()).paidAt.toISOString(), paidOrder.paidAt.toISOString());
 
+  // Simulate a process interruption after the paid order was committed but
+  // before its outbox notification was durably retained. A new provider event
+  // ID for the same capture must repair the missing notice through the stable
+  // outbox dedupe key and must not mutate the already-paid order again.
+  await OrderNotification.deleteOne({ order: capturedOrder._id, eventType: 'payment_confirmed' });
+  assert.equal(await OrderNotification.countDocuments({ order: capturedOrder._id, eventType: 'payment_confirmed' }), 0);
+  const recoveryEventId = 'evt_test_capture_recovery_replay';
+  const recoveryResponse = await fetch(`${baseUrl}/api/payments/webhook`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Razorpay-Signature': sign(capturedBody),
+      'X-Razorpay-Event-Id': recoveryEventId,
+    },
+    body: capturedBody,
+  });
+  assert.equal(recoveryResponse.status, 200);
+  assert.deepEqual(await recoveryResponse.json(), { received: true, status: 'processed' });
+  assert.equal(await PaymentWebhookReceipt.countDocuments({ eventId: recoveryEventId, status: 'processed' }), 1);
+  assert.equal(await OrderNotification.countDocuments({ order: capturedOrder._id, eventType: 'payment_confirmed' }), 1,
+    'safe replay must recreate the missing outbox row exactly once');
+  const recoveredOrder = await Order.findById(capturedOrder._id).lean();
+  assert.equal(recoveredOrder.paymentStatus, 'paid');
+  assert.equal(recoveredOrder.status, 'order_received');
+  assert.equal(recoveredOrder.razorpayPaymentId, 'pay_test_webhook_capture');
+  assert.equal(recoveredOrder.inventoryReserved, false);
+  assert.equal(recoveredOrder.paidAt.toISOString(), paidOrder.paidAt.toISOString(),
+    'already-paid replay must not reset the payment timestamp');
+
   const pendingOrder = await makeOrder({
     orderNumber: 'PH-WEBHOOK-FAILED-QA',
     razorpayOrderId: 'order_test_webhook_failed',
