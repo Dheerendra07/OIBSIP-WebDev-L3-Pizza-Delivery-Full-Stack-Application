@@ -4,6 +4,14 @@
 **Latest application/runtime commit:** [d5d291d](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/d5d291d9f39e19963c321a34772f053020480c88) — builder photo preview now tries distinct alternative food photos if its preferred remote image fails. Render deployment is live on this revision.  
 **Product state:** deployed launch-preparation platform; **not certified for real-money transactions or a real delivery business**.
 
+## Current main implementation — staff email onboarding (not yet in the live API)
+- Commits [43ec6ea](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/43ec6ea2fea7c263682abc413b6d172e3a762794), [ff35b37](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/ff35b3786714a477a947f0f5f90fb7ec71d9cd85), [139a1d9](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/139a1d99fd0bb0dab4ed05c564fbbf9b3cd1e2fd) and [5d50a72](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/5d50a725cca3f85e4c82c74de602fdc4ea82c604) add email-based staff setup links, one-time token expiry (24 hours), resend support, password-reset completion and admin roster invitation state.
+- New staff no longer need an administrator to share a temporary password when created through the updated UI. The server only keeps a hash of the setup token; if the email provider rejects the invitation, the newly created account is removed rather than left with no setup path.
+- Invitation endpoints are admin-only and rate-limited. The feature requires correctly configured Resend API key plus MAIL_FROM, or SMTP credentials plus an explicit MAIL_FROM; provider acceptance is not proof of inbox delivery.
+- UI styling and documentation are in [5851c1a](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/5851c1aa79668e803fc8b3536f5ac02e2ad4a969) and [27b3118](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/27b3118257ec58d1c8d0110e85acf12fe82bde77).
+- **Deployment boundary:** Render API auto-deploy is disabled. Until the API service is explicitly deployed to the new main revision, the hosted API does not have the new invitation endpoint. This feature has not been runtime-verified yet; no test run is claimed.
+
+
 > Keep implemented features, automated evidence, hosted evidence and real-world readiness separate. A green build or simulated order progression is not proof that a customer was charged, a kitchen accepted an order, or a driver delivered it.
 
 ## Latest hosted verification — resilient builder photos and theme checks
@@ -46,8 +54,8 @@
 
 ### Admin, kitchen and delivery operations
 - Admin summary, stock/threshold editing, incoming-order and payment-review queues, low-stock scan/notification job, and customer support case management.
-- Admin staff management: create kitchen/delivery staff, assign paid orders and disable accounts.
-- Separate role-filtered kitchen/delivery queues and status actions; temporary staff passwords must be changed at first sign-in. Disabling a staff account invalidates its active session.
+- Admin staff management: create kitchen/delivery staff, assign paid orders, disable accounts and resend onboarding links for staff who have not completed password setup.
+- Separate role-filtered kitchen/delivery queues and status actions. New staff can choose a password from an expiring one-time email link; legacy temporary-password accounts still require rotation. Disabling a staff account invalidates its active session.
 - Kitchen preparation ticket/details, explicit order-stage timestamps and customer timeline.
 - The server distinguishes **simulated Test Mode fulfillment** from Live Mode. Test Mode progression is explicitly presented as a simulation; it does not contact a real kitchen or delivery partner.
 
