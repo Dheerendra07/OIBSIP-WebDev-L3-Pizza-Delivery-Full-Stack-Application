@@ -2805,3 +2805,17 @@ html[data-theme="dark"] .staff-roster-identity .staff-invitation-note{color:#f2c
  .staff-roster-row .staff-access-state{grid-column:2;grid-row:auto}
  .staff-roster-row .button{grid-column:2;grid-row:auto;justify-self:start;align-self:auto}
 }
+
+
+/* Delivery is not complete until the customer confirms receipt. */
+.delivery-confirmation-card{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px;padding:16px 18px;border:1px solid #b9d6c8;border-radius:12px;background:#f1f8f3}
+.delivery-confirmation-card>div{min-width:0}
+.delivery-confirmation-card strong{display:block;color:#205b42;font-size:14px;line-height:1.4}
+.delivery-confirmation-card p{margin:5px 0;color:#456b58;font-size:12px;line-height:1.55}
+.delivery-confirmation-card small{color:#607f6d;font-size:11px}
+.delivery-confirmation-card .button{flex-shrink:0}
+html[data-theme="dark"] .delivery-confirmation-card{border-color:#315d4d;background:#142d27}
+html[data-theme="dark"] .delivery-confirmation-card strong{color:#bde8cf}
+html[data-theme="dark"] .delivery-confirmation-card p{color:#a9cdb8}
+html[data-theme="dark"] .delivery-confirmation-card small{color:#8fb4a0}
+@media(max-width:600px){.delivery-confirmation-card{align-items:stretch;flex-direction:column;padding:14px}.delivery-confirmation-card .button{width:100%;justify-content:center}}
