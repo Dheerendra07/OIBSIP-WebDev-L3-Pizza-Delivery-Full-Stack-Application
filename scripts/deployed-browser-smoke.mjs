@@ -487,6 +487,95 @@ try {
   await captureScreenshot(page, '15-home-builder-promo-light-desktop.png');
   await auditResponsiveState(page, 'home');
 
+  // Audit the entire customer-facing menu, not just the three homepage favourites.
+  // The API remains the source of truth for recipe IDs and current menu count.
+  const menuNav = page.locator('.main-nav').getByRole('button', { name: 'Our menu', exact: true });
+  await menuNav.click();
+  const fullMenuCards = page.locator('.pizza-grid.full-grid [data-pizza-card-version="premium-photo-v1"]');
+  await fullMenuCards.first().waitFor({ state: 'visible', timeout: 15_000 });
+  const expectedMenuRecipes = liveMenu?.featuredPizzas || [];
+  if (expectedMenuRecipes.length !== 8) {
+    throw new Error('Expected eight live featured recipes for the current menu release, received ' + expectedMenuRecipes.length + '.');
+  }
+  await page.waitForFunction((expectedCount) =>
+    document.querySelectorAll('.pizza-grid.full-grid [data-pizza-card-version="premium-photo-v1"]').length === expectedCount,
+    expectedMenuRecipes.length,
+    { timeout: 10_000 },
+  );
+  const fullMenuState = await fullMenuCards.evaluateAll((cards) => cards.map((card) => ({
+    id: card.getAttribute('data-pizza-id') || '',
+    name: card.querySelector('.pizza-card-title-button')?.textContent?.trim() || '',
+    photoSource: card.getAttribute('data-pizza-photo-source') || '',
+    photoAlt: card.querySelector('.pizza-card-photo')?.getAttribute('alt') || '',
+    detailLabel: card.querySelector('.pizza-card-open')?.getAttribute('aria-label') || '',
+    unitPrice: card.getAttribute('data-pizza-unit-price') || '',
+    ingredientCount: [...card.querySelectorAll('.pizza-card-ingredients .pizza-ingredient-chip:not(.ingredient-more)')]
+      .map((chip) => chip.textContent.trim()).filter(Boolean).length,
+    hasQuantityControls: Boolean(card.querySelector('.pizza-card-quantity button[aria-label^="Increase "]') &&
+      card.querySelector('.pizza-card-quantity button[aria-label^="Decrease "]')),
+    hasAddAction: Boolean(card.querySelector('.add-button')),
+  })));
+  const actualIds = fullMenuState.map((recipe) => recipe.id).sort();
+  const expectedIds = expectedMenuRecipes.map((recipe) => recipe.id).sort();
+  const photoSources = fullMenuState.map((recipe) => recipe.photoSource);
+  const uniquePhotoSources = new Set(photoSources);
+  const invalidMenuCards = fullMenuState.filter((recipe) =>
+    !recipe.id || !recipe.name || !recipe.photoSource || !recipe.photoAlt ||
+    recipe.detailLabel !== 'View ' + recipe.name + ' details' ||
+    recipe.unitPrice === '' || !Number.isFinite(Number(recipe.unitPrice)) ||
+    recipe.ingredientCount === 0 || !recipe.hasQuantityControls || !recipe.hasAddAction,
+  );
+  if (JSON.stringify(actualIds) !== JSON.stringify(expectedIds) ||
+      fullMenuState.length !== 8 ||
+      uniquePhotoSources.size !== 8 ||
+      invalidMenuCards.length > 0) {
+    throw new Error('Full menu recipe/photo/interaction audit failed: ' + JSON.stringify({
+      apiCount: expectedMenuRecipes.length,
+      renderedCount: fullMenuState.length,
+      uniquePhotoCount: uniquePhotoSources.size,
+      actualIds,
+      expectedIds,
+      invalidMenuCards,
+    }));
+  }
+  const recipeNamesMatch = fullMenuState.every((card) =>
+    expectedMenuRecipes.some((recipe) => recipe.id === card.id && recipe.name === card.name),
+  );
+  if (!recipeNamesMatch) throw new Error('One or more menu card names do not match the live recipe API.');
+  pass('full menu renders all eight API recipes with eight distinct assigned food-photo sources, live prices, ingredient chips and usable card controls');
+
+  await page.getByRole('button', { name: 'PLANT-BASED', exact: true }).click();
+  await page.waitForFunction(() =>
+    document.querySelectorAll('.pizza-grid.full-grid [data-pizza-card-version="premium-photo-v1"]').length === 2,
+    null,
+    { timeout: 5_000 },
+  );
+  const plantBasedIds = await fullMenuCards.evaluateAll((cards) => cards.map((card) => card.getAttribute('data-pizza-id')).sort());
+  if (JSON.stringify(plantBasedIds) !== JSON.stringify(['olive-atelier', 'white-garden'])) {
+    throw new Error('Plant-based menu filter returned an unexpected recipe set: ' + JSON.stringify(plantBasedIds));
+  }
+  await page.getByRole('button', { name: 'Everything', exact: true }).click();
+  await page.waitForFunction(() =>
+    document.querySelectorAll('.pizza-grid.full-grid [data-pizza-card-version="premium-photo-v1"]').length === 8,
+    null,
+    { timeout: 5_000 },
+  );
+  pass('menu category filtering isolates the two plant-based recipes and restores the complete eight-item menu');
+
+  const oliveAtelierCard = page.locator('.pizza-grid.full-grid .pizza-card[data-pizza-id="olive-atelier"]');
+  await oliveAtelierCard.locator('.pizza-card-open').click();
+  const oliveAtelierDetail = page.locator('[data-pizza-detail]');
+  await oliveAtelierDetail.waitFor({ state: 'visible', timeout: 10_000 });
+  if (await oliveAtelierDetail.getAttribute('data-pizza-id') !== 'olive-atelier' ||
+      await oliveAtelierDetail.locator('h1').innerText() !== 'Olive Atelier') {
+    throw new Error('A menu-only recipe did not open its own product detail: ' + await oliveAtelierDetail.innerText());
+  }
+  await oliveAtelierDetail.locator('.pizza-detail-breadcrumb button').click();
+  await page.locator('.pizza-grid.full-grid [data-pizza-card-version="premium-photo-v1"]').first().waitFor({ state: 'visible', timeout: 10_000 });
+  pass('a recipe outside the homepage featured three opens its matching detail page and returns to the complete menu');
+  await page.locator('.site-header .brand').click();
+  await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 10_000 });
+
   // The custom builder has its own option cards, recipe preview, pricing and
   // quantity controls. Audit it in both themes instead of assuming home styles
   // prove every product surface is readable.
