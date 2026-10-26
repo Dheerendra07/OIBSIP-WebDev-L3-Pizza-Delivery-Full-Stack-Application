@@ -35,6 +35,11 @@ async function reconcileCapturedPayment(payment) {
 
       if (order) outcome.orderId = order._id;
       if (decision.action === 'already_processed') {
+        // Re-run idempotent post-commit effects on a safe capture replay. If the
+        // original process committed the order but stopped before it queued the
+        // email or persisted the webhook receipt, the same outbox dedupe key
+        // repairs the missing notification without creating a second email.
+        updatedOrderId = order._id;
         outcome = { status: 'processed', reason: null, orderId: order._id };
         return;
       }
