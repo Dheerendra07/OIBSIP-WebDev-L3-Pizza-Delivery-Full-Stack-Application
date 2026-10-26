@@ -448,8 +448,7 @@ try {
   await detailEndcap.getByRole('button', { name: 'Build your own', exact: true }).click();
   await page.getByRole('heading', { name: /The art of/ }).waitFor({ state: 'visible', timeout: 10_000 });
   pass('pizza detail lower-page builder action opens the custom pizza builder');
-  await page.getByRole('button', { name: 'Open menu', exact: true }).click();
-  await page.locator('.main-nav.open').getByRole('button', { name: 'Home', exact: true }).click();
+  await page.locator('.site-header .brand').click();
   await page.locator('.hero h1').waitFor({ state: 'visible', timeout: 10_000 });
   await page.setViewportSize({ width: 390, height: 844 });
   pass('detail-page Light/Night Mode toggles and lower-page navigation work');
