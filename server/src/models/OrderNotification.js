@@ -4,7 +4,7 @@ const schema = new mongoose.Schema({
   dedupeKey: { type: String, required: true, unique: true, immutable: true, maxlength: 240 },
   order: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  eventType: { type: String, enum: ['payment_confirmed', 'payment_review', 'status_changed', 'refund_processed'], required: true, index: true },
+  eventType: { type: String, enum: ['payment_confirmed', 'payment_review', 'status_changed', 'refund_processed', 'delivery_confirmation_requested'], required: true, index: true },
   recipientEmail: { type: String, required: true, lowercase: true, trim: true, maxlength: 254 },
   payload: { type: mongoose.Schema.Types.Mixed, required: true },
   deliveryStatus: { type: String, enum: ['queued', 'sending', 'sent', 'dead'], default: 'queued', required: true, index: true },
