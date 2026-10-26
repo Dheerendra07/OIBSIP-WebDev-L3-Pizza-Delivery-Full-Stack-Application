@@ -3024,3 +3024,105 @@ html[data-theme="dark"] .custom-callout[data-home-builder-promo] .button-light:h
     transform:none!important;
   }
 }
+
+
+/* Step 4 UI polish — keep menu-card rhythm and actions consistent across themes. */
+.pizza-card {
+  min-width: 0;
+  height: 100%;
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: 0 9px 28px rgba(18, 42, 57, .055);
+}
+.pizza-card-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.pizza-card-copy {
+  min-width: 0;
+  min-height: 76px;
+}
+.pizza-card-copy h3 {
+  text-wrap: balance;
+}
+.pizza-card-copy p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.pizza-card-selection {
+  margin-top: auto;
+}
+.pizza-card-kicker-dot {
+  color: var(--brand);
+}
+.pizza-card .add-button {
+  border-color: var(--brand);
+  background: var(--brand);
+  box-shadow: 0 6px 16px rgba(18, 42, 57, .12);
+  transition: background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.pizza-card .add-button:hover:not(:disabled) {
+  background: var(--brand-hover);
+  border-color: var(--brand-hover);
+  box-shadow: 0 9px 20px rgba(18, 42, 57, .16);
+}
+.pizza-card .customize-link {
+  background: var(--surface-raised);
+  border-color: var(--border);
+  color: var(--text-primary);
+  transition: background .18s ease, border-color .18s ease, color .18s ease;
+}
+.pizza-card .customize-link:hover {
+  border-color: var(--brand);
+  background: var(--surface);
+  color: var(--brand);
+}
+.pizza-card button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* Make the shared lower-page endcap feel deliberate without adding nested cards. */
+.page-endcap {
+  border-color: var(--border);
+  background: linear-gradient(118deg, var(--surface) 0%, var(--canvas) 100%);
+  box-shadow: 0 14px 34px rgba(16, 39, 55, .065);
+}
+.page-endcap-item {
+  border-top-color: var(--border);
+}
+html[data-theme="dark"] .page-endcap {
+  border-color: #294151;
+  background: linear-gradient(118deg, #102433 0%, #0b1a26 100%);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, .20);
+}
+html[data-theme="dark"] .pizza-card {
+  border-color: var(--border);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .20);
+}
+html[data-theme="dark"] .pizza-card .add-button {
+  box-shadow: 0 7px 18px rgba(255, 98, 71, .16);
+}
+html[data-theme="dark"] .pizza-card .add-button:hover:not(:disabled) {
+  box-shadow: 0 10px 22px rgba(255, 98, 71, .22);
+}
+@media (max-width: 520px) {
+  .pizza-card-copy {
+    min-height: 0;
+  }
+  .pizza-card-body {
+    gap: 13px;
+  }
+  .page-endcap {
+    margin-top: 34px;
+    margin-bottom: 32px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pizza-card .add-button,
+  .pizza-card .customize-link {
+    transition: none !important;
+  }
+}
