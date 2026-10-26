@@ -135,7 +135,7 @@ export const sendAdminTestEmail = asyncHandler(async (req, res) => {
   }
 
   const recipient = typeof req.user?.email === 'string' ? req.user.email.trim().toLowerCase() : '';
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
     return res.status(409).json({ error: 'The signed-in administrator does not have a valid email address for this test.' });
   }
 
@@ -148,7 +148,7 @@ export const sendAdminTestEmail = asyncHandler(async (req, res) => {
     '',
     'The email provider accepted this request. Check the inbox and spam folder.',
     'Provider acceptance does not confirm final inbox delivery.',
-  ].join('\\n');
+  ].join('\n');
   const html = '<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;color:#223746;">' +
     '<div style="max-width:560px;margin:20px auto;padding:24px;border:1px solid #dfe6ea;border-radius:12px;">' +
     '<p style="margin:0 0 16px;color:#b84532;font-weight:700;letter-spacing:2px;font-size:12px;">PIZZA HOUSE</p>' +
