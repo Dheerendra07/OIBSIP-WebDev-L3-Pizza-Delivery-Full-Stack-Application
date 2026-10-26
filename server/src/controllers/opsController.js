@@ -72,7 +72,9 @@ export const updateOpsOrderStatus = asyncHandler(async (req, res) => {
     return res.status(409).json({ error: 'The order payment mode does not match the configured fulfillment mode' });
   }
 
+  let assignmentField;
   if (req.user.role === 'kitchen') {
+    assignmentField = 'kitchenStaff';
     if (!sameId(order.kitchenStaff, req.user._id)) return res.status(403).json({ error: 'This order is not assigned to your kitchen account' });
     const allowedNext = order.status === 'order_received' ? 'in_kitchen' : 'sent_to_delivery';
     if (status !== allowedNext) return res.status(400).json({ error: 'Kitchen staff can only accept a new order or hand a prepared order to delivery' });
@@ -82,6 +84,7 @@ export const updateOpsOrderStatus = asyncHandler(async (req, res) => {
       if (!activeDriver) return res.status(409).json({ error: 'The assigned delivery account is no longer active. Ask the administrator to reassign this order' });
     }
   } else if (req.user.role === 'delivery') {
+    assignmentField = 'deliveryStaff';
     if (!sameId(order.deliveryStaff, req.user._id)) return res.status(403).json({ error: 'This order is not assigned to your delivery account' });
     if (order.status !== 'sent_to_delivery' || status !== 'delivered') {
       return res.status(400).json({ error: 'Delivery staff can only confirm an order after it has been dispatched' });
@@ -93,28 +96,54 @@ export const updateOpsOrderStatus = asyncHandler(async (req, res) => {
   const transition = validateOrderStatusTransition(order, status);
   if (!transition.allowed) return res.status(transition.statusCode).json({ error: transition.message });
 
+  // Atomically guard the expected stage, assignment and payment hold. If a signed
+  // refund/capture event changes the order after this read, the stale stage write
+  // must lose instead of replacing payment_review/cancelled state.
+  const filter = {
+    _id: order._id,
+    status: order.status,
+    paymentStatus: 'paid',
+    paymentReviewRequired: { $ne: true },
+    [assignmentField]: req.user._id,
+  };
+  if (req.user.role === 'kitchen' && status === 'sent_to_delivery') {
+    // The driver checked above must still be the assigned driver at hand-off time.
+    filter.deliveryStaff = order.deliveryStaff;
+  }
+
   const changedAt = new Date();
-  order.status = status;
-  if (status === 'in_kitchen') order.kitchenStartedAt = changedAt;
-  if (status === 'sent_to_delivery') order.dispatchedAt = changedAt;
-  if (status === 'delivered') order.deliveredAt = changedAt;
-  await order.save();
-  publishOrderUpdate(order);
-  await queueOrderNotificationSafely(order, 'status_changed');
+  const update = { status };
+  if (status === 'in_kitchen') update.kitchenStartedAt = changedAt;
+  if (status === 'sent_to_delivery') update.dispatchedAt = changedAt;
+  if (status === 'delivered') update.deliveredAt = changedAt;
+
+  const updatedOrder = await Order.findOneAndUpdate(
+    filter,
+    { $set: update },
+    { new: true, runValidators: true },
+  );
+  if (!updatedOrder) {
+    return res.status(409).json({
+      error: 'The order or payment-review state changed while this update was being saved. Refresh your queue and check the current status.',
+    });
+  }
+
+  publishOrderUpdate(updatedOrder);
+  await queueOrderNotificationSafely(updatedOrder, 'status_changed');
   publishOpsRefresh();
   publishAdminRefresh();
 
   res.json({
     order: {
-      id: String(order._id),
-      orderNumber: order.orderNumber,
-      status: order.status,
-      paymentStatus: order.paymentStatus,
-      paymentMode: order.paymentMode || 'test',
+      id: String(updatedOrder._id),
+      orderNumber: updatedOrder.orderNumber,
+      status: updatedOrder.status,
+      paymentStatus: updatedOrder.paymentStatus,
+      paymentMode: updatedOrder.paymentMode || 'test',
       fulfillmentMode,
-      kitchenStartedAt: order.kitchenStartedAt || null,
-      dispatchedAt: order.dispatchedAt || null,
-      deliveredAt: order.deliveredAt || null,
+      kitchenStartedAt: updatedOrder.kitchenStartedAt || null,
+      dispatchedAt: updatedOrder.dispatchedAt || null,
+      deliveredAt: updatedOrder.deliveredAt || null,
     },
   });
 });

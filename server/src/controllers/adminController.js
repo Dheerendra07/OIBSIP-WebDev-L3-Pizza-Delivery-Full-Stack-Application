@@ -49,7 +49,9 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const { status } = body;
   if (typeof status !== 'string' || !status.trim()) return res.status(400).json({ error: 'A valid order status is required' });
-  const order = await Order.findById(req.params.id); if (!order) return res.status(404).json({ error: 'Order not found' });
+
+  const order = await Order.findById(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Order not found' });
   const fulfillmentMode = resolveFulfillmentMode(config.paymentMode, order.paymentMode || 'test');
   if (!fulfillmentMode) {
     return res.status(409).json({
@@ -58,10 +60,11 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
         : 'The configured payment mode and this order do not match, so no fulfillment status was changed.',
     });
   }
+
   const requiredStaff = status === 'in_kitchen'
-    ? { id: order.kitchenStaff, role: 'kitchen', label: 'active kitchen owner' }
+    ? { id: order.kitchenStaff, role: 'kitchen', field: 'kitchenStaff', label: 'active kitchen owner' }
     : ['sent_to_delivery', 'delivered'].includes(status)
-      ? { id: order.deliveryStaff, role: 'delivery', label: 'active delivery partner' }
+      ? { id: order.deliveryStaff, role: 'delivery', field: 'deliveryStaff', label: 'active delivery partner' }
       : null;
   if (requiredStaff && (!requiredStaff.id || !await User.exists({
     _id: requiredStaff.id,
@@ -72,30 +75,53 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
       error: `Assign an ${requiredStaff.label} before moving this order to ${status.replaceAll('_', ' ')}.`,
     });
   }
+
   const transition = validateOrderStatusTransition(order, status);
   if (!transition.allowed) return res.status(transition.statusCode).json({ error: transition.message });
 
+  // A provider webhook/refund may put the order on payment review after the read
+  // above. Compare-and-set the exact stage and payment guard in one Mongo write
+  // so a stale staff/admin request cannot overwrite a newer financial hold.
+  const filter = {
+    _id: order._id,
+    status: order.status,
+    paymentStatus: 'paid',
+    paymentReviewRequired: { $ne: true },
+  };
+  if (requiredStaff) filter[requiredStaff.field] = requiredStaff.id;
+
   const changedAt = new Date();
-  order.status = status;
-  if (status === 'in_kitchen') order.kitchenStartedAt = changedAt;
-  if (status === 'sent_to_delivery') order.dispatchedAt = changedAt;
-  if (status === 'delivered') order.deliveredAt = changedAt;
-  await order.save();
-  publishOrderUpdate(order);
-  await queueOrderNotificationSafely(order, 'status_changed');
+  const update = { status };
+  if (status === 'in_kitchen') update.kitchenStartedAt = changedAt;
+  if (status === 'sent_to_delivery') update.dispatchedAt = changedAt;
+  if (status === 'delivered') update.deliveredAt = changedAt;
+
+  const updatedOrder = await Order.findOneAndUpdate(
+    filter,
+    { $set: update },
+    { new: true, runValidators: true },
+  );
+  if (!updatedOrder) {
+    return res.status(409).json({
+      error: 'The order or payment-review state changed while this update was being saved. Refresh the queue and review its current status.',
+    });
+  }
+
+  publishOrderUpdate(updatedOrder);
+  await queueOrderNotificationSafely(updatedOrder, 'status_changed');
   publishAdminRefresh();
   res.json({
     order: {
-      id: order.id,
-      orderNumber: order.orderNumber,
-      status: order.status,
-      paymentStatus: order.paymentStatus,
-      paymentMode: order.paymentMode || 'test',
+      id: String(updatedOrder._id),
+      orderNumber: updatedOrder.orderNumber,
+      status: updatedOrder.status,
+      paymentStatus: updatedOrder.paymentStatus,
+      paymentMode: updatedOrder.paymentMode || 'test',
       fulfillmentMode,
-      paidAt: order.paidAt || null,
-      kitchenStartedAt: order.kitchenStartedAt || null,
-      dispatchedAt: order.dispatchedAt || null,
-      deliveredAt: order.deliveredAt || null,
+      paidAt: updatedOrder.paidAt || null,
+      kitchenStartedAt: updatedOrder.kitchenStartedAt || null,
+      dispatchedAt: updatedOrder.dispatchedAt || null,
+      deliveredAt: updatedOrder.deliveredAt || null,
     },
   });
 });

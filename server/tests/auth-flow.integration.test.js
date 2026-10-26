@@ -953,7 +953,91 @@ test('production auth HTTP flow: signup, login cookie, current user, protected o
   assert.ok(progressedOrder.deliveredAt);
   assert.equal(progressedOrder.paymentStatus, 'paid');
 
-  const disableDriver = await fetch(base + '/api/admin/staff/' + deliveryStaff.id + '/active', {
+  // Race regression: a payment-review webhook can update the order after a
+  // kitchen/admin handler reads it. Force that timing window and verify a stale
+  // status mutation cannot overwrite the newer payment-review hold.
+  const makeReviewRaceOrder = (label) => Order.create({
+    orderNumber: `PH-OPS-RACE-${label}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+    user: loginBody.user.id,
+    items: [fixtureItem],
+    subtotal: 249,
+    deliveryFee: 29,
+    total: 278,
+    deliveryDetails: createOrderPayload.deliveryDetails,
+    status: 'order_received',
+    paymentStatus: 'paid',
+    paymentMode: 'test',
+    paymentReviewRequired: false,
+    paymentReviewReason: null,
+    razorpayOrderId: `order_test_ops_race_${label}`,
+    razorpayPaymentId: `pay_test_ops_race_${label}`,
+    paidAt: new Date(),
+    inventoryReserved: false,
+    kitchenStaff: kitchenStaff.id,
+    deliveryStaff: deliveryStaff.id,
+  });
+  async function requestWithConcurrentPaymentReview(orderId, request) {
+    const originalFindById = Order.findById;
+    let injected = false;
+    Order.findById = function findByIdWithReviewRace(id, ...args) {
+      const model = this;
+      if (!injected && String(id) === String(orderId)) {
+        injected = true;
+        return (async () => {
+          const staleOrder = await originalFindById.call(model, id, ...args);
+          assert.ok(staleOrder, 'race fixture should exist before payment review is injected');
+          await model.collection.updateOne({ _id: staleOrder._id }, {
+            $set: {
+              status: 'payment_review',
+              paymentReviewRequired: true,
+              paymentReviewReason: 'concurrent_payment_review_test',
+            },
+          });
+          return staleOrder;
+        })();
+      }
+      return originalFindById.call(model, id, ...args);
+    };
+    try {
+      const response = await request();
+      assert.equal(injected, true, 'the handler should perform the expected order read');
+      return response;
+    } finally {
+      Order.findById = originalFindById;
+    }
+  }
+
+  const opsRaceOrder = await makeReviewRaceOrder('STAFF');
+  const opsRaceResponse = await requestWithConcurrentPaymentReview(opsRaceOrder.id, () => fetch(
+    `${base}/api/ops/orders/${opsRaceOrder.id}/status`,
+    {
+      method: 'PATCH',
+      headers: { ...headers, Cookie: kitchenSession.cookie },
+      body: JSON.stringify({ status: 'in_kitchen' }),
+    },
+  ));
+  assert.equal(opsRaceResponse.status, 409, 'staff status mutation must lose when payment review arrives after its read');
+  const opsRaceSaved = await Order.findById(opsRaceOrder.id).lean();
+  assert.equal(opsRaceSaved.status, 'payment_review');
+  assert.equal(opsRaceSaved.paymentReviewRequired, true);
+  assert.equal(opsRaceSaved.paymentReviewReason, 'concurrent_payment_review_test');
+
+  const adminRaceOrder = await makeReviewRaceOrder('ADMIN');
+  const adminRaceResponse = await requestWithConcurrentPaymentReview(adminRaceOrder.id, () => fetch(
+    `${base}/api/admin/orders/${adminRaceOrder.id}/status`,
+    {
+      method: 'PATCH',
+      headers: { ...headers, Cookie: adminCookie },
+      body: JSON.stringify({ status: 'in_kitchen' }),
+    },
+  ));
+  assert.equal(adminRaceResponse.status, 409, 'admin status mutation must lose when payment review arrives after its read');
+  const adminRaceSaved = await Order.findById(adminRaceOrder.id).lean();
+  assert.equal(adminRaceSaved.status, 'payment_review');
+  assert.equal(adminRaceSaved.paymentReviewRequired, true);
+  assert.equal(adminRaceSaved.paymentReviewReason, 'concurrent_payment_review_test');
+
+    const disableDriver = await fetch(base + '/api/admin/staff/' + deliveryStaff.id + '/active', {
     method: 'PATCH',
     headers: { ...headers, Cookie: adminCookie },
     body: JSON.stringify({ active: false }),
