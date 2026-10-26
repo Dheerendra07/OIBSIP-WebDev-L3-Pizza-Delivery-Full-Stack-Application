@@ -22,6 +22,7 @@ const htmlEscape = (v) => String(v == null ? '' : v)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 function eventAllowed(order, type) {
+  if (type === 'delivery_confirmation_requested') return order.paymentStatus === 'paid' && order.status === 'sent_to_delivery' && Boolean(order.deliveryConfirmationRequestedAt);
   if (type === 'payment_confirmed') return order.paymentStatus === 'paid' && order.status === 'order_received';
   if (type === 'payment_review') return order.paymentStatus === 'paid' && order.status === 'payment_review';
   if (type === 'status_changed') return order.paymentStatus === 'paid' && STAGES.has(order.status);
@@ -32,6 +33,7 @@ function dedupeKey(id, order, type) {
   if (type === 'payment_confirmed') return 'order:' + id + ':payment-confirmed';
   if (type === 'payment_review') return 'order:' + id + ':payment-review:' + String(order.razorpayPaymentId || order.paymentReviewReason || 'review');
   if (type === 'status_changed') return 'order:' + id + ':status:' + String(order.status);
+  if (type === 'delivery_confirmation_requested') return 'order:' + id + ':delivery-confirmation-requested';
   if (type === 'refund_processed') return 'order:' + id + ':refund-processed:' + String(order.razorpayRefundId || 'confirmed');
   throw new Error('Unsupported order notification type');
 }
@@ -52,6 +54,7 @@ export async function enqueueOrderNotification(order, eventType) {
     paymentMode: order.paymentMode === 'live' ? 'live' : 'test',
     total: Number(order.total) || 0,
     refundAmount: Number.isSafeInteger(order.refundAmount) ? order.refundAmount : null,
+    deliveryConfirmationRequestedAt: order.deliveryConfirmationRequestedAt || null,
     items: (Array.isArray(order.items) ? order.items : []).slice(0, 12).map(item => ({
       name: String(item.name || 'Pizza').slice(0, 100),
       quantity: Math.max(0, Number(item.quantity) || 0),
@@ -96,7 +99,12 @@ function formatContent(p) {
   } else if (p.eventType === 'payment_review') {
     title = 'Payment received — review required'; subject = 'payment needs review';
     message = 'The payment provider reported a captured payment, but this order needs manual review before fulfillment. Do not pay again.';
-  } else if (p.eventType === 'refund_processed') {
+  } else if (p.eventType === 'delivery_confirmation_requested') {
+    title = 'Please confirm your Pizza House delivery'; subject = 'confirm receipt';
+    message = test
+      ? 'The Test Mode delivery workflow is waiting for your receipt confirmation. This is simulated and does not confirm a physical delivery.'
+      : 'Your delivery partner has requested confirmation. Please sign in to Pizza House and confirm only if you have received your order.';
+  } else if (p.eventType === 'refund_processed')
     title = 'Refund confirmed'; subject = 'refund confirmed';
     message = 'The application recorded a provider-confirmed refund of ' + rupeesFromPaise(p.refundAmount) + '.';
     if (test) message += ' This is sandbox refund evidence only.';
