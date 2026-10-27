@@ -2189,6 +2189,43 @@ try {
     await notificationPanel.getByText(/8 attempts/).waitFor({ state: 'visible', timeout: 10_000 });
     pass('admin notification panel separates retryable provider failures from dead letters, with safe error details and queue metrics');
 
+    const staffReadiness = page.locator('[data-staff-readiness="first-run-v1"]');
+    await staffReadiness.waitFor({ state: 'visible', timeout: 10_000 });
+    const roleReadinessState = await staffReadiness.locator('[data-staff-role-readiness]').evaluateAll(cards =>
+      cards.map(card => ({
+        role: card.getAttribute('data-staff-role-readiness'),
+        status: card.getAttribute('data-status'),
+        text: card.innerText,
+      })),
+    );
+    if (JSON.stringify(roleReadinessState.map(item => [item.role, item.status])) !==
+        JSON.stringify([['kitchen', 'missing'], ['delivery', 'missing']]) ||
+        !roleReadinessState.every(item => item.text.includes('Add ') || item.status === 'missing')) {
+      throw new Error('Role readiness must reflect the empty mocked staff roster, not claim a role is configured: ' + JSON.stringify(roleReadinessState));
+    }
+    await staffReadiness.getByRole('button', { name: 'Add kitchen staff', exact: false }).click();
+    const staffCreateForm = page.locator('.staff-create-form');
+    await staffCreateForm.waitFor({ state: 'visible', timeout: 5_000 });
+    if (await staffCreateForm.getByLabel('Access role').inputValue() !== 'kitchen') {
+      throw new Error('The kitchen readiness action did not preselect the kitchen role.');
+    }
+    await page.getByRole('button', { name: 'Close form', exact: true }).click();
+    await staffReadiness.getByRole('button', { name: 'Add delivery staff', exact: false }).click();
+    await staffCreateForm.waitFor({ state: 'visible', timeout: 5_000 });
+    if (await staffCreateForm.getByLabel('Access role').inputValue() !== 'delivery') {
+      throw new Error('The delivery readiness action did not preselect the delivery role.');
+    }
+    await page.getByRole('button', { name: 'Close form', exact: true }).click();
+    pass('admin first-run guide shows missing kitchen/delivery roles and opens the correct role-specific invite form');
+
+    const eligibilityPanel = page.locator('[data-fulfillment-eligibility="admin-v1"]');
+    await eligibilityPanel.waitFor({ state: 'visible', timeout: 10_000 });
+    const eligibilityText = await eligibilityPanel.innerText();
+    if (!/payment mode not confirmed|0 open, paid/i.test(eligibilityText)) {
+      throw new Error('The admin fulfillment queue should report an unconfirmed mode or zero eligible paid orders for the empty mocked order response: ' + eligibilityText);
+    }
+    pass('admin fulfillment queue distinguishes server-confirmed eligible orders from an empty queue without creating test orders');
+
     await page.setViewportSize({ width: 1440, height: 900 });
     const lightProviderStyle = await notificationPanel.locator('.notification-provider-state.missing').evaluate((el) => {
       const strong = el.querySelector('strong');

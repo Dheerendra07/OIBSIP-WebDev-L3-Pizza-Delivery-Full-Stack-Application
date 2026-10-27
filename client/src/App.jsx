@@ -1733,6 +1733,23 @@ function StaffManagement({ staff = [], onRefresh, onNotify }) {
     const [saving, setSaving] = useState(false);
     const [pendingId, setPendingId] = useState(null);
     const [showCreate, setShowCreate] = useState(false);
+    const roleReadiness = ['kitchen', 'delivery'].map(role => {
+        const activeMembers = staff.filter(person => person.active && person.role === role);
+        const readyMembers = activeMembers.filter(person => !person.mustChangePassword);
+        const setupPendingCount = activeMembers.length - readyMembers.length;
+        return {
+            role,
+            label: role === 'kitchen' ? 'Kitchen' : 'Delivery',
+            activeCount: activeMembers.length,
+            readyCount: readyMembers.length,
+            setupPendingCount,
+            status: activeMembers.length === 0 ? 'missing' : readyMembers.length > 0 ? 'ready' : 'setup',
+        };
+    });
+    const openCreateForm = role => {
+        setForm(current => ({ ...current, role }));
+        setShowCreate(true);
+    };
     const create = async event => {
         event.preventDefault();
         if (saving) return;
@@ -1782,6 +1799,21 @@ function StaffManagement({ staff = [], onRefresh, onNotify }) {
     };
     return <div className="staff-management">
         <div className="staff-management-top"><div><strong>{staff.filter(person => person.active).length} active team members</strong><p>Kitchen and delivery access are separate from customer accounts and admin access.</p></div><button type="button" className="button button-dark small-button" onClick={() => setShowCreate(value => !value)}>{showCreate ? 'Close form' : 'Add team member'} <ArrowUpRight size={14}/></button></div>
+        <div className="staff-role-readiness-grid" data-staff-readiness="first-run-v1" aria-label="Kitchen and delivery account readiness">
+            {roleReadiness.map(readiness => <article className="staff-role-readiness-card" data-staff-role-readiness={readiness.role} data-status={readiness.status} key={readiness.role}>
+                <div className="staff-role-readiness-heading">
+                    <span className="staff-role-readiness-icon" aria-hidden="true">{readiness.role === 'kitchen' ? <ChefHat size={17}/> : <Truck size={17}/>}</span>
+                    <h3>{readiness.label}</h3>
+                    <span className={'staff-role-readiness-status ' + readiness.status}>{readiness.status === 'ready' ? 'Ready' : readiness.status === 'setup' ? 'Setup pending' : 'Needed'}</span>
+                </div>
+                <p>{readiness.status === 'missing'
+                    ? 'No active account exists for this role. Add a team member before assigning orders to this queue.'
+                    : readiness.status === 'setup'
+                        ? 'An active account exists, but first-time password setup must finish before the staff queue opens. Resend the setup link from the team roster below if needed.'
+                        : readiness.readyCount + ' active account' + (readiness.readyCount === 1 ? '' : 's') + ' can sign in for ' + readiness.label.toLowerCase() + ' work' + (readiness.setupPendingCount ? '; ' + readiness.setupPendingCount + ' more account' + (readiness.setupPendingCount === 1 ? '' : 's') + ' still need setup' : '') + '.'}</p>
+                {readiness.status === 'missing' && <button type="button" className="button button-light small-button staff-role-readiness-action" onClick={() => openCreateForm(readiness.role)}>Add {readiness.label.toLowerCase()} staff <ArrowUpRight size={14}/></button>}
+            </article>)}
+        </div>
         {showCreate && <form className="staff-create-form" onSubmit={create}>
             <label>Full name<input required minLength={2} maxLength={80} value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="Team member name"/></label>
             <label>Work email<input required type="email" autoComplete="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} placeholder="name@yourbusiness.com"/></label>
@@ -2013,6 +2045,7 @@ function OrderCard({ order, admin = false, staffRole = null, staff = [], onStatu
 
 function FulfillmentQueue({ orders = [], staff = [], role = 'admin', paymentMode = 'test', catalog = DEFAULT_CATALOG, onStatus, onAssign, pendingStatusOrderId, pendingAssignmentOrderId }) {
     const [filter, setFilter] = useState('active');
+    const paymentModeConfirmed = ['test', 'live'].includes(paymentMode);
     const selectedMode = paymentMode === 'live' ? 'live' : 'test';
     const modeOrders = orders.filter(order => (order.paymentMode || 'test') === selectedMode);
     const eligibleOrders = modeOrders.filter(order =>
@@ -2044,6 +2077,7 @@ function FulfillmentQueue({ orders = [], staff = [], role = 'admin', paymentMode
         return role === 'admin' ? order.status !== 'delivered' : role === 'delivery' ? ['in_kitchen', 'sent_to_delivery'].includes(order.status) : true;
     }).sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
     const waitingForPayment = role === 'admin' ? modeOrders.filter(order => order.paymentStatus !== 'paid' && !['cancelled', 'payment_review'].includes(order.status)).length : 0;
+    const openEligibleOrderCount = eligibleOrders.filter(order => order.status !== 'delivered').length;
 
     return <div className="fulfillment-console">
         <div className={'fulfillment-mode-banner ' + (selectedMode === 'test' ? 'is-simulated' : 'is-live')}>
@@ -2053,6 +2087,22 @@ function FulfillmentQueue({ orders = [], staff = [], role = 'admin', paymentMode
                 ? 'Test Mode lets staff validate their assigned stages only. No real kitchen ticket is sent and no driver is contacted.'
                 : 'Only paid orders with matching Live Mode can enter real operations. Your queue contains only orders assigned to your staff account.'}</p>
         </div>
+        {role === 'admin' && <section className="fulfillment-eligibility-check" data-fulfillment-eligibility="admin-v1" aria-label="Eligible order readiness" role="status" aria-live="polite">
+            <div>
+                <span className="fulfillment-eligibility-kicker">ELIGIBLE QUEUE CHECK</span>
+                <strong>{!paymentModeConfirmed
+                    ? 'Payment mode not confirmed'
+                    : openEligibleOrderCount + ' open, paid ' + (selectedMode === 'test' ? 'Test' : 'Live') + ' Mode order' + (openEligibleOrderCount === 1 ? '' : 's')}</strong>
+                <p>{!paymentModeConfirmed
+                    ? 'Refresh operations data and confirm the server payment mode before using this queue.'
+                    : openEligibleOrderCount
+                        ? 'These orders have verified payment and are not blocked by payment review. Assign the kitchen and delivery roles before progressing an order.'
+                        : selectedMode === 'test'
+                            ? 'No open paid Test Mode order is eligible yet. A test checkout must reach server-verified paid status before it can be assigned; this panel does not create or pay for an order.'
+                            : 'No open paid Live Mode order is eligible. Keep real-money operations gated until the external payment and fulfillment checks are completed.'}</p>
+            </div>
+            <span className={'fulfillment-eligibility-state ' + (!paymentModeConfirmed ? 'is-pending' : openEligibleOrderCount ? 'is-ready' : 'is-empty')}>{!paymentModeConfirmed ? 'CHECK MODE' : openEligibleOrderCount ? 'QUEUE AVAILABLE' : 'WAITING FOR ELIGIBLE ORDER'}</span>
+        </section>}
         <div className="fulfillment-stage-summary">
             {ORDER_STEPS.map((step, index) => <div className={'fulfillment-stage-count stage-' + index} key={step.id}>
                 <span>{String(index + 1).padStart(2, '0')} / {step.label}</span>

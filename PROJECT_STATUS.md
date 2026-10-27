@@ -11,6 +11,13 @@ Resend documents a 24-hour idempotency window; this helps reduce duplicate email
 **Current feature scope:** eight API-owned featured menu recipes, recipe/name-specific photo mappings with local-art fallback, and customer-confirmed delivery remain in the runtime. The browser run exercises UI plus synthetic/mocked checkout/auth/operations flows; it does not certify real-money Razorpay Live Mode, real kitchen operation or physical delivery. Product status remains **launch-preparation**, not certified for real-money or real delivery-business operation.
 
 
+## Step 6 UI — first-run fulfillment readiness (27 Oct 2026)
+
+- The admin Kitchen & delivery team panel reports role readiness from the returned active staff roster: missing role, account ready to sign in, or first-time password setup pending. Missing Kitchen/Delivery roles have direct buttons that open the invite form with the correct role selected.
+- The Kitchen & dispatch queue reports the count of open orders eligible for its confirmed payment mode. Eligibility follows the same paid, non-payment-review and valid-status filter used by the queue; the guide does not create staff, orders, payments, or inventory changes.
+- The hosted browser regression adds mocked assertions for an empty staff roster, both role-specific invite actions, and an empty eligible-order queue. It checks UI behavior only; it does not verify external email delivery, provider-originated payment events, live staff sessions, or physical fulfillment.
+- Render auto-deploy is disabled for this service. Source on `main` is not considered a live release until the existing service is manually deployed and the hosted browser smoke passes against that deployment.
+
 ## Step 4 UI follow-up — Night Mode builder CTA (27 Oct 2026)
 
 - Runtime [commit 5bdf4d2](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/commit/5bdf4d23c1218d7e24d794d6893b419334b19516) is live on Render deployment [dep-dbg2e4ec6qcc73e49ugg](https://dashboard.render.com/web/srv-dbca9guq1p3s73cprrl0). The homepage “Create your pizza” action now receives its gold Night Mode surface directly from the active theme in the rendered button; Light Mode styling is left to the existing stylesheet.
@@ -24,7 +31,7 @@ Resend documents a 24-hour idempotency window; this helps reduce duplicate email
 - Customer Dashboard: the intro is now order-focused, metrics use clearer labels and live-order context, summary cards have subtle top accents and responsive spacing, order cards/status pills are more legible, and the empty state points directly to menu/builder. The layout keeps the tighter 14px card radius on small screens and 16px on desktop.
 - **Verified:** [CI 40399412025](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40399412025), [deployed smoke 40399412067](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40399412067) and hosted browser smoke [40399412090 — 91/91](https://github.com/Dheerendra07/OIBSIP-WebDev-L3-Pizza-Delivery-Full-Stack-Application/actions/runs/40399412090) are green. The hosted run includes both theme styles, 320–1440px responsive overflow checks, checkout summaries, customer dashboard metric/surface checks, all eight catalog photos, and zero uncaught browser errors.
 - **Evidence boundary:** customer checkout/payment and kitchen/delivery UI journeys are simulated or mocked where labeled. This is not real-money payment, external webhook, inbox-delivery or physical fulfillment proof. Render auto-deploy is disabled; this runtime was deployed manually and the follow-up commit 4c6dc6d is test-only.
-- **Next UI slice:** admin operations, kitchen queue and delivery-run screens — refine the page-level hierarchy and primary actions, verify their lower support/endcap sections, and preserve the existing mocked flow and Light/Night responsive gates.
+- **Next UI slice:** continue the premium visual pass on homepage/menu card detail and lower-page spacing after the latest deployed checks. Admin/staff hierarchy and role-specific support endcaps are already in source; this update adds an explicit first-run readiness guide for missing kitchen/delivery accounts and an eligible-paid-order check. Keep live provider and physical fulfillment gates separate from mocked browser coverage.
 
 ## Step 4 UI polish — live Light/Night and responsive regression gate (27 Oct 2026)
 

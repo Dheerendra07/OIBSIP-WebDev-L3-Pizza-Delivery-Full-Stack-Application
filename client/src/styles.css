@@ -4035,3 +4035,208 @@ html[data-theme="dark"] .admin-page[data-admin-operations="premium-ops-v1"] .adm
     transition: none !important;
   }
 }
+
+
+/* Step 6 UI: make first-run kitchen/delivery readiness explicit without inventing staff or orders. */
+.staff-role-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 22px;
+}
+.staff-role-readiness-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+}
+.staff-role-readiness-heading {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+.staff-role-readiness-icon {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--brand);
+  background: var(--surface-raised);
+}
+.staff-role-readiness-heading h3 {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 750;
+}
+.staff-role-readiness-status {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.staff-role-readiness-status.ready {
+  border-color: #b8d8c4;
+  background: #edf7f0;
+  color: #2b6545;
+}
+.staff-role-readiness-status.setup {
+  border-color: #e7d2a2;
+  background: #fff7e7;
+  color: #785820;
+}
+.staff-role-readiness-status.missing {
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+.staff-role-readiness-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.65;
+}
+.staff-role-readiness-action {
+  min-height: 38px;
+  margin-top: 2px;
+}
+.fulfillment-eligibility-check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 18px 0 22px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface-raised);
+}
+.fulfillment-eligibility-check > div {
+  min-width: 0;
+}
+.fulfillment-eligibility-kicker {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+.fulfillment-eligibility-check strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: clamp(15px, 1.8vw, 19px);
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.fulfillment-eligibility-check p {
+  max-width: 760px;
+  margin: 7px 0 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.65;
+}
+.fulfillment-eligibility-state {
+  flex: 0 0 auto;
+  max-width: 190px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  line-height: 1.3;
+  text-align: center;
+}
+.fulfillment-eligibility-state.is-ready {
+  border-color: #b8d8c4;
+  color: #2b6545;
+  background: #edf7f0;
+}
+.fulfillment-eligibility-state.is-empty,
+.fulfillment-eligibility-state.is-pending {
+  border-color: var(--border);
+  color: var(--text-secondary);
+  background: var(--surface);
+}
+html[data-theme="dark"] .staff-role-readiness-card {
+  border-color: #2b4353;
+  background: linear-gradient(145deg, #142635 0%, #101e2b 100%);
+}
+html[data-theme="dark"] .staff-role-readiness-icon {
+  border-color: #2b4353;
+  color: #ff947d;
+  background: #10202d;
+}
+html[data-theme="dark"] .staff-role-readiness-heading h3,
+html[data-theme="dark"] .fulfillment-eligibility-check strong {
+  color: #edf3f6;
+}
+html[data-theme="dark"] .staff-role-readiness-status.ready,
+html[data-theme="dark"] .fulfillment-eligibility-state.is-ready {
+  border-color: #315a49;
+  color: #b8e5c7;
+  background: #142d27;
+}
+html[data-theme="dark"] .staff-role-readiness-status.setup {
+  border-color: #5c4a2b;
+  color: #ffe0a0;
+  background: #30281c;
+}
+html[data-theme="dark"] .staff-role-readiness-status.missing,
+html[data-theme="dark"] .fulfillment-eligibility-state.is-empty,
+html[data-theme="dark"] .fulfillment-eligibility-state.is-pending {
+  border-color: #2b4353;
+  color: #a8bac5;
+  background: #10202d;
+}
+html[data-theme="dark"] .fulfillment-eligibility-check {
+  border-color: #2b4353;
+  background: linear-gradient(145deg, #142635 0%, #101e2b 100%);
+}
+@media (max-width: 640px) {
+  .staff-role-readiness-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .staff-role-readiness-card {
+    padding: 14px;
+  }
+  .fulfillment-eligibility-check {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+  }
+  .fulfillment-eligibility-state {
+    max-width: 100%;
+    white-space: normal;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .staff-role-readiness-action {
+    transition: none !important;
+  }
+}
